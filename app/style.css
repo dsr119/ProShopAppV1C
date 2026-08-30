@@ -1,0 +1,315 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #1c2024;
+  --muted: #6b7280;
+  --line: #e3e6ea;
+  --accent: #1f6feb;
+  --accent-soft: #e8f0fe;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+  --ok: #15803d;
+  --ok-soft: #dcfce7;
+  --danger: #b91c1c;
+  --radius: 6px;
+  --headerh: 49px;   /* height of the sticky page header */
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+}
+
+/* ---------- chrome ---------- */
+
+header {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+header h1 {
+  font-size: 15px;
+  font-weight: 650;
+  margin: 0;
+  padding: 14px 0;
+  white-space: nowrap;
+}
+
+nav { display: flex; gap: 4px; }
+
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 14px 10px;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+
+nav a:hover { color: var(--ink); }
+
+nav a.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+main { padding: 16px; }
+
+/* ---------- toolbar ---------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toolbar .spacer { flex: 1; }
+
+input, select, textarea, button {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="text"], input[type="search"], input[type="date"],
+input[type="number"], input[type="time"], select, textarea {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+#search { min-width: 240px; flex: 1; max-width: 380px; }
+
+button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+button:hover { background: #f0f2f5; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover { background: #1a5fd0; }
+
+button:disabled { opacity: .5; cursor: default; }
+
+.count { color: var(--muted); font-size: 13px; }
+
+/* ---------- table ---------- */
+
+/* overflow-x makes this the scroll container for BOTH axes, which also makes
+   it the containing block for the sticky <th>. So the table scrolls inside
+   its own pane and the header sticks to the top of that pane. Offsetting the
+   header by the page-header height instead would push it *down* into the
+   first row. */
+.tablewrap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: calc(100vh - var(--headerh) - 90px);
+}
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+
+th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  background: var(--panel);
+  position: sticky;
+  top: 0;              /* sticks to the top of .tablewrap, its scrollport */
+  z-index: 10;
+}
+
+td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr:hover { background: #fafbfc; }
+tbody tr.selected { background: var(--accent-soft); }
+
+/* The whole point of the page: work that has not been placed yet. */
+tbody tr.pending { background: var(--warn-soft); }
+tbody tr.pending:hover { filter: brightness(.98); }
+
+/* Deliberately not sticky. It is a section divider, not a running header --
+   and a second sticky layer below the sticky <th> paints straight over the
+   first row of the group, which is exactly the row that matters most. */
+.grouprow td {
+  background: #eef1f4;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+}
+
+.col-item { min-width: 220px; }
+.col-name { min-width: 130px; }
+.col-notes { min-width: 160px; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.nowrap { white-space: nowrap; }
+
+/* ---------- inline editing ---------- */
+
+.cell {
+  min-height: 20px;
+  cursor: text;
+  border-radius: 3px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+}
+
+.cell:hover { background: #eef1f4; }
+.cell.empty::after { content: "—"; color: #c3c8ce; }
+
+.cell input, .cell select {
+  width: 100%;
+  padding: 1px 3px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+}
+
+.saving { opacity: .5; }
+.saveerr { outline: 2px solid var(--danger); }
+
+/* ---------- badges ---------- */
+
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.pending { background: var(--warn-soft); color: var(--warn); }
+.badge.ordered { background: var(--accent-soft); color: var(--accent); }
+.badge.done    { background: var(--ok-soft);   color: var(--ok); }
+.badge.flag    { background: #fde8e8; color: var(--danger); }
+
+.stock { color: var(--muted); font-style: italic; }
+
+/* ---------- bulk bar ---------- */
+
+.bulkbar {
+  position: sticky;
+  bottom: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, .08);
+  padding: 10px 12px;
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  z-index: 20;
+}
+
+.bulkbar strong { white-space: nowrap; }
+.bulkbar input, .bulkbar select { width: 130px; }
+
+.hidden { display: none !important; }
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.error {
+  background: #fde8e8;
+  border: 1px solid #f5b5b5;
+  color: var(--danger);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+/* ---------- phone ---------- */
+
+@media (max-width: 760px) {
+  main { padding: 10px; }
+  header { gap: 10px; }
+  header h1 { font-size: 14px; }
+  #search { min-width: 0; }
+
+  /* The grid stops being readable well before this width, so each order
+     becomes a card instead. */
+  .tablewrap { border: 0; background: none; overflow: visible; max-height: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+
+  tbody tr {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    padding: 8px 10px;
+  }
+
+  tbody tr.pending { border-left: 4px solid var(--warn); }
+
+  td {
+    border: 0;
+    padding: 2px 0;
+    display: flex;
+    gap: 8px;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    min-width: 92px;
+    flex-shrink: 0;
+  }
+
+  /* Right-alignment is for the grid's number columns. In card layout it
+     just shoves the label away from its value. */
+  .num { text-align: left; }
+
+  td:empty { display: none; }
+  .grouprow td { position: static; }
+  .bulkbar input, .bulkbar select { width: 100%; }
+
+  /* The nav must not push "New Order" off the edge of a phone. */
+  header { overflow-x: auto; }
+  nav a { padding: 14px 8px; }
+}

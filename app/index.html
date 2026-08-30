@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders — Perfexxxxion Pro Shop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html" class="active">Orders</a>
+    <a href="appointments.html">Appointments</a>
+    <a href="order.html">New Order</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search customer, item, order # …">
+    <select id="quarter"><option value="">All quarters</option></select>
+    <select id="location">
+      <option value="">All locations</option>
+      <option>Valley</option>
+      <option>South Side</option>
+      <option>Both</option>
+    </select>
+    <select id="status">
+      <option value="">Any status</option>
+      <option value="pending">Not ordered yet</option>
+      <option value="ordered">Ordered, not out</option>
+      <option value="unpaid">Unpaid</option>
+      <option value="done">Out the door</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button id="export">Export CSV</button>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="checkall" title="Select all"></th>
+          <th>Status</th>
+          <th class="col-name">Customer</th>
+          <th class="col-item">Item</th>
+          <th class="num">Qty</th>
+          <th class="nowrap">Phone</th>
+          <th>Order&nbsp;loc</th>
+          <th>Pickup</th>
+          <th class="nowrap">Shop&nbsp;ordered</th>
+          <th>Supplier</th>
+          <th>Order&nbsp;#</th>
+          <th>Invoice&nbsp;#</th>
+          <th class="num">Price</th>
+          <th>Paid</th>
+          <th>Out</th>
+          <th class="col-notes">Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="empty-state hidden">No orders match those filters.</div>
+  </div>
+
+  <div class="bulkbar hidden" id="bulkbar">
+    <strong><span id="selcount">0</span> selected</strong>
+    <span>→ mark as ordered:</span>
+    <input type="date" id="b_date" title="Shop order date">
+    <input type="text" id="b_supplier" list="suppliers" placeholder="Supplier">
+    <input type="text" id="b_order" placeholder="Order #">
+    <input type="text" id="b_invoice" placeholder="Invoice #">
+    <button class="primary" id="b_apply">Apply to selected</button>
+    <span class="spacer"></span>
+    <button id="b_clear">Clear</button>
+  </div>
+
+  <datalist id="suppliers"></datalist>
+  <datalist id="items"></datalist>
+</main>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="orders.js"></script>
+</body>
+</html>
