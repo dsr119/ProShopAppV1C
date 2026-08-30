@@ -212,7 +212,14 @@ function postToSupabase_(order) {
 // Entry point
 // ---------------------------------------------------------------------------
 
-function onFormSubmit(e) {
+/**
+ * Trigger entry point. Deliberately NOT called onFormSubmit: a spreadsheet
+ * that already has automation often has a function by that name, and Apps
+ * Script warns that duplicate names give "undefined behavior" -- it picks one
+ * arbitrarily, so the trigger may run the wrong code. This name will not
+ * collide with anything.
+ */
+function syncOrderToSupabase(e) {
   var order = null;
   try {
     var answers = extractAnswers_(e);
