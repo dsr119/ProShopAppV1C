@@ -1,0 +1,180 @@
+legacy_id,customer_name,phone,service,location,appt_date,appt_time,completed,notes,migration_flag,source_sheet,source_row
+20060820-4IOV,Rich Sakosky,570-840-9357,drill black pearl urethane and spartan pearl 14 lb,South Side,2006-08-20,19:45,False,,date looks mistyped (year 2006),Appointments,3
+20250822-ZIR,Dennis Bracken,570-369-3815,drill,South Side,2025-08-22,10:30,False,,submitted after the appointment date,Appointments,4
+20251210-38L1,Tim Straut,,Full eval plus maybe drill Zero Mercy Solid,Valley,2025-12-10,18:15,True,,,Appointments,6
+20251211-1MWA,Clint Perry,570-780-2548,Hammer NU Blue 15 lb,South Side,2025-12-11,18:00,True,,,Appointments,7
+20251213-36BR,Christian Halliday,570-578-3108,Tour V1 & Zero Mercy Solid 15 lb,South Side,2025-12-13,11:00,True,,,Appointments,8
+20251214-2NHF,Nicole Besermin,570-219-5285,T-zone deep space 6 lb,Valley,2025-12-14,18:15,True,,,Appointments,9
+20251214-2QHD,Jeremiah Kennedy,570-352-6521,T-zone deep space 9 lb,Valley,2025-12-14,16:30,True,,,Appointments,10
+20251217-2FK9,Jim Bedford,570-840-1023,T-zone berry blast 9 lb,Valley,2025-12-17,18:15,True,,,Appointments,11
+20251217-YVQ,Jason Roman,,Ion Max 15 lb,Valley,2025-12-17,19:00,True,,,Appointments,12
+20251218-13XU,Adam Horsky,,ball assessment 14 lb?,South Side,2025-12-18,18:15,True,,,Appointments,13
+20251220-2TYX,Steve Quatra,570-780-3576,Venom Shock & Mix lime/royal 13 lb,South Side,2025-12-20,11:15,True,,,Appointments,14
+20251220-1T4M,Jean Marie Quatra,,Mix black/purple/pink 10 lb,South Side,2025-12-20,12:15,True,,,Appointments,15
+20251221-2VVJ,Tara Castrogiovanni,814-777-6567,Twist black/pink 10 lb,Valley,2025-12-21,17:30,True,,,Appointments,16
+20251227-34P0,Frank Bauman,570-351-6466,bake  & possible new ball 15 lb,Valley,2025-12-27,16:30,True,,,Appointments,17
+20251227-12IB,Bruce Bauman,,new ball 15 lb,Valley,2025-12-27,17:00,True,,,Appointments,18
+20251230-173E,Jason Rodney,570-499-7874,blank drill,South Side,2025-12-30,18:30,True,,,Appointments,19
+20251230-S0M,Jason Rodney Jr,,blank drill,South Side,2025-12-30,12:00,True,,,Appointments,20
+20251230-N1B,Ashley Allen,,blank drill,South Side,2025-12-30,19:30,True,,,Appointments,21
+,Doug Smith,555-555-5555,Plug and Drill test ball,Valley,2025-12-31,20:00,False,,,Appointments,22
+20260103-1U01,Matthew Clark,570-240-7631,blank drill Phaze II,South Side,2026-01-03,09:15,True,,,Appointments,23
+20260103-2O5R,Brayden Matthews,570-677-0591,Hammer Raw blue/orange 12 lb,South Side,2026-01-03,11:00,True,,,Appointments,24
+20260104-1LI1,Vince Soriano,,blank drill,Valley,2026-01-04,17:00,True,phone on file: messenger,unparseable phone,Appointments,25
+20260104-O2J,Hunter,,blank drill,Valley,2026-01-04,17:45,True,,,Appointments,26
+20260104-Z9I,Magnotta,,Zero Mercy 14 lb,Valley,2026-01-04,16:15,False,,,Appointments,27
+20260106-PAQ,James,,new ball assessment,South Side,2026-01-06,19:30,True,,,Appointments,28
+20260106-Z4Z,Vic Cognetti,,drill plugged ball,South Side,2026-01-06,18:15,True,,,Appointments,29
+20260107-1V8B,Preston,215-801-0490,Blank drill iq tour,Valley,2026-01-07,18:45,False,,,Appointments,30
+,Derek Depoti,570-904-9711,new ball assessment,Valley,2026-01-07,18:00,True,,,Appointments,31
+20260107-1K2T,Landon Sosa,570-677-5005,blank drill,Valley,2026-01-07,19:30,True,,,Appointments,32
+20260110-1UL3,Jade Hoakes,570-815-1482,Motiv Apex Jackal 14 lb,South Side,2026-01-10,09:30,True,,,Appointments,33
+20260111-WVB,Jerry Foley,,blank drill,Valley,2026-01-11,16:15,True,,,Appointments,34
+20260111-10R4,Allison Foley,,blank drill,Valley,2026-01-11,16:45,True,,,Appointments,35
+20260111-2ANV,Allan Ross,570-840-0910,Nebula 15 lb - in stock,Valley,2026-01-11,17:30,True,,,Appointments,36
+20260111-7HTQ,Rutheana Clark (Ashleys Mom),,"Just fit hand, can drill at later time. Her ball is payed for.",Valley,2026-01-11,17:30,True,,,Appointments,37
+20260111-10WA,Joey Costanzo,,drill blank,Valley,2026-01-11,14:30,True,,,Appointments,38
+20260111-166O,Stacy Costanzo,,drill 2 blank,Valley,2026-01-11,15:00,True,,,Appointments,39
+20260113-2EPY,Maura Wisnefski,570-851-9078,Twist lavender/lime 12 lb,South Side,2026-01-13,18:30,True,,,Appointments,40
+20260113-1LID,Chris Santopietro,570-460-1201,invoice work,South Side,2026-01-13,19:00,True,,,Appointments,41
+20260113-2JFG,Billy Bernavage,,Hammer Zero Mercy Pearl 15 lb,South Side,2026-01-13,19:30,True,phone on file: messenger,unparseable phone,Appointments,42
+20260114-1KRC,Joan Magnotta,,Switch balls to Jopo,Valley,2026-01-14,18:15,True,,,Appointments,43
+20260115-115S,Gaetano Arcurie,,Anger Solid 12 lb,South Side,2026-01-15,18:15,True,,,Appointments,44
+,John Schwartztrauber,,Equinox Pearl 14 lb,South Side,2026-01-17,09:15,True,,,Appointments,45
+20260120-3MDF,Chris Santopietro,,drill 4 plugged balls with grips & JoPo sleeves,South Side,2026-01-20,,True,,,Appointments,46
+20260121-1N0S,Gary Gilbert,,drill Hammerhead Pearl,Valley,2026-01-21,,True,,,Appointments,47
+20260121-WQJ,Kennedy,,drill NU Hammer,Valley,2026-01-21,,True,,,Appointments,48
+20260122-17ED,Jena,570-233-0348,drill blank for son,South Side,2026-01-22,18:30,True,,,Appointments,49
+20260124-48FA,Christian Halliday,570-578-3108,3 plugged balls and Zero Mercy Solid 15 lb,South Side,2026-01-24,11:00,True,,,Appointments,50
+20260124-GZO,Mya,,Arctic Vibe 15 lb,South Side,2026-01-24,12:30,True,,,Appointments,51
+20260124-LDA,Leland,,drill thumb hole,South Side,2026-01-24,09:00,True,,,Appointments,52
+,Greg Balck,347-952-5534,drill blank,Valley,2026-01-28,18:00,True,,,Appointments,53
+20260201-5U21,Jon-Paul Rink,570-881-0698,"Putting new slugs, and inserts, into the 3 old balls",Valley,2026-02-01,16:15,True,,,Appointments,54
+20260201-20R6,John Kime,570-470-6431,drill plugged Rhino,Valley,2026-02-01,18:00,True,,,Appointments,55
+20260205-3NL4,Kit Collins,570-510-1825,drill blank - surprise for birthday,Valley,2026-02-05,18:45,True,,,Appointments,56
+20260207-27X8,Ryan Richmond,201-906-6445,drill Phaze II Pearl 14 lb,South Side,2026-02-07,18:30,True,,,Appointments,57
+20260207-18H3,Colin Giordano,,drill blank,South Side,2026-02-07,12:00,True,phone on file: messenger,unparseable phone,Appointments,58
+20260210-1L3L,Cullen Mccarthy,,Fit and drill green rhino,South Side,2026-02-10,19:15,True,,,Appointments,59
+20260214-25NS,Chris Santopietro,570-460-1201,drill Widow Dynasty,South Side,2026-02-14,10:30,True,,,Appointments,60
+20260214-307V,Kim Mecca,,ball consult for her & Vito; shoe consult for her,South Side,2026-02-14,11:00,True,,,Appointments,61
+20260215-2FTT,Brianna Clark,781-654-1547,drill blank polyester ball,Valley,2026-02-15,18:00,True,,,Appointments,62
+20260215-1E5P,Greg Clark,,drill blank polyester ball,Valley,2026-02-15,18:30,True,,,Appointments,63
+20260215-C23,Charleen Bixby,,(not recorded),Valley,2026-02-15,16:45,False,,no service description,Appointments,64
+20260215-1CYA,Phil Ferresse,570-914-8841,Hammer NU 2.0,Valley,2026-02-15,17:00,True,,,Appointments,65
+20260216-1LK5,Tom Boylan,570-766-2123,Motiv Evoke Mayhem,Valley,2026-02-16,18:45,True,,,Appointments,66
+20260217-2LJN,Cameron Marhelski,570-954-8124,drill blank for 6 year old,South Side,2026-02-17,18:30,True,,,Appointments,67
+20260218-360K,Iveon Niola,646-944-9911,Fit and drill blank for youth bowler,Valley,2026-02-18,18:45,True,,,Appointments,68
+,Ken Lillie,,Take measurements - Marcus Ball/refit. Drill plugged ball,Valley,2026-02-18,19:30,False,,,Appointments,69
+20260218-YML,Liam Boylan,,drill Tour V1 15 lb,Valley,2026-02-18,19:45,True,,,Appointments,70
+20260219-30GQ,Kyle Dittus,570-417-6472,consult new ball for him and his son,South Side,2026-02-19,18:30,True,,,Appointments,71
+20260219-1JIO,Tom Fasano,646-296-1187,drill Dynasty 14 lb,South Side,2026-02-19,19:15,True,,,Appointments,72
+20260221-1JBX,TJ Murphy,570-991-1204,Tropical Surge 15 lb,South Side,2026-02-21,10:30,True,,,Appointments,73
+20260221-15YX,Jason Rodney,,drill blank,South Side,2026-02-21,11:15,True,phone on file: messenger,unparseable phone,Appointments,74
+20260222-LNA,John Keyes,,refit Rhino,Valley,2026-02-22,16:15,True,,,Appointments,75
+20260222-23VJ,Joey,570-351-6467,Fit and Drill blank sunstorm 15lb,Valley,2026-02-22,17:30,True,,,Appointments,76
+20260224-1RSM,Adriana Rodriguez,,drill RST Hyperdrive 12 lb,South Side,2026-02-24,20:00,True,,,Appointments,77
+20260224-1ZF8,Mark Velehoski,570-479-3221,drill 3 plugged balls,South Side,2026-02-24,19:00,True,,,Appointments,78
+20260225-11MM,Allen Phelps,,Motiv Evoke Mayhem,Valley,2026-02-25,18:15,True,,,Appointments,79
+20260225-4JDJ,Leann Martin,,Fitting and Drilling fingertip ball. Physix Blackout,Valley,2026-02-25,19:00,False,,,Appointments,80
+20260226-18AI,Melinda Ciero,,change 4 balls to JoPo,South Side,2026-02-26,18:15,True,,,Appointments,81
+20260228-12CK,David Charles,,Fit and drill NU 2.0,South Side,2026-02-28,10:00,True,,,Appointments,82
+20260228-10A5,Kim Mecca,570-446-4001,drill blank,South Side,2026-02-28,11:00,True,,,Appointments,83
+20260228-20E3,Paul Luongo,570-856-5902,drill plugged Ocean Vibe,South Side,2026-02-28,12:30,True,,,Appointments,84
+20260301-1SIY,Andrew Szuhay,435-233-8679,drill 2 blank balls,South Side,2026-03-01,11:45,True,,,Appointments,85
+20260301-1SDT,Debra Barno,570-903-9958,consult for new ball,Valley,2026-03-01,16:15,True,,,Appointments,86
+20260304-2HDP,Michelle Battle,570-926-4690,drill blank for son Nolan,Valley,2026-03-04,18:30,True,,,Appointments,87
+20260304-8ZNJ,Stephanie,,"Fitting hand, ball was ordered, i can drill it tuesday when it gets here.",Valley,2026-03-04,19:15,True,phone on file: See order details,unparseable phone,Appointments,88
+20260305-2TJT,Ben Klem,570-466-5743,drll Carl O'Neil's plugged Ocean Vibe,South Side,2026-03-05,18:30,True,,,Appointments,89
+20260305-2NSP,Debra Lawson,272-235-9758,Fit and drill youth ball,Valley,2026-03-05,18:15,True,,,Appointments,90
+20260305-2203,Pat Mcdonald,,Drill used bubblegum vibe,Valley,2026-03-05,19:30,True,,,Appointments,91
+20260312-1MKU,Donna Dexter,570-470-6931,Blank drill,Valley,2026-03-12,18:15,False,,,Appointments,92
+20260312-1ASR,Andy Lopez,570-507-1762,used Axis ball,Valley,2026-03-12,19:00,True,,,Appointments,93
+20260314-26VU,Alex Szuhay,435-233-8679,fit and drill 2 blank balls,South Side,2026-03-14,09:00,True,,,Appointments,94
+20260318-18GI,Melissa Good,570-650-9643,drill blank,Valley,2026-03-18,19:00,True,,,Appointments,95
+20260318-YVE,Marissa,570-851-7957,drill blank,Valley,2026-03-18,18:30,True,,,Appointments,96
+20260319-1707,Charles Ivey,570-909-7969,drill blank,South Side,2026-03-19,18:30,True,,,Appointments,97
+20260328-3XVX,Grayson Ancherani,570-498-2323,drill blank for 7 year old - Mom Allison,South Side,2026-03-28,09:45,True,,,Appointments,98
+20260329-2NCQ,Tom curtis,,Fit and drill female for 13lb danger z,Valley,2026-03-29,16:15,False,,,Appointments,99
+20260331-21Y3,Eric Gima,570-218-2990,drill blank & make 2 thumbs,South Side,2026-03-31,18:30,True,,,Appointments,100
+20260331-2GU2,Joe Reilly,570-406-4221,drill Crown Victory Pearl 14 lb,South Side,2026-03-31,18:30,True,,,Appointments,101
+20260331-12HC,John Kawka,570-604-3744,drill blank,South Side,2026-03-31,19:15,True,,,Appointments,102
+20260331-1QEJ,Brian Hamiltin,,Fit and Drill nu2.0 14lb,South Side,2026-03-31,19:45,True,,,Appointments,103
+20260401-204I,Tim Farrell,570-706-6619,drill Bionic 16 lb,Valley,2026-04-01,18:30,True,,,Appointments,104
+20260401-28BL,Sarah Sorrells,540-319-3111,drill Viking 14 lb,Valley,2026-04-01,19:00,True,,,Appointments,105
+20260401-1KJK,Chris Fallon,570-280-6369,drill Rhino 14 lb,Valley,2026-04-01,19:45,True,,,Appointments,106
+20260403-5U8K,Pasquale D'Abbraccio,,"drill Tour V1, Zero Mercy Solid, 78D & Full Effect 115 lb",South Side,2026-04-03,11:00,True,phone on file: messenger,unparseable phone,Appointments,107
+20260408-2PEG,Harleey,,Fit and Drill blue tank and jackal rising,Valley,2026-04-08,18:30,True,,,Appointments,108
+20260409-2IBH,Demry Bessermin,570-219-5285,drill blank for 5 year old,Valley,2026-04-09,18:30,True,,,Appointments,109
+20260414-19XX,Tom Wheeler,570-780-2023,drill Tour V1,South Side,2026-04-14,18:30,True,,,Appointments,110
+20260414-1D83,Assisted Living,570-876-3066,drill blank,South Side,2026-04-14,19:15,True,,,Appointments,111
+20260415-2HKJ,Charlie Spiegel,,drill Hammer NU 2.0 14 lb,Valley,2026-04-15,,True,phone on file: Square mesage,unparseable phone,Appointments,112
+20260419-FNY,Hunter,,drill blank,Valley,2026-04-19,17:00,False,,,Appointments,113
+20260419-1T1C,Patrick McCormack,570-903-3894,drill Rhino 12lb,South Side,2026-04-19,13:15,True,,,Appointments,114
+20260421-1KD5,Dennis Meek,570-351-8000,drill Turbo X 15 lb,South Side,2026-04-21,19:00,True,,,Appointments,115
+20260421-2PL9,Frank Baux,570-840-5286,drill Black Widow Dynasty 3.0 14 lb,South Side,2026-04-21,18:15,True,,,Appointments,116
+20260421-1MP0,Alan Reuther,570-780-9280,drill Tour V1 14 lb,South Side,2026-04-21,19:30,True,,,Appointments,117
+20260425-102E,Jay Rodney,,drill blank,South Side,2026-04-25,10:30,True,phone on file: messenger,unparseable phone,Appointments,118
+20260428-29R0,Walter Reaver,570-209-2706,Fit and Drill Hysteria,South Side,2026-04-28,18:15,True,,,Appointments,119
+20260509-IC0,Eric Gima,,Drill blank,South Side,2026-05-09,10:45,False,,,Appointments,120
+20260520-1642,Kevin Bauer,610-310-2504,drill blank,Valley,2026-05-20,19:30,True,,,Appointments,121
+20260520-EEB,Marty,,drill blank,Valley,2026-05-20,18:45,True,,,Appointments,122
+20260521-1CY4,Justin Allabaugh,,Track Synthesis 15 lb,South Side,2026-05-21,19:00,True,,,Appointments,123
+20260521-1F96,Gina Calpin,570-614-3078,Arctic Vibe 15 lb,South Side,2026-05-21,18:15,True,,,Appointments,124
+20260523-1OIH,Carmine Santopietro,,drill Effect Tour 14 lb,South Side,2026-05-23,09:00,True,,,Appointments,125
+20260527-215M,Chastity Black,,Danger Zone Solid 14 lb,Valley,2026-05-27,18:30,True,phone on file: messenger,unparseable phone,Appointments,126
+20260527-4UGJ,James Bianchi,,Hammer Zero Mercy Solid & purple pearl urethane 14 lb,Valley,2026-05-27,18:00,True,phone on file: messenger,unparseable phone,Appointments,127
+20260529-2JH0,Charlie Joely's nephew,570-687-3630,drill 2 blank balls,Valley,2026-05-29,16:30,True,,,Appointments,128
+20260529-1NB4,Gene Kashuba,,Hammer Zero Mercy Solid 14 lb,Valley,2026-05-29,16:00,True,,,Appointments,129
+20260530-185U,William Bauer,610-310-2002,drill blank,South Side,2026-05-30,10:00,True,,,Appointments,130
+20260601-3D8R,Teri Pushinaitis,570-499-2647,white Dot black purple silver 10 lb,South Side,2026-06-01,19:00,True,,,Appointments,131
+20260610-1LPH,Penny,409-237-1477,Fit and Drill Tzone,Valley,2026-06-10,18:00,True,,,Appointments,132
+20260611-33GE,Kyle Gallagher,570-604-5142,fit and drill blank for ARC bowler,South Side,2026-06-11,18:30,True,,,Appointments,133
+20260613-3E06,Erwin Schlipf,570-499-2647,Storm Phaze II 14 lb - wants to get PAP,South Side,2026-06-13,09:45,True,,,Appointments,134
+20260613-32H3,Erwin Schlipf,570-499-2647,Tropical Surge Solid 11 lb for wife,South Side,2026-06-13,10:30,True,,,Appointments,135
+20260613-239T,Jayden Genao,570-520-9246,drill 2 blanks - no thumb,South Side,2026-06-13,09:00,True,,,Appointments,136
+20260613-1Y11,Gregory Masters,570-507-0460,fit and drill blank,South Side,2026-06-13,12:00,True,,,Appointments,137
+20260615-1O8L,Kevin Bauer,610-310-2504,fit and drill blank,Valley,2026-06-15,18:30,True,,,Appointments,138
+20260620-16G2,Ashley Allen,570-290-3217,drill blank,South Side,2026-06-20,09:30,True,,,Appointments,139
+20260622-1NF4,Jared Morris,570-815-2610,drill Concept 15 lb,South Side,2026-06-22,18:30,True,,,Appointments,140
+20260625-39TT,Ryan Richmond,201-906-6445,change grips and install JoPo sleeve,South Side,2026-06-25,19:00,True,,,Appointments,141
+20260627-3STF,Christian Halliday,570-578-3108,drill blank & drop off 2 balls to plug,South Side,2026-06-27,10:00,True,,,Appointments,142
+20260627-1O2M,Bo Schlipf,570-499-2647,drill Storm Mix 15 lb,South Side,2026-06-27,09:15,True,,,Appointments,143
+20260709-5A12,Chris Santopietro,570-460-1201,"drill blank, change grips, install JoPo sleeves x 2",South Side,2026-07-09,18:15,True,,,Appointments,144
+20260709-39TT,Ryan Richmond,201-906-6445,change grips and install JoPo sleeve,South Side,2026-07-09,19:00,True,,,Appointments,145
+20260720-1S0C,Erik Smith,,drill plugged Pure Envy,South Side,2026-07-20,19:00,True,phone on file: messenger,unparseable phone,Appointments,146
+20260725-399Q,Chris Santopietro,570-460-1201,drill plugged ball and blank ball,South Side,2026-07-25,09:15,True,,,Appointments,147
+20260725-HHO,Joe,,new ball consult,South Side,2026-07-25,10:00,True,,,Appointments,148
+20260725-8TX,?,,drill blank,South Side,2026-07-25,11:30,False,,,Appointments,149
+20260803-26BH,Ty,,plug & redrill - new ball for father anf friend,South Side,2026-08-03,18:00,False,,,Appointments,150
+20260803-2KG4,Patricia Barcola,570-986-4630,drill No Doubt hybrid 12 lb,South Side,2026-08-03,20:00,True,,,Appointments,151
+20260803-ZXQ,Rodney Jay,,drill blank,South Side,2026-08-03,19:15,True,phone on file: messenger,unparseable phone,Appointments,152
+20260805-114V,Brad Kellogg,,drill Concept 16 lb,Valley,2026-08-05,18:15,True,,,Appointments,153
+,Brian Conserette,,drill Widow Mania,South Side,2026-08-10,18:15,False,,,Appointments,154
+20260811-1Q91,Bryan Mowrer,717-873-6072,Drill Fallout 15 lb,Valley,2026-08-11,18:30,True,,,Appointments,155
+20260812-2RDS,Harvey Kellogg,,drill IQ Tour Solid 16 lb & blank and eval,Valley,2026-08-12,18:15,True,,,Appointments,156
+20260812-OLA,Roger Ebert,,drill t-zone,Valley,2026-08-12,19:00,True,,,Appointments,157
+20260812-D6A,Mike,,dril t-zone,Valley,2026-08-12,19:00,True,,,Appointments,158
+20260812-SD1,Pete W,,Drill phaze 2 pearl,Valley,2026-08-12,18:15,True,,,Appointments,159
+20260815-16T6,Mark Ross,,Drill ball from wall 15 lb,South Side,2026-08-15,10:00,True,,,Appointments,160
+20260819-1IC8,Jay Roman,570-604-5140,drill Jackal Ghost,Valley,2026-08-19,19:00,True,,,Appointments,161
+20260819-10TI,Nick Dutkiewicz,,drill Demo ball,Valley,2026-08-19,18:30,True,,,Appointments,162
+20260820-2UQZ,Bradley Cox,215-440-2359,drill Outer Limits Black Hole 14 lb,South Side,2026-08-20,18:30,True,,,Appointments,163
+20260820-2G2I,Billy Bernavage,272-307-6809,drill Deep Ocean Vibe 15 lb,South Side,2026-08-20,18:15,True,,,Appointments,164
+20260820-2QBO,Melissa Williams,570-592-0042,drill Zero Mercy Solid 14 lb,South Side,2026-08-20,20:45,True,,,Appointments,165
+20260822-2KBA,Jon Cruz,914-850-0875,drill Storm IQ Tour Sapphire 15 lb,South Side,2026-08-22,10:00,False,,,Appointments,166
+20260822-12HI,Lucas Koch,,drill DV8 Heckler 15 lb,South Side,2026-08-22,09:15,False,,,Appointments,167
+20260822-3P0J,Fred Catapano,,drill Fury for girlfriend & ball for friend,South Side,2026-08-22,11:00,False,phone on file: messenger,unparseable phone,Appointments,168
+20260822-1CR2,Mason Kenia,272-250-8690,drill Demo ball,South Side,2026-08-22,12:30,False,,,Appointments,169
+20260822-29ZR,Dennis Bracken,570-369-3815,Drill Zero Mercy Solid 15,South Side,2026-08-22,10:30,False,,,Appointments,170
+20260824-2MT6,Joe Renaldi,570-840-6953,Drill Vengance and another ball.,South Side,2026-08-24,19:15,False,,,Appointments,171
+20260824-35RV,Sam Dutkiewicz,,Drill Zero Mercy and Next Factor.,South Side,2026-08-24,18:15,False,phone on file: Fb messenger,unparseable phone,Appointments,172
+20260825-447T,Aaron Blakely,252-475-0334,drill Ion Pro Solid 14 lb and ball for friend,Valley,2026-08-25,18:30,False,,,Appointments,173
+,Tom Curtis,,drill 2 plugged balls,Valley,2026-08-26,18:15,False,,,Appointments,174
+,Christiana,,drill plugged rhino,Valley,2026-08-26,19:15,False,,,Appointments,175
+20260826-VLJ,Brian Conserette,,drill mania,Valley,2026-08-26,18:30,False,,,Appointments,176
+20260827-2SN4,Selwyn Wright,646-269-4155,Eval and Drill on the road ball.,South Side,2026-08-27,19:45,False,,,Appointments,177
+20260829-1SUO,Scott Pierson,570-762-4555,Drill Danger Zone 14,South Side,2026-08-29,09:00,False,,,Appointments,178
+20260902-1YZ6,John Born,,"Change thumb slug, detox ball",Valley,2026-09-02,18:15,False,,,Appointments,179
+20260827-2GWO,Eric Bealla,570-817-9516,Drill Spawn from Demo Day,South Side,2026-08-27,18:30,False,,,Appointments,180
+20260829-1RFT,Ray St Claire,,Drill Spawn from Demo Day,South Side,2026-08-29,11:00,False,,,Appointments,181
+20260831-8PL7,Dylan Wiley,315-804-4311,Eval.  New bowler no thumb.  15.  Discussed NU hammer or vibe based on eval.,Valley,2026-08-31,18:15,False,,,Appointments,182

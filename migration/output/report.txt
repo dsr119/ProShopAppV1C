@@ -1,0 +1,61 @@
+Perfexxxxion Pro Shop migration
+run: 2026-08-30 14:01
+source: source.xlsx
+
+ORDERS
+  Shop Order Ledger              read  276 | kept  272 | duplicate    4 | not an order   0
+  Shop Order Listing 2026 Q2     read  267 | kept  267 | duplicate    0 | not an order   0
+  Shop Order Listing 2026 Q1     read  421 | kept  413 | duplicate    8 | not an order   0
+  Shop Order Listing 2025 Q4     read  393 | kept  390 | duplicate    2 | not an order   1
+  Shop Order Listing 2025 Q3     read  302 | kept  302 | duplicate    0 | not an order   0
+  Shop Order Listing 2025 Q2     read  259 | kept  255 | duplicate    4 | not an order   0
+  Shop Order Listing 2025 Q1     read  249 | kept  247 | duplicate    2 | not an order   0
+  All Orders                     read  401 | kept   19 | duplicate  382 | not an order   0
+  Sheet26                        read  197 | kept   11 | duplicate  186 | not an order   0
+
+APPOINTMENTS
+  Appointments                   read  180 | kept  179 | template/blank   1
+
+ITEMS
+  Sheet28 + orders               1474 distinct item names
+
+SKIPPED SHEETS
+  DashboardData                  derived view of All Orders, no unique data
+  Service Tracker                out of scope for v1 (dropped per spec)
+  Sheet28                        read separately as the item autocomplete source
+  Sheet29                        empty
+  Time                           shop hours, not an order or appointment
+  DONT TOUCH PAST THIS SHEET     intentionally blank
+  Appointments                   read separately by read_appointments()
+
+TOTALS
+  orders kept                                       2176
+  orders dropped as duplicates                      588
+  orders with no shop order date (pin to top)       15
+  appointments kept                                 179
+  distinct items                                    1474
+  flagged for review                                513 orders, 17 appointments
+
+FLAG BREAKDOWN
+  shop order date inferred from order date             500
+  unparseable phone                                    21
+  unrecognized location '...'                          2
+  unparseable timestamp '...'                          2
+  no shop order date and no order date                 2
+  unparseable shop order date '...'                    1
+  unparseable price '...'                              1
+  shop order date looks mistyped (year 225)            1
+  order date looks mistyped (year 225)                 1
+  date looks mistyped (year 2006)                      1
+  submitted after the appointment date                 1
+  no service description                               1
+
+VALUE CHECK (post-normalization)
+  order_location: {'(blank)': 1569, 'South Side': 357, 'Valley': 233, 'Both': 17}
+  pickup_location: {'(blank)': 1508, 'South Side': 387, 'Valley': 264, 'Both': 17}
+  supplier: {'B Supply': 1721, 'Ace': 239, 'Turbo': 91, 'Brunswick': 86, 'Storm': 19, 'Motiv': 12, '(blank)': 8}
+  appt location: {'South Side': 100, 'Valley': 79}
+
+DATE RANGE
+  orders:       0225-10-14 .. 2026-08-26
+  appointments: 2006-08-20 .. 2026-09-02
