@@ -393,6 +393,116 @@ tbody tr.pending:hover { filter: brightness(.98); }
 .swatch.valley { border-left-color: var(--accent); background: var(--accent-soft); }
 .swatch.south  { border-left-color: var(--warn);   background: var(--warn-soft); }
 
+/* ---------- week picker ---------- */
+
+.weeknav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.weeknav .label {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 150px;
+}
+
+.weekstrip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.wday {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 5px 2px 6px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--panel);
+  line-height: 1.25;
+}
+
+.wday:hover { background: #f0f2f5; }
+
+.wday .wd-dow {
+  font-size: 10.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.wday .wd-num { font-size: 15px; font-weight: 600; }
+
+.wday .wd-count {
+  font-size: 10.5px;
+  color: var(--muted);
+  min-height: 13px;
+}
+
+.wday.today { border-color: var(--accent); }
+
+.wday.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.wday.selected .wd-dow,
+.wday.selected .wd-count { color: rgba(255, 255, 255, .85); }
+
+.wday.busy .wd-count { color: var(--warn); font-weight: 600; }
+.wday.selected.busy .wd-count { color: #fff; }
+
+.dayappts {
+  margin-top: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  max-height: 148px;
+  overflow-y: auto;
+  background: #fafbfc;
+}
+
+.dayappts .none {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.dayrow {
+  display: flex;
+  gap: 8px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  align-items: baseline;
+}
+
+.dayrow:last-child { border-bottom: 0; }
+.dayrow .t { font-weight: 600; min-width: 54px; }
+.dayrow .who { flex: 1; min-width: 0; }
+
+.dayrow .svc {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 44%;
+}
+
+.dayrow .loc {
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.dayrow .loc.south { background: var(--warn-soft); color: var(--warn); }
+
 /* ---------- dialog ---------- */
 
 dialog {
@@ -400,6 +510,7 @@ dialog {
   border-radius: 8px;
   padding: 0;
   width: min(430px, calc(100vw - 24px));
+  max-height: calc(100vh - 32px);
   box-shadow: 0 10px 40px rgba(0, 0, 0, .18);
   color: var(--ink);
 }
@@ -413,7 +524,25 @@ dialog h3 {
   font-size: 15px;
 }
 
-dialog .body { padding: 14px 16px; display: grid; gap: 10px; }
+dialog.wide { width: min(580px, calc(100vw - 24px)); }
+
+dialog .body {
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+/* Who this is for, above the picker. */
+.forwhom {
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.forwhom .nm { font-weight: 650; }
+.forwhom .it { color: var(--muted); }
 
 dialog label {
   display: grid;
