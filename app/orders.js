@@ -40,12 +40,14 @@ async function load() {
     const quarter = $("quarter").value;
     const base = `select=${COLUMNS}&deleted_at=is.null`;
 
-    const pending = db.select(
+    const pending = db.selectAll(
       "orders",
       `${base}&shop_order_date=is.null&order=submitted_at.asc.nullslast`
     );
 
-    const placed = db.select(
+    // Paged: "All quarters" is 2,176 rows and a single response stops at
+    // 1000, with nothing to tell the user the rest is missing.
+    const placed = db.selectAll(
       "orders",
       `${base}&shop_order_date=not.is.null` +
         (quarter ? `&quarter=eq.${encodeURIComponent(quarter)}` : "") +
@@ -61,27 +63,56 @@ async function load() {
   }
 }
 
+// "2026 Q3" -> 20263, for sorting. Sorting the label as text is wrong:
+// "225 Q4" (from a mistyped year) compares greater than "2026 Q3", because
+// '2' > '0' at the second character. One bad row would then hijack the
+// default view.
+function quarterRank(label) {
+  const m = /^(\d+)\s*Q([1-4])$/.exec(label || "");
+  return m ? Number(m[1]) * 10 + Number(m[2]) : -1;
+}
+
+function currentQuarterLabel() {
+  const now = new Date();
+  return `${now.getFullYear()} Q${Math.floor(now.getMonth() / 3) + 1}`;
+}
+
 async function loadQuarters() {
-  // Distinct quarters, newest first. PostgREST has no DISTINCT, so pull the
-  // column and reduce it here -- it is one small array.
-  const rows = await db.select(
+  // PostgREST has no DISTINCT, so pull the column and reduce it here. Must
+  // page: a single response stops at 1000 rows, which would silently drop
+  // the oldest quarters off the end of the filter.
+  const rows = await db.selectAll(
     "orders",
-    "select=quarter&deleted_at=is.null&quarter=not.is.null&order=quarter.desc"
+    "select=quarter&deleted_at=is.null&quarter=not.is.null"
   );
-  const seen = [...new Set(rows.map((r) => r.quarter))];
+  const seen = [...new Set(rows.map((r) => r.quarter))]
+    .sort((a, b) => quarterRank(b) - quarterRank(a));
+
   const sel = $("quarter");
   for (const q of seen) {
     const opt = document.createElement("option");
     opt.value = opt.textContent = q;
+    // A year outside living memory means a mistyped date, not a real quarter.
+    if (quarterRank(q) < 20200) opt.textContent = q + "  (check date)";
     sel.appendChild(opt);
   }
-  // Default to the newest quarter that has orders.
-  if (seen.length) sel.value = seen[0];
+
+  // Default to the quarter we are actually in; fall back to the newest
+  // plausible one if the shop has not ordered yet this quarter.
+  const current = currentQuarterLabel();
+  if (seen.includes(current)) sel.value = current;
+  else {
+    const plausible = seen.find((q) => quarterRank(q) >= 20200);
+    if (plausible) sel.value = plausible;
+  }
 }
 
 async function loadSuggestions() {
+  // Supabase caps a response at 1000 rows regardless of the limit asked for.
+  // Ordering by times_ordered means the cut falls on the items nobody has
+  // bought in a decade, which is the right thing to lose from a typeahead.
   const [items, sup] = await Promise.all([
-    db.select("items", "select=item&order=times_ordered.desc&limit=1500"),
+    db.select("items", "select=item&order=times_ordered.desc&limit=1000"),
     db.select("orders", "select=supplier&deleted_at=is.null&supplier=not.is.null"),
   ]);
   fillDatalist("items", items.map((i) => i.item));
