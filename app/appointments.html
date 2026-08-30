@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appointments — Perfexxxxion Pro Shop</title>
+<!-- ?v= is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="style.css?v=4">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html">Orders</a>
+    <a href="appointments.html" class="active">Appointments</a>
+    <a href="order.html">New Order</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="calhead">
+    <button id="prev" title="Previous month">&larr;</button>
+    <button id="next" title="Next month">&rarr;</button>
+    <button id="today">Today</button>
+    <h2 id="monthlabel"></h2>
+    <select id="location">
+      <option value="">Both locations</option>
+      <option>Valley</option>
+      <option>South Side</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button class="primary" id="add">New appointment</button>
+  </div>
+
+  <div class="cal">
+    <div class="calgrid" id="grid"></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch valley"></i> Valley</span>
+    <span><i class="swatch south"></i> South Side</span>
+    <span>Click any day to book. Click an appointment to edit.</span>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="apptform">
+    <h3 id="dlgtitle">New appointment</h3>
+    <div class="body">
+      <label>Name
+        <input type="text" id="f_name" required autocomplete="off">
+      </label>
+      <div class="row2">
+        <label>Date
+          <input type="date" id="f_date" required>
+        </label>
+        <label>Time
+          <input type="time" id="f_time" step="900">
+        </label>
+      </div>
+      <label>Location
+        <select id="f_location">
+          <option value="">—</option>
+          <option>Valley</option>
+          <option>South Side</option>
+        </select>
+      </label>
+      <label>What are we doing
+        <textarea id="f_service" required></textarea>
+      </label>
+      <label>Phone (optional)
+        <input type="text" id="f_phone" autocomplete="off">
+      </label>
+      <label class="checkline">
+        <input type="checkbox" id="f_completed"> Completed
+      </label>
+    </div>
+    <div class="foot">
+      <button type="button" class="danger hidden" id="f_delete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="f_cancel">Cancel</button>
+      <button type="submit" class="primary" id="f_save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js?v=4"></script>
+<script src="db.js?v=4"></script>
+<script src="appointments.js?v=4"></script>
+</body>
+</html>
