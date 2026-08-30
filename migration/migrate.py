@@ -46,6 +46,7 @@ LOCATION_MAP = {
     "valley": "Valley",
     "valley lanes": "Valley",
     "valley bowling lanes": "Valley",
+    "carbondale": "Valley",            # confirmed: Carbondale == Valley
     "south": "South Side",
     "south side": "South Side",
     "southside": "South Side",

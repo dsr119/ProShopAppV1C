@@ -1,5 +1,5 @@
 Perfexxxxion Pro Shop migration
-run: 2026-08-30 14:01
+run: 2026-08-30 14:09
 source: source.xlsx
 
 ORDERS
@@ -34,12 +34,11 @@ TOTALS
   orders with no shop order date (pin to top)       15
   appointments kept                                 179
   distinct items                                    1474
-  flagged for review                                513 orders, 17 appointments
+  flagged for review                                512 orders, 17 appointments
 
 FLAG BREAKDOWN
   shop order date inferred from order date             500
   unparseable phone                                    21
-  unrecognized location '...'                          2
   unparseable timestamp '...'                          2
   no shop order date and no order date                 2
   unparseable shop order date '...'                    1
@@ -51,8 +50,8 @@ FLAG BREAKDOWN
   no service description                               1
 
 VALUE CHECK (post-normalization)
-  order_location: {'(blank)': 1569, 'South Side': 357, 'Valley': 233, 'Both': 17}
-  pickup_location: {'(blank)': 1508, 'South Side': 387, 'Valley': 264, 'Both': 17}
+  order_location: {'(blank)': 1568, 'South Side': 357, 'Valley': 234, 'Both': 17}
+  pickup_location: {'(blank)': 1507, 'South Side': 387, 'Valley': 265, 'Both': 17}
   supplier: {'B Supply': 1721, 'Ace': 239, 'Turbo': 91, 'Brunswick': 86, 'Storm': 19, 'Motiv': 12, '(blank)': 8}
   appt location: {'South Side': 100, 'Valley': 79}
 
