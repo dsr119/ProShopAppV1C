@@ -422,6 +422,8 @@ tbody tr.pending:hover { filter: brightness(.98); }
   cursor: pointer;
   background: var(--panel);
   line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .wday:hover { background: #f0f2f5; }
@@ -455,12 +457,14 @@ tbody tr.pending:hover { filter: brightness(.98); }
 .wday.busy .wd-count { color: var(--warn); font-weight: 600; }
 .wday.selected.busy .wd-count { color: #fff; }
 
+/* No max-height: the busiest day in the shop's history is six appointments,
+   which fits. A scrollbar here would hide exactly the information the picker
+   exists to show. */
 .dayappts {
   margin-top: 9px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  max-height: 148px;
-  overflow-y: auto;
+  overflow: hidden;
   background: #fafbfc;
 }
 
@@ -478,18 +482,35 @@ tbody tr.pending:hover { filter: brightness(.98); }
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   align-items: baseline;
+  min-width: 0;
 }
 
 .dayrow:last-child { border-bottom: 0; }
-.dayrow .t { font-weight: 600; min-width: 54px; }
-.dayrow .who { flex: 1; min-width: 0; }
 
-.dayrow .svc {
-  color: var(--muted);
+.dayrow .t {
+  font-weight: 600;
+  flex: 0 0 46px;
+}
+
+.dayrow .who {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 44%;
+}
+
+/* Service notes run long ("Eval. New bowler no thumb. 15. Discussed ...") and
+   would otherwise squeeze the name down to "Dylan...". Capped, so the name
+   keeps the majority of the row -- it is what you scan the list for. */
+.dayrow .svc {
+  color: var(--muted);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dayrow .loc {
@@ -499,6 +520,7 @@ tbody tr.pending:hover { filter: brightness(.98); }
   background: var(--accent-soft);
   color: var(--accent);
   white-space: nowrap;
+  flex: 0 0 auto;      /* never let the location badge get cut in half */
 }
 
 .dayrow .loc.south { background: var(--warn-soft); color: var(--warn); }
@@ -530,8 +552,13 @@ dialog .body {
   padding: 14px 16px;
   display: grid;
   gap: 10px;
-  overflow-y: auto;
+  overflow-x: hidden;
 }
+
+/* Grid children default to min-width:auto, so one wide row -- a long service
+   description -- refuses to shrink and stretches the whole dialog, which
+   clips the last day off the week strip. */
+dialog .body > * { min-width: 0; }
 
 /* Who this is for, above the picker. */
 .forwhom {
@@ -539,6 +566,12 @@ dialog .body {
   border-radius: var(--radius);
   padding: 7px 10px;
   font-size: 13px;
+}
+
+.forwhom .nm, .forwhom .it {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .forwhom .nm { font-weight: 650; }
