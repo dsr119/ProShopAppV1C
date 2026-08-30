@@ -6,7 +6,7 @@
 <title>Drilling — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 
@@ -62,8 +62,54 @@
   </div>
 </main>
 
-<script src="config.js?v=5"></script>
-<script src="db.js?v=5"></script>
-<script src="drilling.js?v=5"></script>
+<dialog id="dlg" class="wide">
+  <form method="dialog" id="schedform">
+    <h3>Schedule an appointment</h3>
+    <div class="body">
+      <div class="forwhom">
+        <div class="nm" id="s_who"></div>
+        <div class="it" id="s_what"></div>
+      </div>
+
+      <div>
+        <div class="weeknav">
+          <button type="button" id="s_prev" title="Previous week">&larr;</button>
+          <button type="button" id="s_next" title="Next week">&rarr;</button>
+          <button type="button" id="s_thisweek">This week</button>
+          <span class="label" id="s_weeklabel"></span>
+        </div>
+        <div class="weekstrip" id="s_strip"></div>
+        <div class="dayappts" id="s_dayappts"></div>
+      </div>
+
+      <div class="row2">
+        <label>Time
+          <input type="time" id="s_time" step="900">
+        </label>
+        <label>Location
+          <select id="s_location">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+          </select>
+        </label>
+      </div>
+
+      <label>What are we doing
+        <textarea id="s_service" required></textarea>
+      </label>
+    </div>
+    <div class="foot">
+      <span class="count" id="s_picked"></span>
+      <span class="spacer"></span>
+      <button type="button" id="s_cancel">Cancel</button>
+      <button type="submit" class="primary" id="s_save">Book it</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js?v=6"></script>
+<script src="db.js?v=6"></script>
+<script src="drilling.js?v=6"></script>
 </body>
 </html>
