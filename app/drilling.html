@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drilling — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="style.css?v=5">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html">Orders</a>
+    <a href="drilling.html" class="active">Drilling</a>
+    <a href="appointments.html">Appointments</a>
+    <a href="order.html">New Order</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search name or item …">
+    <select id="quarter"></select>
+    <select id="location">
+      <option value="">All pickup locations</option>
+      <option>Valley</option>
+      <option>South Side</option>
+      <option>Both</option>
+    </select>
+    <label class="checkline">
+      <input type="checkbox" id="showdone"> Show finished
+    </label>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th class="col-name">Name</th>
+          <th class="col-item">Item</th>
+          <th class="nowrap">Phone</th>
+          <th>Pickup</th>
+          <th class="nowrap">Ordered</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="empty-state hidden">Nothing waiting to be drilled.</div>
+  </div>
+
+  <div class="legend">
+    <span>Customer orders only — shop stock is excluded.</span>
+  </div>
+</main>
+
+<script src="config.js?v=5"></script>
+<script src="db.js?v=5"></script>
+<script src="drilling.js?v=5"></script>
+</body>
+</html>
