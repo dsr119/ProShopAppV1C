@@ -12,13 +12,21 @@ alongside it, so nothing is lost while both systems are in use.
 1. Open the spreadsheet the form writes to (the one with the **Shop Order
    Ledger** tab).
 2. **Extensions → Apps Script**.
-3. Delete whatever is in `Code.gs` and paste in all of
+3. Add a **new file** (the `+` next to Files → Script), name it
+   `SupabaseSync`, and paste in all of
    [`form-to-supabase.gs`](form-to-supabase.gs). Save.
+
+   Use a new file rather than overwriting `Code.gs` — whatever is already in
+   there may be doing something the shop relies on. The entry point here is
+   called `syncOrderToSupabase` precisely so it cannot clash with an existing
+   `onFormSubmit`. If Apps Script warns about *"functions with the same
+   name … undefined behavior"*, you have the same code pasted twice; delete
+   the extra copy before continuing.
 4. Pick **`testConnection`** from the function dropdown and press **Run**.
    Google will ask you to authorize the script — approve it. The log should
    say `Connected.`
 5. Left sidebar → **Triggers** (the clock icon) → **Add Trigger**:
-   - Function: `onFormSubmit`
+   - Function: `syncOrderToSupabase`
    - Event source: **From spreadsheet**
    - Event type: **On form submit**
    - Save.
