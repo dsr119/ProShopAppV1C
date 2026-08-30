@@ -25,9 +25,33 @@ async function request(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+const PAGE = 1000;   // Supabase caps any single response at 1000 rows
+
 const db = {
   select(table, query = "") {
     return request(`${table}?${query}`);
+  },
+
+  // Same as select, but walks past the 1000-row cap. Asking for limit=10000
+  // does NOT work -- the server silently returns the first 1000 and the
+  // caller has no idea it is looking at a truncated table.
+  async selectAll(table, query = "") {
+    const out = [];
+    for (let from = 0; ; from += PAGE) {
+      const res = await fetch(`${REST}${table}?${query}`, {
+        headers: { ...HEADERS, Range: `${from}-${from + PAGE - 1}` },
+      });
+      if (!res.ok && res.status !== 206) {
+        throw new Error(`${res.status} ${res.statusText} -- ${await res.text()}`);
+      }
+      const batch = JSON.parse((await res.text()) || "[]");
+      out.push(...batch);
+
+      // "0-999/2176" -- stop once we have them all, or on a short page.
+      const total = Number((res.headers.get("content-range") || "").split("/")[1]);
+      if (batch.length < PAGE || (Number.isFinite(total) && out.length >= total)) break;
+    }
+    return out;
   },
 
   insert(table, rows) {
