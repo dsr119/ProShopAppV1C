@@ -76,7 +76,7 @@ main { padding: 16px; }
   margin-bottom: 12px;
 }
 
-.toolbar .spacer { flex: 1; }
+.spacer { flex: 1; }
 
 input, select, textarea, button {
   font: inherit;
@@ -262,6 +262,196 @@ tbody tr.pending:hover { filter: brightness(.98); }
   margin-bottom: 12px;
 }
 
+/* ---------- calendar ---------- */
+
+.calhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.calhead h2 {
+  font-size: 17px;
+  margin: 0;
+  min-width: 165px;
+  font-weight: 650;
+}
+
+.cal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.calgrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calgrid .dow {
+  padding: 7px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.day {
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  min-height: 108px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.day:nth-child(7n + 7) { border-right: 0; }
+.day:hover { background: #fafbfc; }
+.day.outside { background: #fbfcfd; }
+.day.outside .daynum { color: #c3c8ce; }
+
+.daynum {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 1px 3px;
+  align-self: flex-start;
+}
+
+.day .appts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The grid supplies the weekday; the agenda layout on phones does not. */
+.daynum .dfull { display: none; }
+
+/* Required: the current day has to be obvious at a glance. */
+.day.today { background: var(--accent-soft); }
+
+.day.today .daynum {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  min-width: 19px;
+  text-align: center;
+}
+
+.appt {
+  font-size: 11.5px;
+  line-height: 1.25;
+  padding: 2px 4px;
+  border-radius: 3px;
+  border-left: 3px solid var(--muted);
+  background: #f2f4f7;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appt:hover { filter: brightness(.95); }
+.appt .t { font-weight: 600; }
+
+/* Location at a glance -- the shop runs two houses. */
+.appt.valley { border-left-color: var(--accent); background: var(--accent-soft); }
+.appt.south  { border-left-color: var(--warn);   background: var(--warn-soft); }
+
+.appt.done { opacity: .55; }
+.appt.done .n { text-decoration: line-through; }
+
+.legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.legend span { display: flex; align-items: center; gap: 5px; }
+
+.swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  border-left: 3px solid;
+}
+
+.swatch.valley { border-left-color: var(--accent); background: var(--accent-soft); }
+.swatch.south  { border-left-color: var(--warn);   background: var(--warn-soft); }
+
+/* ---------- dialog ---------- */
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  width: min(430px, calc(100vw - 24px));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .18);
+  color: var(--ink);
+}
+
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+
+dialog h3 {
+  margin: 0;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+}
+
+dialog .body { padding: 14px 16px; display: grid; gap: 10px; }
+
+dialog label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+dialog label input, dialog label select, dialog label textarea {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+dialog textarea { resize: vertical; min-height: 58px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+dialog .foot {
+  padding: 11px 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #fafbfc;
+}
+
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+button.danger { color: var(--danger); border-color: #f0c0c0; }
+button.danger:hover { background: #fdf0f0; }
+
 /* ---------- phone ---------- */
 
 @media (max-width: 760px) {
@@ -312,4 +502,48 @@ tbody tr.pending:hover { filter: brightness(.98); }
   /* The nav must not push "New Order" off the edge of a phone. */
   header { overflow-x: auto; }
   nav a { padding: 14px 8px; }
+
+  /* A 7-column month grid on a 375px screen gives each day ~50px, which
+     cannot hold a name. Days become a scrollable agenda list instead, and
+     empty days drop out entirely. */
+  .calgrid { display: block; }
+  .calgrid .dow { display: none; }
+
+  .day {
+    border-right: 0;
+    min-height: 0;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  /* Empty days are noise in an agenda -- except today, which has to stay
+     visible and marked even when nothing is booked. */
+  .day.outside, .day.empty-day:not(.today) { display: none; }
+
+  .day.today.empty-day .appts::before {
+    content: "Nothing booked today";
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .daynum {
+    min-width: 68px;
+    font-size: 12.5px;
+    padding-top: 2px;
+  }
+
+  .daynum .dnum { display: none; }
+  .daynum .dfull { display: inline; }
+
+  .day.today .daynum {
+    border-radius: 4px;
+    min-width: 68px;
+    padding: 2px 5px;
+  }
+
+  .day .appts { flex: 1; gap: 3px; }
+  .appt { white-space: normal; font-size: 13px; padding: 4px 6px; }
+  .row2 { grid-template-columns: 1fr; }
 }
