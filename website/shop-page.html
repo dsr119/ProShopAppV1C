@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bowling Balls — Perfexxxion Pro Shop</title>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #1a1a1a;
+      --surface:   #242424;
+      --card-bg:   #ffffff;
+      --purple:    #7b2fbe;
+      --purple-light: #9b4ddb;
+      --text:      #ffffff;
+      --text-muted:#aaaaaa;
+      --border:    #333333;
+    }
+
+    body {
+      font-family: 'Raleway', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HERO ──────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)),
+                  url('https://drive.google.com/thumbnail?id=1fC5fUNx6YDAwylPkaGC4h4ATKDBzq569&sz=w1600') center/cover no-repeat;
+      height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+
+    /* ── NEW RELEASES ──────────────────────────────────── */
+    .new-releases {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.6rem 2rem 1.8rem;
+    }
+
+    .new-releases-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1.2rem;
+    }
+
+    .new-releases-header h2 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .new-badge {
+      background: var(--purple);
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 30px;
+    }
+
+    .new-releases-track-wrap {
+      position: relative;
+    }
+
+    .new-releases-track {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: none;
+      scroll-behavior: smooth;
+    }
+
+    .new-releases-track::-webkit-scrollbar { display: none; }
+
+    /* Fade edges */
+    .new-releases-track-wrap::before,
+    .new-releases-track-wrap::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 6px;
+      width: 40px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .new-releases-track-wrap::before {
+      left: 0;
+      background: linear-gradient(to right, var(--surface), transparent);
+    }
+
+    .new-releases-track-wrap::after {
+      right: 0;
+      background: linear-gradient(to left, var(--surface), transparent);
+    }
+
+    .nr-card {
+      flex: 0 0 140px;
+      background: #2e2e2e;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .nr-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(123, 47, 190, 0.3);
+      border-color: var(--purple);
+    }
+
+    .nr-card-img {
+      background: #ffffff;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.8rem;
+      position: relative;
+    }
+
+    .nr-card-img img {
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+    }
+
+    .nr-card-body {
+      padding: 8px 10px 10px;
+    }
+
+    .nr-card-brand {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--purple-light);
+    }
+
+    .nr-card-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.3;
+      margin-top: 2px;
+    }
+
+    .nr-card-price {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #ddd;
+      margin-top: 4px;
+    }
+
+    .nr-card-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 6px 0;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .nr-card-btn:hover { background: var(--purple-light); }
+
+    .nr-loading {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 1rem 0;
+    }
+
+    /* ── STAFF PICKS ───────────────────────────────────── */
+    .staff-picks { background:#fff; border-bottom:1px solid #dedfe6; padding:1.8rem 2rem 2rem; color:#22233a; }
+    .staff-picks-inner { max-width:1480px; margin:0 auto; }
+    .staff-picks-header { display:flex; align-items:end; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
+    .staff-picks-header h2 { font-size:1.3rem; font-weight:650; }
+    .staff-picks-header p { color:#6f7282; font-size:.82rem; margin-top:.3rem; }
+    .staff-tabs { display:flex; gap:7px; overflow-x:auto; padding-bottom:5px; scrollbar-width:none; }
+    .staff-tabs::-webkit-scrollbar { display:none; }
+    .staff-mobile-select { display:none; width:100%; border:1px solid #dedfe6; border-radius:7px; background:#fff; color:#22233a; padding:10px 12px; font:600 .8rem 'Raleway',sans-serif; }
+    .staff-tab { border:1px solid #dedfe6; background:#fff; color:#6f7282; border-radius:30px; padding:7px 14px; white-space:nowrap; cursor:pointer; font:600 .76rem 'Raleway',sans-serif; }
+    .staff-tab:hover { border-color:var(--purple-light); color:var(--purple); }
+    .staff-tab.active { background:var(--purple); border-color:var(--purple); color:#fff; }
+    .staff-bag-title { margin:1rem 0 .75rem; color:#6f7282; font-size:.75rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .staff-bag-track { display:grid; grid-template-columns:repeat(6,minmax(135px,1fr)); gap:12px; }
+    .staff-pick-card { border:1px solid #dedfe6; border-radius:7px; overflow:hidden; background:#fff; display:flex; flex-direction:column; min-width:0; }
+    .staff-pick-img { aspect-ratio:1.1; display:flex; align-items:center; justify-content:center; padding:.7rem; background:#fafafa; position:relative; }
+    .staff-pick-img img { width:82%; height:82%; object-fit:contain; }
+    .staff-pick-body { padding:9px 10px 10px; display:flex; flex-direction:column; flex:1; }
+    .staff-pick-brand { color:var(--purple); font-size:.58rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
+    .staff-pick-name { color:#22233a; font-size:.75rem; font-weight:650; line-height:1.3; margin-top:2px; }
+    .staff-pick-price { color:#22233a; font-size:.78rem; font-weight:700; margin-top:5px; }
+    .staff-pick-order { margin-top:auto; padding-top:8px; }
+    .staff-pick-order button { width:100%; border:0; border-radius:5px; background:var(--purple); color:#fff; padding:6px; font:600 .7rem 'Raleway',sans-serif; cursor:pointer; }
+    .staff-unmatched { border:1px dashed #c9c9d2; border-radius:7px; padding:1rem; color:#777987; background:#f8f8fa; font-size:.75rem; display:flex; align-items:center; }
+    .staff-status { color:#6f7282; font-size:.82rem; padding:.75rem 0; }
+    @media(max-width:1100px) { .staff-bag-track{grid-template-columns:repeat(4,minmax(135px,1fr))} }
+    @media(max-width:760px) {
+      .staff-picks{padding:1.4rem 1rem}
+      .staff-picks-header{display:block}
+      .staff-tabs{display:none}
+      .staff-mobile-select{display:block;margin-top:.9rem}
+      .staff-bag-title{margin-top:1.1rem}
+      .staff-bag-track{display:grid;grid-template-columns:1fr;gap:9px;overflow:visible}
+      .staff-pick-card{display:grid;grid-template-columns:105px minmax(0,1fr);min-height:112px}
+      .staff-pick-img{aspect-ratio:auto;min-height:112px;padding:.45rem;border-right:1px solid #eeeeef}
+      .staff-pick-img img{width:88%;height:88%}
+      .staff-pick-body{padding:10px 11px;text-align:left}
+      .staff-pick-name{font-size:.8rem}
+      .staff-pick-order{padding-top:7px}
+      .staff-pick-order button{padding:7px}
+      .staff-unmatched{min-height:70px;padding:.8rem 1rem}
+    }
+
+    /* ── CONTROLS ──────────────────────────────────────── */
+    .controls-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1.2rem 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-filters {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      flex: 1;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+
+    .brand-filters::-webkit-scrollbar { display: none; }
+
+    .brand-filters button {
+      padding: 7px 18px;
+      border-radius: 30px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .brand-filters button:hover {
+      border-color: var(--purple-light);
+      color: var(--text);
+    }
+
+    .brand-filters button.active {
+      background: var(--purple);
+      border-color: var(--purple);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .search-wrap {
+      position: relative;
+    }
+
+    .search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 15px;
+      height: 15px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .search-wrap input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px 8px 32px;
+      border-radius: 30px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.85rem;
+      width: 220px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-wrap input::placeholder { color: var(--text-muted); }
+    .search-wrap input:focus { border-color: var(--purple-light); }
+
+    .results-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* ── CATEGORIES & ADVANCED FILTERS ─────────────────── */
+    .category-nav {
+      background: #202020;
+      border-bottom: 1px solid var(--border);
+      padding: 1.35rem 2rem;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .category-btn {
+      border: 1px solid var(--border);
+      background: #2b2b2b;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.2s, transform 0.2s, background 0.2s;
+    }
+
+    .category-btn:hover { border-color: var(--purple-light); transform: translateY(-2px); }
+    .category-btn.active { background: linear-gradient(135deg, var(--purple), #552080); border-color: var(--purple-light); }
+    .category-btn strong { display: block; font-size: 0.92rem; margin-bottom: 3px; }
+    .category-btn span { color: #c7c7c7; font-size: 0.72rem; }
+
+    .filter-selects {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(145px, 1fr)) auto;
+      gap: 10px;
+      padding-top: 4px;
+    }
+
+    .filter-selects select, .reset-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 9px 10px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .filter-selects select:focus { border-color: var(--purple-light); }
+    .reset-btn { background: transparent; cursor: pointer; padding-inline: 18px; }
+    .reset-btn:hover { color: #fff; border-color: var(--purple-light); }
+
+    .catalog-sections { padding: 2rem; display: flex; flex-direction: column; gap: 2.5rem; }
+    .category-section-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border); }
+    .category-section-header h2 { font-size: 1.25rem; font-weight: 600; }
+    .category-section-header span { color: var(--text-muted); font-size: 0.78rem; }
+    .card-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 7px; }
+    .card-tag { background: #eee8f4; color: #582080; border-radius: 20px; padding: 3px 7px; font-size: 0.61rem; font-weight: 600; }
+
+    @media (max-width: 850px) {
+      .category-nav { grid-template-columns: repeat(2, 1fr); padding: 1rem; }
+      .filter-selects { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 520px) {
+      .category-nav, .filter-selects { grid-template-columns: 1fr; }
+      .catalog-sections { padding: 1rem; }
+    }
+
+    /* ── GRID ──────────────────────────────────────────── */
+    .grid-section {
+      padding: 2rem;
+    }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 1100px) { .product-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 750px)  { .product-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px)  { .product-grid { grid-template-columns: 1fr; } }
+
+    /* ── CARD ──────────────────────────────────────────── */
+    .card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: fadeUp 0.4s both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-img {
+      background: #ffffff;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.2rem;
+      position: relative;
+    }
+
+    .discontinued-banner {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 3;
+      border-radius: 4px;
+      background: #b42318;
+      color: #fff;
+      padding: 5px 9px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      line-height: 1;
+      text-transform: uppercase;
+      box-shadow: 0 2px 7px rgba(0,0,0,0.24);
+    }
+
+    .nr-card .discontinued-banner,
+    .staff-pick-card .discontinued-banner {
+      top: 7px;
+      left: 7px;
+      padding: 4px 6px;
+      font-size: 0.52rem;
+    }
+
+    .modal-discontinued {
+      margin: -8px 0 18px;
+      border: 1px solid #f0a39d;
+      border-radius: 6px;
+      background: #fff1f0;
+      color: #8f1d14;
+      padding: 11px 12px;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    .modal-discontinued strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .card-img img {
+      width: 80%;
+      height: 80%;
+      object-fit: contain;
+      transition: transform 0.3s;
+    }
+
+    .card:hover .card-img img { transform: scale(1.05); }
+
+    .card-body {
+      padding: 12px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      color: #111;
+      text-align: center;
+    }
+
+    .card-brand {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--purple);
+    }
+
+    .card-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #111;
+      line-height: 1.3;
+    }
+
+    .card-price {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #111;
+      margin-top: 2px;
+    }
+
+    .card-order-btn {
+      margin-top: auto;
+      padding-top: 10px;
+    }
+
+    .card-order-btn button {
+      width: 100%;
+      padding: 9px 0;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.83rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .card-order-btn button:hover { background: var(--purple-light); }
+
+    /* ── LOADING / EMPTY ───────────────────────────────── */
+    .state-msg {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 4rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── MODAL ─────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: #fff;
+      border-radius: 10px;
+      padding: 28px;
+      width: 100%;
+      max-width: 460px;
+      max-height: 92vh;
+      overflow-y: auto;
+      position: relative;
+      color: #111;
+    }
+
+    .modal h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 4px;
+      padding-right: 28px;
+    }
+
+    .modal .ball-subtitle {
+      font-size: 0.82rem;
+      color: var(--purple);
+      font-weight: 600;
+      margin-bottom: 18px;
+    }
+
+    .modal .close-btn {
+      position: absolute;
+      top: 16px; right: 16px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #888;
+      line-height: 1;
+    }
+
+    .modal label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #555;
+      margin: 14px 0 4px;
+    }
+
+    .modal input,
+    .modal select {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.9rem;
+      color: #111;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .modal input:focus,
+    .modal select:focus { border-color: var(--purple); }
+
+    .modal input[readonly] { background: #f5f5f5; color: #666; }
+
+    .modal .submit-btn {
+      width: 100%;
+      margin-top: 22px;
+      padding: 12px;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .modal .submit-btn:hover    { background: var(--purple-light); }
+    .modal .submit-btn:disabled { background: #bbb; cursor: not-allowed; }
+
+    .success-box {
+      text-align: center;
+      padding: 24px 0 8px;
+    }
+
+    .success-box .icon { font-size: 3rem; }
+
+    .success-box h3 {
+      margin-top: 12px;
+      font-size: 1.1rem;
+      color: #111;
+    }
+
+    .success-box p {
+      margin-top: 8px;
+      color: #555;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    /* ── FOOTER ────────────────────────────────────────── */
+    footer {
+      margin-top: 3rem;
+      border-top: 3px solid var(--purple);
+      background: #111;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    /* ── RESPONSIVE TWEAKS ─────────────────────────────── */
+    @media (max-width: 600px) {
+      .new-releases { padding: 1.2rem 1rem 1.4rem; }
+      .controls-bar { padding: 1rem; }
+      .grid-section  { padding: 1rem; }
+    }
+    /* Shop collection layout */
+    :root { --shop-bg:#f3f4f7; --shop-ink:#22233a; --shop-muted:#6f7282; --shop-line:#dedfe6; }
+    body { background:var(--shop-bg); color:var(--shop-ink); }
+    .hero { height:210px; }
+    .collection-heading { max-width:1480px; margin:0 auto; padding:2.2rem 2rem 1.2rem; display:flex; align-items:end; justify-content:space-between; gap:1rem; }
+    .collection-heading h1 { font-size:clamp(1.8rem,3vw,2.65rem); font-weight:600; color:var(--shop-ink); }
+    .collection-heading p { margin-top:.45rem; color:var(--shop-muted); font-size:.9rem; }
+    .catalog-shell { max-width:1480px; margin:0 auto; padding:0 2rem 3rem; display:grid; grid-template-columns:250px minmax(0,1fr); gap:24px; align-items:start; }
+    .filter-sidebar { background:#fff; border:1px solid var(--shop-line); border-radius:8px; overflow:hidden; position:sticky; top:16px; }
+    .filter-title { padding:1rem 1.15rem; font-size:.95rem; border-bottom:1px solid var(--shop-line); }
+    .filter-group { border-bottom:1px solid var(--shop-line); }
+    .filter-group summary { padding:.95rem 1.15rem; font-size:.78rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; cursor:pointer; list-style:none; }
+    .filter-group summary::-webkit-details-marker { display:none; }
+    .filter-group summary::after { content:'+'; float:right; color:var(--purple); font-size:1rem; }
+    .filter-group[open] summary::after { content:'\2212'; }
+    .filter-group-content { padding:0 1.15rem 1rem; }
+    .category-nav,.brand-filters { display:flex; flex-direction:column; gap:3px; padding:0; background:transparent; border:0; }
+    .category-btn,.brand-filters button { width:100%; padding:8px 9px; border:0; border-radius:5px; background:transparent; color:var(--shop-muted); text-align:left; font-size:.78rem; transform:none; }
+    .category-btn:hover,.brand-filters button:hover { background:#f5f0fa; color:var(--purple); transform:none; }
+    .category-btn.active,.brand-filters button.active { background:#f0e5fa; color:var(--purple); font-weight:700; border:0; }
+    .category-btn strong { display:inline; font-size:inherit; }
+    .category-btn span { float:right; color:var(--shop-muted); font-size:.68rem; }
+    .filter-selects { display:flex; flex-direction:column; gap:8px; width:100%; padding:0; }
+    .filter-selects select,.reset-btn { width:100%; background:#fff; color:var(--shop-ink); border:1px solid var(--shop-line); padding:9px; }
+    .reset-btn { margin:1rem; width:calc(100% - 2rem); color:var(--purple); }
+    .catalog-content { min-width:0; }
+    .collection-toolbar { min-height:58px; background:#fff; border:1px solid var(--shop-line); border-radius:8px; padding:.7rem .9rem; display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+    .search-wrap { margin-left:auto; }
+    .search-wrap input { background:#f7f7f9; color:var(--shop-ink); border-color:var(--shop-line); }
+    .results-label { color:var(--shop-muted); }
+    .view-buttons { display:flex; gap:5px; }
+    .view-btn,.mobile-filter-btn { border:1px solid var(--shop-line); background:#fff; color:var(--shop-muted); border-radius:5px; padding:8px 10px; cursor:pointer; font:inherit; }
+    .view-btn.active { color:#fff; background:var(--purple); border-color:var(--purple); }
+    .mobile-filter-btn { display:none; color:var(--purple); font-weight:600; }
+    .catalog-sections { padding:0; gap:2.2rem; }
+    .category-section-header { border-color:var(--shop-line); }
+    .category-section-header h2 { color:var(--shop-ink); }
+    .category-section-header span,.state-msg { color:var(--shop-muted); }
+    .product-grid { gap:16px; }
+    .card { border:1px solid var(--shop-line); border-radius:7px; box-shadow:0 2px 8px rgba(30,25,50,.04); }
+    .card-body { text-align:left; padding:14px 16px 16px; }
+    .card-price { color:var(--purple); font-size:1.05rem; }
+    .card-tags { justify-content:flex-start; }
+    .catalog-sections.list-view .product-grid { grid-template-columns:1fr; }
+    .catalog-sections.list-view .card { display:grid; grid-template-columns:180px minmax(0,1fr); }
+    .catalog-sections.list-view .card-img { aspect-ratio:1; }
+    .catalog-sections.list-view .card-body { justify-content:center; }
+    footer { background:#17151c; }
+    @media(max-width:1050px) { .catalog-shell{grid-template-columns:220px minmax(0,1fr)} .product-grid{grid-template-columns:repeat(3,1fr)} }
+    @media(max-width:800px) { .collection-heading{padding-inline:1rem} .catalog-shell{display:block;padding-inline:1rem} .filter-sidebar{display:none;position:static;margin-bottom:16px} .filter-sidebar.open{display:block} .mobile-filter-btn{display:inline-block} .product-grid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:540px) { .hero{height:150px} .collection-toolbar{flex-wrap:wrap} .search-wrap{order:3;width:100%;margin-left:0} .search-wrap input{width:100%} .view-buttons{margin-left:auto} .product-grid{grid-template-columns:1fr} .catalog-sections.list-view .card{grid-template-columns:120px minmax(0,1fr)} }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <div class="hero">
+    <h1>Bowling Balls</h1>
+  </div>
+
+  <!-- NEW RELEASES -->
+  <section class="new-releases">
+    <div class="new-releases-header">
+      <h2>New Releases</h2>
+      <span class="new-badge">Just In</span>
+    </div>
+    <div class="new-releases-track-wrap">
+      <div class="new-releases-track" id="newReleasesTrack">
+        <span class="nr-loading">Loading new releases…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STAFF PICKS -->
+  <section class="staff-picks" aria-labelledby="staffPicksTitle">
+    <div class="staff-picks-inner">
+      <div class="staff-picks-header">
+        <div><h2 id="staffPicksTitle">Staff Picks</h2><p>See what the Perfexxxion team keeps in their bags.</p></div>
+        <div class="staff-tabs" id="staffTabs" aria-label="Choose a staff member"></div>
+        <select class="staff-mobile-select" id="staffMobileSelect" aria-label="Choose a staff member"></select>
+      </div>
+      <div id="staffBag"><div class="staff-status">Loading staff picks…</div></div>
+    </div>
+  </section>
+
+  <header class="collection-heading">
+    <div><h1>All Bowling Balls</h1><p>Shop by performance, cover, core, oil condition, or brand.</p></div>
+  </header>
+
+  <div class="catalog-shell">
+    <aside class="filter-sidebar" id="filterSidebar">
+      <h2 class="filter-title">Filter products</h2>
+      <details class="filter-group" open><summary>Category</summary><div class="filter-group-content">
+        <nav class="category-nav" id="categoryFilters" aria-label="Bowling ball categories">
+          <button class="category-btn active" data-category="All"><strong>All Categories</strong><span class="category-count">0 balls</span></button>
+          <button class="category-btn" data-category="Reactive"><strong>Performance / Reactive</strong><span class="category-count">0 balls</span></button>
+          <button class="category-btn" data-category="Urethane"><strong>Urethane</strong><span class="category-count">0 balls</span></button>
+          <button class="category-btn" data-category="Spare"><strong>Spare &amp; Plastic</strong><span class="category-count">0 balls</span></button>
+        </nav>
+      </div></details>
+      <details class="filter-group" open><summary>Brand</summary><div class="filter-group-content">
+        <div class="brand-filters" id="brandFilters"><button class="active" data-brand="All">All Brands</button></div>
+      </div></details>
+      <details class="filter-group" open><summary>Ball specifications</summary><div class="filter-group-content filter-selects">
+        <select id="finishFilter" aria-label="Cover finish"><option value="All">All Cover Finishes</option><option value="Solid">Solid</option><option value="Hybrid">Hybrid</option><option value="Pearl">Pearl</option></select>
+        <select id="coreFilter" aria-label="Core type"><option value="All">All Core Types</option><option value="Symmetric">Symmetric</option><option value="Asymmetric">Asymmetric</option></select>
+        <select id="oilFilter" aria-label="Oil condition"><option value="All">All Oil Conditions</option><option value="Heavy">Heavy</option><option value="Medium-Heavy">Medium-Heavy</option><option value="Medium">Medium</option><option value="Light-Medium">Light-Medium</option><option value="Light">Light</option></select>
+        <select id="sortFilter" aria-label="Sort products"><option value="newest">Newest Releases</option><option value="name">Name A–Z</option><option value="priceLow">Price: Low to High</option><option value="priceHigh">Price: High to Low</option></select>
+      </div></details>
+      <button class="reset-btn" id="resetFilters">Reset Filters</button>
+    </aside>
+
+    <section class="catalog-content">
+      <div class="collection-toolbar">
+        <button class="mobile-filter-btn" id="mobileFilterBtn" type="button">Filters</button>
+        <span class="results-label" id="resultsLabel"></span>
+        <div class="search-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+          <input type="text" id="searchInput" placeholder="Search bowling balls…" />
+        </div>
+        <div class="view-buttons" aria-label="Product view">
+          <button class="view-btn active" id="gridViewBtn" type="button">Grid</button>
+          <button class="view-btn" id="listViewBtn" type="button">List</button>
+        </div>
+      </div>
+      <main class="catalog-sections" id="catalogSections"><div class="state-msg"><div class="spinner"></div><br>Loading products…</div></main>
+    </section>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>© 2026 Perfexxxion Pro Shop · All rights reserved</footer>
+
+  <!-- ORDER MODAL -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <button class="close-btn" id="modalClose">&times;</button>
+      <h2>Place an Order</h2>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    const SHEET_ID   = '1clQgsdkcheQzA4msoQUFNNKuv1shCymDGX9z-u8jR2I';
+    const JSON_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Bowling%20Balls`;
+    const NEW_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Recent%20Releases`;
+    const STAFF_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=staffMembersBag`;
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyM-XG8M1nZLCSTmWesyFU0g6oUvq65FKzLSkHQSFjAFmfnGwLg_luEFaubiP3WuAlWHA/exec';
+
+    // Orders now go straight into Supabase, which is what the pro shop app
+    // reads. The publishable key is meant to sit in client-side code -- it can
+    // do only what the RLS policies allow the anon role to do.
+    const SUPABASE_URL = 'https://ngghyuvykqqklztvvmld.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_X-ZHYha1P8FPVL2rvAk-bA_CdXD8g-g';
+
+    // The shop runs two houses. Free text here is what produced "Scranton",
+    // "Idle Hours South" and a bare "x" in the old order book, and the orders
+    // table now rejects anything outside this list.
+    const LOCATIONS = ['Valley', 'South Side'];
+
+    let allProducts    = [];
+    let activeFilter   = 'All';
+    let activeCategory = 'All';
+    let staffBags      = [];
+    let activeStaff    = 0;
+
+    // ── Parse gviz response ──────────────────────────────
+    function parseGviz(text) {
+      const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      return json.table;
+    }
+
+    function colIndex(cols, ...names) {
+      for (const n of names) {
+        const i = cols.findIndex(c => c.label && c.label.toLowerCase().replace(/\s+/g,'').includes(n));
+        if (i !== -1) return i;
+      }
+      return -1;
+    }
+
+    function cellVal(row, i) {
+      if (i < 0 || !row.c[i]) return '';
+      const cell = row.c[i];
+      return String(cell.f ?? cell.v ?? '').trim();
+    }
+
+    // ── Load NEW RELEASES ────────────────────────────────
+    fetch(NEW_URL)
+      .then(r => r.text())
+      .then(text => {
+        const table = parseGviz(text);
+        const cols  = table.cols;
+        const rows  = table.rows;
+
+        const iImg   = colIndex(cols, 'imageurl', 'image');
+        const iBrand = colIndex(cols, 'brand');
+        const iName  = colIndex(cols, 'ballname', 'name');
+        const iPrice = colIndex(cols, 'price');
+        const iDiscontinued = colIndex(cols, 'discontinued');
+
+        const items = rows
+          .filter(r => r.c && r.c.some(cell => cell && cell.v))
+          .map(r => ({
+            img:   iImg   >= 0 ? cellVal(r, iImg).replace(/https?:\/\/+/, 'https://') : '',
+            brand: cellVal(r, iBrand),
+            name:  cellVal(r, iName),
+            price: cellVal(r, iPrice),
+            discontinued: cellVal(r, iDiscontinued) || 'Unknown',
+          }))
+          .filter(p => p.name || p.img);
+
+        const track = document.getElementById('newReleasesTrack');
+
+        if (!items.length) {
+          track.innerHTML = '<span class="nr-loading">No new releases yet.</span>';
+          return;
+        }
+
+        track.innerHTML = items.map((p, i) => `
+          <div class="nr-card" style="animation: fadeUp 0.35s ${i * 0.04}s both">
+            <div class="nr-card-img">
+              ${isDiscontinued(p) ? '<span class="discontinued-banner">Discontinued</span>' : ''}
+              <img src="${p.img}" alt="${p.name}" loading="lazy" onerror="this.style.display='none'" />
+            </div>
+            <div class="nr-card-body">
+              <div class="nr-card-brand">${p.brand}</div>
+              <div class="nr-card-name">${p.name}</div>
+              <div class="nr-card-price">${p.price}</div>
+              <button class="nr-card-btn" onclick="openModal('${p.name.replace(/'/g,"\\'")}')">Order</button>
+            </div>
+          </div>`).join('');
+      })
+      .catch(() => {
+        document.getElementById('newReleasesTrack').innerHTML =
+          '<span class="nr-loading">Could not load new releases.</span>';
+      });
+
+    // ── Load STAFF PICKS ────────────────────────────────
+    fetch(STAFF_URL)
+      .then(r => r.text())
+      .then(text => {
+        const table = parseGviz(text);
+        let headerRowIndex = -1;
+        let columnLabels = table.cols.map(col => normalizeKey(col.label));
+
+        if (!columnLabels.includes('staffmember')) {
+          headerRowIndex = table.rows.findIndex(row => row.c && row.c.some((cell, index) =>
+            normalizeKey(cellVal(row, index)) === 'staffmember'
+          ));
+          if (headerRowIndex >= 0) {
+            columnLabels = table.cols.map((col, index) => normalizeKey(cellVal(table.rows[headerRowIndex], index)));
+          }
+        }
+
+        const staffColumn = columnLabels.indexOf('staffmember');
+        const ballColumns = columnLabels
+          .map((label, index) => ({ index, label }))
+          .filter(col => /^ball[1-9]$/.test(col.label))
+          .map(col => col.index);
+
+        if (staffColumn < 0 || !ballColumns.length) throw new Error('Staff sheet headers were not found.');
+
+        staffBags = table.rows.slice(headerRowIndex + 1)
+          .filter(row => row.c && cellVal(row, staffColumn))
+          .map(row => ({
+            member: cellVal(row, staffColumn),
+            selections: ballColumns.map(index => cellVal(row, index)).filter(Boolean),
+          }))
+          .filter(bag => bag.member && bag.selections.length);
+
+        activeStaff = 0;
+        renderStaffPicks();
+      })
+      .catch(() => {
+        document.getElementById('staffBag').innerHTML = '<div class="staff-status">Could not load staff picks.</div>';
+      });
+
+    // ── Load MAIN CATALOG ────────────────────────────────
+    fetch(JSON_URL)
+      .then(r => r.text())
+      .then(text => {
+        const table = parseGviz(text);
+        const cols  = table.cols;
+        const rows  = table.rows;
+
+        const iImg       = colIndex(cols, 'imageurl', 'image');
+        const iBrand     = colIndex(cols, 'brand');
+        const iName      = colIndex(cols, 'ballname', 'name');
+        const iPrice     = colIndex(cols, 'price');
+        const iRelease   = colIndex(cols, 'releasedate');
+        const iCoverType = colIndex(cols, 'covertype');
+        const iCoreType  = colIndex(cols, 'coretype');
+        const iFinish    = colIndex(cols, 'coverfinish');
+        const iOil       = colIndex(cols, 'oilcondition');
+        const iDiscontinued = colIndex(cols, 'discontinued');
+
+        allProducts = rows
+          .filter(r => r.c && r.c.some(cell => cell && cell.v))
+          .map(r => ({
+            img:       cellVal(r, iImg).replace(/https?:\/\/+/, 'https://'),
+            brand:     cellVal(r, iBrand),
+            name:      cellVal(r, iName),
+            price:     cellVal(r, iPrice),
+            release:   cellVal(r, iRelease),
+            coverType: cellVal(r, iCoverType),
+            coreType:  cellVal(r, iCoreType),
+            finish:    cellVal(r, iFinish),
+            oil:       cellVal(r, iOil),
+            discontinued: cellVal(r, iDiscontinued) || 'Unknown',
+          }))
+          .filter(p => p.name || p.img);
+
+        buildFilters();
+        renderCards();
+        renderStaffPicks();
+      })
+      .catch(err => {
+        document.getElementById('catalogSections').innerHTML =
+          `<div class="state-msg">⚠️ Could not load products: ${err.message}</div>`;
+      });
+
+    // ── Categories, filters & grouped catalog ───────────
+    const CATEGORY_META = {
+      Reactive: { label: 'Performance / Reactive', description: 'Modern performance equipment for hooking the lane.' },
+      Urethane: { label: 'Urethane', description: 'Controlled shapes and predictable motion.' },
+      Spare:    { label: 'Spare & Plastic', description: 'Straight equipment for spares and dry lanes.' },
+    };
+
+    function categoryFor(product) {
+      const name = product.name.toLowerCase();
+      const cover = product.coverType.toLowerCase();
+      if (cover === 'plastic' || /\b(spare|viz-a-ball|clear)\b/i.test(name)) return 'Spare';
+      if (cover.includes('urethane')) return 'Urethane';
+      return 'Reactive';
+    }
+
+    function priceNumber(price) {
+      return parseFloat(String(price || '').replace(/[^0-9.]/g, '')) || 0;
+    }
+
+    function releaseTime(value) {
+      const time = Date.parse('1 ' + String(value || ''));
+      return Number.isNaN(time) ? 0 : time;
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function isDiscontinued(product) {
+      return /^(?:yes|true|discontinued)$/i.test(String(product?.discontinued || '').trim());
+    }
+
+    function normalizeKey(value) {
+      return String(value || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
+    }
+
+    function findStaffPick(selection) {
+      const fullIndex = new Map();
+      const shortIndex = new Map();
+      const brandKeys = [...new Set(allProducts.map(product => normalizeKey(product.brand)).filter(Boolean))]
+        .sort((a, b) => b.length - a.length);
+
+      allProducts.forEach(product => {
+        const fullKey = normalizeKey(product.name);
+        const brandKey = normalizeKey(product.brand);
+        fullIndex.set(fullKey, product);
+        if (brandKey && fullKey.startsWith(brandKey)) {
+          const shortKey = fullKey.slice(brandKey.length);
+          shortIndex.set(shortKey, shortIndex.has(shortKey) ? null : product);
+        }
+      });
+
+      const selectionKey = normalizeKey(selection);
+      if (fullIndex.has(selectionKey)) return fullIndex.get(selectionKey);
+      const matchedBrand = brandKeys.find(brand => selectionKey.startsWith(brand));
+      if (!matchedBrand) return shortIndex.get(selectionKey) || null;
+      return shortIndex.get(selectionKey.slice(matchedBrand.length)) || null;
+    }
+
+    function renderStaffPicks() {
+      if (!staffBags.length || !allProducts.length) return;
+      if (activeStaff >= staffBags.length) activeStaff = 0;
+
+      document.getElementById('staffTabs').innerHTML = staffBags.map((bag, index) =>
+        '<button class="staff-tab' + (index === activeStaff ? ' active' : '') + '" type="button" data-staff-index="' + index + '">' +
+        escapeHtml(bag.member) + '</button>'
+      ).join('');
+
+      const mobileSelect = document.getElementById('staffMobileSelect');
+      mobileSelect.innerHTML = staffBags.map((bag, index) =>
+        '<option value="' + index + '"' + (index === activeStaff ? ' selected' : '') + '>' + escapeHtml(bag.member) + '</option>'
+      ).join('');
+
+      const bag = staffBags[activeStaff];
+      const cards = bag.selections.map(selection => {
+        const product = findStaffPick(selection);
+        if (!product) {
+          return '<div class="staff-unmatched"><span><strong>' + escapeHtml(selection) + '</strong><br>Temporarily unavailable</span></div>';
+        }
+        return '<article class="staff-pick-card"><div class="staff-pick-img">' +
+          (isDiscontinued(product) ? '<span class="discontinued-banner">Discontinued</span>' : '') +
+          '<img src="' + escapeHtml(product.img) +
+          '" alt="' + escapeHtml(product.name) + '" loading="lazy" onerror="this.style.display=\'none\'" /></div>' +
+          '<div class="staff-pick-body"><div class="staff-pick-brand">' + escapeHtml(product.brand) + '</div>' +
+          '<div class="staff-pick-name">' + escapeHtml(product.name) + '</div><div class="staff-pick-price">' +
+          escapeHtml(product.price) + '</div><div class="staff-pick-order"><button class="staff-order-button" data-ball-name="' +
+          escapeHtml(product.name) + '">Order</button></div></div></article>';
+      }).join('');
+
+      document.getElementById('staffBag').innerHTML = '<div class="staff-bag-title">' + escapeHtml(bag.member) +
+        '\'s current bag · ' + bag.selections.length + ' picks</div><div class="staff-bag-track">' + cards + '</div>';
+    }
+
+    document.getElementById('staffTabs').addEventListener('click', event => {
+      const tab = event.target.closest('.staff-tab');
+      if (!tab) return;
+      activeStaff = Number(tab.dataset.staffIndex);
+      renderStaffPicks();
+    });
+
+    document.getElementById('staffMobileSelect').addEventListener('change', event => {
+      activeStaff = Number(event.target.value);
+      renderStaffPicks();
+    });
+
+    document.getElementById('staffBag').addEventListener('click', event => {
+      const button = event.target.closest('.staff-order-button');
+      if (button) openModal(button.dataset.ballName);
+    });
+
+    function buildFilters() {
+      const brands = [...new Set(allProducts.map(p => p.brand).filter(Boolean).sort())];
+      const brandContainer = document.getElementById('brandFilters');
+
+      brands.forEach(brand => {
+        const btn = document.createElement('button');
+        btn.dataset.brand = brand;
+        btn.textContent = brand;
+        brandContainer.appendChild(btn);
+      });
+
+      brandContainer.addEventListener('click', event => {
+        if (!event.target.matches('button')) return;
+        activeFilter = event.target.dataset.brand;
+        brandContainer.querySelectorAll('button').forEach(btn =>
+          btn.classList.toggle('active', btn.dataset.brand === activeFilter)
+        );
+        renderCards();
+      });
+
+      document.getElementById('categoryFilters').addEventListener('click', event => {
+        const btn = event.target.closest('.category-btn');
+        if (!btn) return;
+        activeCategory = btn.dataset.category;
+        document.querySelectorAll('.category-btn').forEach(item =>
+          item.classList.toggle('active', item === btn)
+        );
+        renderCards();
+      });
+
+      ['finishFilter', 'coreFilter', 'oilFilter', 'sortFilter'].forEach(id =>
+        document.getElementById(id).addEventListener('change', renderCards)
+      );
+
+      document.getElementById('searchInput').addEventListener('input', renderCards);
+      document.getElementById('resetFilters').addEventListener('click', resetFilters);
+      document.getElementById('catalogSections').addEventListener('click', event => {
+        const btn = event.target.closest('.order-button');
+        if (btn) openModal(btn.dataset.ballName);
+      });
+
+      document.getElementById('mobileFilterBtn').addEventListener('click', () => {
+        document.getElementById('filterSidebar').classList.toggle('open');
+      });
+
+      document.getElementById('gridViewBtn').addEventListener('click', () => setCatalogView(false));
+      document.getElementById('listViewBtn').addEventListener('click', () => setCatalogView(true));
+
+      const singleColumnScreen = window.matchMedia('(max-width: 540px)');
+      const applyResponsiveView = event => setCatalogView(event.matches);
+      applyResponsiveView(singleColumnScreen);
+      singleColumnScreen.addEventListener('change', applyResponsiveView);
+    }
+
+    function setCatalogView(useList) {
+      document.getElementById('catalogSections').classList.toggle('list-view', useList);
+      document.getElementById('gridViewBtn').classList.toggle('active', !useList);
+      document.getElementById('listViewBtn').classList.toggle('active', useList);
+    }
+
+    function resetFilters() {
+      activeFilter = 'All';
+      activeCategory = 'All';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('finishFilter').value = 'All';
+      document.getElementById('coreFilter').value = 'All';
+      document.getElementById('oilFilter').value = 'All';
+      document.getElementById('sortFilter').value = 'newest';
+      document.querySelectorAll('#brandFilters button').forEach(btn => btn.classList.toggle('active', btn.dataset.brand === 'All'));
+      document.querySelectorAll('.category-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.category === 'All'));
+      renderCards();
+    }
+
+    function filteredProducts(ignoreCategory) {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const finish = document.getElementById('finishFilter').value;
+      const core = document.getElementById('coreFilter').value;
+      const oil = document.getElementById('oilFilter').value;
+
+      return allProducts.filter(product => {
+        const searchable = [product.name, product.brand, product.finish, product.coreType, product.oil].join(' ').toLowerCase();
+        const matches =
+          (activeFilter === 'All' || product.brand === activeFilter) &&
+          (!query || searchable.includes(query)) &&
+          (finish === 'All' || product.finish === finish) &&
+          (core === 'All' || product.coreType === core) &&
+          (oil === 'All' || product.oil === oil);
+        return matches && (ignoreCategory || activeCategory === 'All' || categoryFor(product) === activeCategory);
+      });
+    }
+
+    function sortedProducts(products) {
+      const sort = document.getElementById('sortFilter').value;
+      return [...products].sort((a, b) => {
+        if (sort === 'priceLow') return priceNumber(a.price) - priceNumber(b.price);
+        if (sort === 'priceHigh') return priceNumber(b.price) - priceNumber(a.price);
+        if (sort === 'name') return a.name.localeCompare(b.name);
+        return releaseTime(b.release) - releaseTime(a.release) || a.name.localeCompare(b.name);
+      });
+    }
+
+    function updateCategoryCounts(products) {
+      const counts = { All: products.length, Reactive: 0, Urethane: 0, Spare: 0 };
+      products.forEach(product => counts[categoryFor(product)]++);
+      document.querySelectorAll('.category-btn').forEach(btn => {
+        const count = counts[btn.dataset.category] || 0;
+        btn.querySelector('.category-count').textContent = count + (count === 1 ? ' ball' : ' balls');
+      });
+    }
+
+    function productCard(product, index) {
+      const tags = [product.finish, product.coreType, product.oil].filter(Boolean).slice(0, 3)
+        .map(tag => '<span class="card-tag">' + escapeHtml(tag) + '</span>').join('');
+
+      return '<article class="card" style="animation-delay:' + (index * 0.025) + 's">' +
+        '<div class="card-img">' +
+        (isDiscontinued(product) ? '<span class="discontinued-banner">Discontinued</span>' : '') +
+        '<img src="' + escapeHtml(product.img) + '" alt="' + escapeHtml(product.name) +
+        '" loading="lazy" onerror="this.style.display=\'none\'" /></div>' +
+        '<div class="card-body"><div class="card-brand">' + escapeHtml(product.brand) + '</div>' +
+        '<div class="card-name">' + escapeHtml(product.name) + '</div><div class="card-price">' + escapeHtml(product.price) + '</div>' +
+        '<div class="card-tags">' + tags + '</div><div class="card-order-btn"><button class="order-button" data-ball-name="' +
+        escapeHtml(product.name) + '">Order</button></div></div></article>';
+    }
+
+    function renderCards() {
+      const baseProducts = filteredProducts(true);
+      const visibleProducts = sortedProducts(filteredProducts(false));
+      updateCategoryCounts(baseProducts);
+      document.getElementById('resultsLabel').textContent = visibleProducts.length + (visibleProducts.length === 1 ? ' product' : ' products');
+
+      const container = document.getElementById('catalogSections');
+      if (!visibleProducts.length) {
+        container.innerHTML = '<div class="state-msg">No products match your filters.</div>';
+        return;
+      }
+
+      const categories = activeCategory === 'All' ? ['Reactive', 'Urethane', 'Spare'] : [activeCategory];
+      container.innerHTML = categories.map(category => {
+        const products = visibleProducts.filter(product => categoryFor(product) === category);
+        if (!products.length) return '';
+        const meta = CATEGORY_META[category];
+        return '<section class="category-section"><div class="category-section-header"><h2>' + meta.label + '</h2><span>' +
+          products.length + (products.length === 1 ? ' ball' : ' balls') + ' · ' + meta.description + '</span></div>' +
+          '<div class="product-grid">' + products.map((product, index) => productCard(product, index)).join('') + '</div></section>';
+      }).join('');
+    }
+
+    // ── Modal ────────────────────────────────────────────
+    window.openModal = function(ballName) {
+      const selectedProduct = allProducts.find(product => product.name === ballName);
+      const discontinuedNotice = isDiscontinued(selectedProduct)
+        ? '<div class="modal-discontinued" role="alert"><strong>Discontinued ball availability notice</strong>There is no guarantee that we will be able to order this discontinued ball. If it is unavailable, we will contact you to let you know that we cannot get it.</div>'
+        : '';
+      document.getElementById('modalBody').innerHTML = `
+        <div class="ball-subtitle">${ballName}</div>
+        ${discontinuedNotice}
+
+        <label>Name</label>
+        <input type="text" id="fName" placeholder="Your full name" />
+
+        <label>Phone Number</label>
+        <input type="tel" id="fPhone" placeholder="(555) 555-5555" />
+
+        <label for="fOrderLoc">Order Location</label>
+        <select id="fOrderLoc" required>
+          <option value="">-- Where are you ordering from? --</option>
+          ${LOCATIONS.map(l => `<option>${l}</option>`).join('')}
+        </select>
+
+        <label for="fPickupLoc">Pickup Location</label>
+        <select id="fPickupLoc" required>
+          <option value="">-- Where will you pick it up? --</option>
+          ${LOCATIONS.map(l => `<option>${l}</option>`).join('')}
+        </select>
+
+        <label>Bowling Ball</label>
+        <input type="text" id="fBall" value="${ballName}" readonly />
+
+        <label>Ball Weight</label>
+        <select id="fWeight">
+          <option value="">-- Select weight --</option>
+          ${[6,7,8,9,10,11,12,13,14,15,16].map(w => `<option>${w} lb</option>`).join('')}
+        </select>
+
+        <label for="fFittingSpecs">Fitting Information</label>
+        <select id="fFittingSpecs" required>
+          <option value="">-- Select fitting information --</option>
+          <option value="Need appointment to be fitted">Need appointment to be fitted</option>
+          <option value="Specs on file">Specs on file</option>
+        </select>
+
+        <button class="submit-btn" id="submitBtn" onclick="submitOrder('${ballName.replace(/'/g,"\\'")}')">Submit Order</button>
+      `;
+      document.getElementById('modalOverlay').classList.add('open');
+    };
+
+    // Match the format the pro shop app displays and searches on.
+    function normalizePhone(raw) {
+      const digits = String(raw || '').replace(/\D/g, '');
+      const ten = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+      return ten.length === 10
+        ? ten.slice(0, 3) + '-' + ten.slice(3, 6) + '-' + ten.slice(6)
+        : String(raw || '').trim();
+    }
+
+    window.submitOrder = async function(ballName) {
+      const name     = document.getElementById('fName').value.trim();
+      const phone    = document.getElementById('fPhone').value.trim();
+      const orderLoc = document.getElementById('fOrderLoc').value;
+      const pickLoc  = document.getElementById('fPickupLoc').value;
+      const ball     = document.getElementById('fBall').value.trim();
+      const weight   = document.getElementById('fWeight').value;
+      const fittingSpecs = document.getElementById('fFittingSpecs').value;
+
+      if (!name || !phone || !orderLoc || !pickLoc || !weight || !fittingSpecs) {
+        alert('Please fill in all fields before submitting.');
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+
+      const product = allProducts.find(p => p.name === ballName);
+
+      const order = {
+        customer_name: name,
+        phone: normalizePhone(phone),
+        // The order book has always recorded ball and weight as one string
+        // ("Hammer Zero Mercy Solid 14 lb"), so keep that shape.
+        item: ball + ' ' + weight,
+        quantity: 1,
+        fitting: fittingSpecs,
+        order_location: orderLoc,
+        pickup_location: pickLoc,
+        source: 'website',
+        is_stock: false,
+        submitted_at: new Date().toISOString(),
+        notes: isDiscontinued(product)
+          ? 'Discontinued — may not be available to order'
+          : null
+      };
+
+      try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/orders', {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: JSON.stringify(order)
+        });
+
+        // A real status code, unlike the old no-cors POST, whose opaque
+        // response resolved even when the order never arrived -- customers
+        // saw "Order Received!" for orders that were silently dropped.
+        if (!res.ok) throw new Error((await res.text()) || res.status);
+
+        // Best-effort mirror into the old Google Sheet while the shop runs
+        // both systems. Deliberately not awaited: the order is already safe
+        // in Supabase, and this endpoint cannot report success anyway.
+        fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, phone,
+            orderLocation: orderLoc,
+            pickupLocation: pickLoc,
+            ball, weight,
+            fitting: fittingSpecs,
+            source: 'From Website'
+          })
+        }).catch(() => {});
+
+        document.getElementById('modalBody').innerHTML = `
+          <div class="success-box">
+            <div class="icon">✅</div>
+            <h3>Order Received!</h3>
+            <p><strong>${escapeHtml(name)}</strong>, your order for the <strong>${escapeHtml(ball)}</strong> (${escapeHtml(weight)}) has been submitted.</p>
+            <p>We'll reach out to you at <strong>${escapeHtml(normalizePhone(phone))}</strong> to confirm.</p>
+          </div>`;
+      } catch (err) {
+        console.error('Order submission failed:', err);
+        btn.disabled = false;
+        btn.textContent = 'Submit Order';
+        alert(
+          'Sorry — your order could not be submitted.\n\n' +
+          'Nothing has been saved, so please try again. If it keeps failing, ' +
+          'call the shop and we will take the order over the phone.'
+        );
+      }
+    };
+
+    document.getElementById('modalClose').addEventListener('click', () =>
+      document.getElementById('modalOverlay').classList.remove('open'));
+
+    document.getElementById('modalOverlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('modalOverlay'))
+        document.getElementById('modalOverlay').classList.remove('open');
+    });
+  </script>
+</body>
+</html>
