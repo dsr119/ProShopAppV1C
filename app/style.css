@@ -579,7 +579,7 @@ tbody tr.pending:hover { filter: brightness(.98); }
   background: #fafbfc;
 }
 
-.dayappts .none {
+.dayappts .none, .stafflist .none {
   padding: 12px;
   color: var(--muted);
   font-size: 13px;
@@ -819,4 +819,253 @@ button.danger:hover { background: #fdf0f0; }
   .day .appts { flex: 1; gap: 3px; }
   .appt { white-space: normal; font-size: 13px; padding: 4px 6px; }
   .row2 { grid-template-columns: 1fr; }
+}
+
+/* ---------- order provenance ---------- */
+
+/* The second line under a date or a due date: the time it came in, how long
+   it has waited, how late it is. Muted, so the value above it stays the thing
+   the eye lands on. */
+.sub { color: var(--muted); font-size: 12px; }
+.sub.overdue { color: var(--danger); font-weight: 600; }
+.sub.duetoday { color: var(--warn); font-weight: 600; }
+
+/* Where an order came from. Four muted colours rather than four loud ones --
+   this column is answering "which route was this?", not raising an alarm. */
+.badge.src { font-weight: 600; }
+.badge.src-web    { background: var(--accent-soft); color: var(--accent); }
+.badge.src-form   { background: #ede9fe; color: #6d28d9; }
+.badge.src-shop   { background: #f1f3f5; color: #495057; }
+.badge.src-import { background: #f8f9fa; color: #868e96; border: 1px solid var(--line); }
+
+/* ---------- assignment ---------- */
+
+/* A bare select inside a table cell. Borderless until hovered, so a column of
+   them reads as text rather than as a wall of controls. */
+select.assign {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 3px;
+  padding: 1px 3px;
+  max-width: 130px;
+  font-size: 13px;
+}
+
+select.assign:hover { border-color: var(--line); background: var(--panel); }
+select.assign:focus { border-color: var(--accent); background: var(--panel); }
+select.assign:disabled { opacity: .5; }
+
+/* ---------- tickets ---------- */
+
+/* A button that is a link. Nav-adjacent actions in the toolbar have to line
+   up with the real buttons beside them. */
+.btnlink {
+  display: inline-block;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-weight: 500;
+  text-decoration: none;
+  color: inherit;
+}
+.btnlink:hover { background: #f0f2f5; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  border: 0;
+  background: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 14px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tab:hover { background: none; color: var(--ink); }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+.pill {
+  background: #eef1f4;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.tab.on .pill { background: var(--accent-soft); color: var(--accent); }
+
+/* Cards, not a table. A ticket is a paragraph of prose from a colleague plus
+   two decisions -- laying that out in columns would give the details a 90px
+   box and the priority a whole one. */
+.ticketlist {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  align-items: start;
+}
+
+.ticket {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.ticket.urgent { border-left: 4px solid var(--danger); }
+.ticket.late   { border-left: 4px solid var(--warn); }
+.ticket.st-done { opacity: .62; }
+
+.thead {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.ttitle { font-weight: 650; flex: 1; min-width: 0; }
+
+.tdetails {
+  margin: 6px 0 0;
+  color: #46505c;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.tmeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tmeta .due.late  { color: var(--danger); font-weight: 600; }
+.tmeta .due.today { color: var(--warn); font-weight: 600; }
+
+.tfoot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.tfoot .assign { flex: 1; max-width: none; border-color: var(--line); background: var(--panel); }
+.tfoot button { font-size: 12.5px; padding: 4px 9px; }
+
+.ticketdetails {
+  background: #f6f7f9;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  max-height: 190px;
+  overflow: auto;
+}
+
+.ticketdetails.muted { color: var(--muted); font-style: italic; }
+
+.badge.pri-urgent { background: #fde8e8; color: var(--danger); }
+.badge.pri-high   { background: var(--warn-soft); color: var(--warn); }
+.badge.pri-normal { background: #eef1f4; color: var(--muted); }
+.badge.pri-low    { background: #f8f9fa; color: #9aa3ad; }
+
+.badge.stat-new         { background: var(--accent-soft); color: var(--accent); }
+.badge.stat-assigned    { background: #ede9fe; color: #6d28d9; }
+.badge.stat-in_progress { background: var(--warn-soft); color: var(--warn); }
+.badge.stat-blocked     { background: #fde8e8; color: var(--danger); }
+.badge.stat-done        { background: var(--ok-soft); color: var(--ok); }
+
+/* ---------- staff roster editor ---------- */
+
+.stafflist { display: grid; gap: 6px; margin-bottom: 10px; }
+
+.staffrow { display: flex; gap: 6px; align-items: center; }
+.staffrow input { flex: 1; min-width: 0; }
+
+/* Square nudges, sized to sit beside the name without competing with it. */
+.staffrow .ord {
+  padding: 4px 0;
+  width: 28px;
+  text-align: center;
+  line-height: 1;
+  font-size: 13px;
+  flex: none;
+}
+
+/* Retired, not gone. Still readable, visibly out of the running. */
+.staffrow.off input { color: var(--muted); text-decoration: line-through; }
+
+.addstaff { display: flex; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.addstaff input { flex: 1; }
+
+/* ---------- ticket intake page ---------- */
+
+/* Deliberately no nav: this page is bookmarked by people who have no business
+   in the order book. */
+header.slim { justify-content: flex-start; }
+header.slim .tag {
+  color: var(--muted);
+  font-size: 13px;
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+
+main.narrow { max-width: 620px; margin: 0 auto; }
+
+.lede { color: var(--muted); margin: 0 0 14px; }
+.dialog .lede, dialog .lede { font-size: 12.5px; margin-bottom: 12px; }
+
+/* A hint inside a field label -- says what the field is for without turning
+   into a second line of chrome. */
+.opt { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+.footlink { color: var(--muted); font-size: 12.5px; text-align: center; margin-top: 22px; }
+.footlink a { color: var(--muted); }
+
+.checkrow { display: flex; gap: 20px; }
+
+/* ---------- appointment chips: owner and money ---------- */
+
+/* Initials, pushed to the right of the chip. Two characters is all a month
+   cell can spare and all the shop's handful of people need. */
+.appt .who {
+  float: right;
+  opacity: .72;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  padding-left: 4px;
+}
+
+/* An unpaid job carries a dot. Quiet enough to ignore on a full month, there
+   when you are looking for it. */
+.appt.unpaid::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+@media (max-width: 760px) {
+  .ticketlist { grid-template-columns: 1fr; }
+  .checkrow { gap: 14px; }
+  select.assign { max-width: none; width: 100%; border-color: var(--line); background: var(--panel); }
 }

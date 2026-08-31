@@ -7,6 +7,17 @@
 
 const LOCATIONS = ["", "Valley", "South Side", "Both"];
 
+// How an order reached the shop. The stored values are the ones the intakes
+// write -- apps-script/form-to-supabase.gs sends 'google_form', the embedded
+// order page on the Google Site sends 'website', app/order.js sends 'in_shop',
+// and everything from the workbook is 'import'.
+const SOURCES = {
+  website:     { label: "Website",      cls: "src-web" },
+  google_form: { label: "Google Form",  cls: "src-form" },
+  in_shop:     { label: "Manual entry", cls: "src-shop" },
+  import:      { label: "Imported",     cls: "src-import" },
+};
+
 let ORDERS = [];          // everything currently loaded
 let SELECTED = new Set(); // ids ticked for a bulk update
 
@@ -143,9 +154,11 @@ function visible() {
   const q = $("search").value.trim().toLowerCase();
   const loc = $("location").value;
   const st = $("status").value;
+  const src = $("source").value;
 
   return ORDERS.filter((o) => {
     if (loc && o.order_location !== loc && o.pickup_location !== loc) return false;
+    if (src && o.source !== src) return false;
 
     if (st === "pending" && o.shop_order_date) return false;
     if (st === "ordered" && (!o.shop_order_date || o.out_the_door)) return false;
@@ -206,7 +219,7 @@ function groupRow(label) {
   const tr = document.createElement("tr");
   tr.className = "grouprow";
   const td = document.createElement("td");
-  td.colSpan = 17;
+  td.colSpan = 19;
   td.textContent = label;
   tr.appendChild(td);
   return tr;
@@ -260,6 +273,14 @@ function orderRow(o) {
   td(tr, "Phone", "nowrap").appendChild(editable(o, "phone", "text"));
   td(tr, "Order loc").appendChild(editable(o, "order_location", "select", { options: LOCATIONS }));
   td(tr, "Pickup").appendChild(editable(o, "pickup_location", "select", { options: LOCATIONS }));
+
+  // Provenance, not data entry: when the order arrived and by what route are
+  // facts about what already happened, so neither is editable. Sitting them
+  // beside the shop order date makes the wait legible -- "came in 8/1, we
+  // placed it 8/19" is the whole story in two columns.
+  td(tr, "Came in", "nowrap").appendChild(cameIn(o));
+  td(tr, "From").appendChild(sourceBadge(o));
+
   td(tr, "Shop ordered", "nowrap").appendChild(editable(o, "shop_order_date", "date"));
   td(tr, "Supplier").appendChild(editable(o, "supplier", "text", { list: "suppliers" }));
   td(tr, "Order #").appendChild(editable(o, "supplier_order_no", "text"));
@@ -276,6 +297,59 @@ function orderRow(o) {
   td(tr, "Remove").appendChild(del);
 
   return tr;
+}
+
+// Date on top, time and age underneath. The age is the useful part on the
+// pending queue -- "9 days" is what makes someone go and place the order.
+function cameIn(o) {
+  const wrap = document.createElement("div");
+  if (!o.submitted_at) {
+    wrap.innerHTML = '<span style="color:#c3c8ce">unknown</span>';
+    return wrap;
+  }
+
+  const d = new Date(o.submitted_at);
+  const top = document.createElement("div");
+  top.textContent = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+  wrap.appendChild(top);
+
+  const sub = document.createElement("div");
+  sub.className = "sub";
+  sub.textContent = prettyClock(d) + (o.shop_order_date ? "" : " · " + waited(d));
+  wrap.appendChild(sub);
+
+  wrap.title = d.toLocaleString();
+  return wrap;
+}
+
+function prettyClock(d) {
+  let h = d.getHours();
+  const ap = h >= 12 ? "p" : "a";
+  h = h % 12 || 12;
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return m === "00" ? `${h}${ap}` : `${h}:${m}${ap}`;
+}
+
+// Whole days, measured between calendar days rather than instants -- an order
+// taken at 6pm yesterday should read "1 day", not "0".
+function waited(then) {
+  const now = new Date();
+  const a = new Date(then.getFullYear(), then.getMonth(), then.getDate());
+  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((b - a) / 86400000);
+  if (days <= 0) return "today";
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function sourceBadge(o) {
+  const meta = SOURCES[o.source];
+  const el = document.createElement("span");
+  el.className = "badge src " + (meta ? meta.cls : "src-import");
+  // An unrecognised value is shown as-is rather than swallowed: a new intake
+  // added later should be visible on the page, not silently blank.
+  el.textContent = meta ? meta.label : (o.source || "—");
+  el.title = "Order source: " + el.textContent;
+  return el;
 }
 
 function td(tr, label, cls) {
@@ -462,6 +536,7 @@ function clearBulk() {
 function exportCsv() {
   const rows = visible();
   const cols = [
+    "submitted_at", "source",
     "customer_name", "item", "quantity", "phone", "order_location",
     "pickup_location", "shop_order_date", "supplier", "supplier_order_no",
     "invoice_no", "price", "paid", "out_the_door", "notes",
@@ -494,6 +569,7 @@ $("search").addEventListener("input", () => {
 
 $("quarter").addEventListener("change", load);
 $("location").addEventListener("change", render);
+$("source").addEventListener("change", render);
 $("status").addEventListener("change", render);
 $("export").addEventListener("click", exportCsv);
 $("b_apply").addEventListener("click", applyBulk);

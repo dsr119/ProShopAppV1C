@@ -165,6 +165,14 @@ function render() {
     : "No appointments this month";
 }
 
+// "Keith Reynolds" -> "KR". A month cell has room for two characters, and
+// two characters is enough to tell the shop's handful of people apart.
+function initials(name) {
+  if (!name) return "";
+  return name.trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0].toUpperCase()).join("");
+}
+
 function apptChip(a) {
   const el = document.createElement("div");
   el.className = "appt";
@@ -172,13 +180,20 @@ function apptChip(a) {
   else if (a.location === "South Side") el.classList.add("south");
   if (a.completed) el.classList.add("done");
 
+  if (!a.paid && !a.completed) el.classList.add("unpaid");
+
   const time = prettyTime(a.appt_time);
   el.innerHTML =
     (time ? `<span class="t">${time}</span> ` : "") +
-    `<span class="n"></span>`;
+    `<span class="n"></span>` +
+    `<span class="who"></span>`;
   el.querySelector(".n").textContent = a.customer_name;
-  el.title = [a.customer_name, time, a.location, a.service]
-    .filter(Boolean).join(" · ");
+  el.querySelector(".who").textContent = initials(a.staff_member);
+  el.title = [
+    a.customer_name, time, a.location, a.service,
+    a.staff_member ? "with " + a.staff_member : null,
+    a.paid ? "paid" : "not paid",
+  ].filter(Boolean).join(" · ");
 
   el.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -202,7 +217,14 @@ function openDialog(appt, dateStr) {
   $("f_location").value = appt ? appt.location || "" : "";
   $("f_service").value = appt ? appt.service : "";
   $("f_phone").value = appt ? appt.phone || "" : "";
+  $("f_paid").checked = appt ? !!appt.paid : false;
   $("f_completed").checked = appt ? appt.completed : false;
+
+  // Roster lookup is cached after the first dialog, so this is only a real
+  // request once per page load. A failure leaves the dropdown empty rather
+  // than blocking the booking.
+  staff.fillSelect($("f_staff"), appt ? appt.staff_member || "" : "")
+    .catch((err) => console.error("Could not load the staff roster:", err));
 
   $("dlg").showModal();
   $("f_name").focus();
@@ -217,6 +239,8 @@ async function save(e) {
     location: $("f_location").value || null,
     service: $("f_service").value.trim(),
     phone: $("f_phone").value.trim() || null,
+    staff_member: $("f_staff").value || null,
+    paid: $("f_paid").checked,
     completed: $("f_completed").checked,
   };
   if (!row.customer_name || !row.appt_date || !row.service) return;

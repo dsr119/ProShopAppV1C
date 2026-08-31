@@ -6,7 +6,7 @@
 <title>Appointments — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 
@@ -17,6 +17,8 @@
     <a href="drilling.html">Drilling</a>
     <a href="appointments.html" class="active">Appointments</a>
     <a href="order.html">New Order</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
   </nav>
 </header>
 
@@ -46,6 +48,7 @@
     <span><i class="swatch valley"></i> Valley</span>
     <span><i class="swatch south"></i> South Side</span>
     <span>Click any day to book. Click an appointment to edit.</span>
+    <span>Unpaid appointments carry a dot; today's list is on the <a href="board.html">day board</a>.</span>
   </div>
 </main>
 
@@ -74,12 +77,22 @@
       <label>What are we doing
         <textarea id="f_service" required></textarea>
       </label>
-      <label>Phone (optional)
-        <input type="text" id="f_phone" autocomplete="off">
-      </label>
-      <label class="checkline">
-        <input type="checkbox" id="f_completed"> Completed
-      </label>
+      <div class="row2">
+        <label>Phone (optional)
+          <input type="text" id="f_phone" autocomplete="off">
+        </label>
+        <label>Assigned to
+          <select id="f_staff"></select>
+        </label>
+      </div>
+      <div class="checkrow">
+        <label class="checkline">
+          <input type="checkbox" id="f_paid"> Paid
+        </label>
+        <label class="checkline">
+          <input type="checkbox" id="f_completed"> Completed
+        </label>
+      </div>
     </div>
     <div class="foot">
       <button type="button" class="danger hidden" id="f_delete">Delete</button>
@@ -90,8 +103,9 @@
   </form>
 </dialog>
 
-<script src="config.js?v=10"></script>
-<script src="db.js?v=10"></script>
-<script src="appointments.js?v=10"></script>
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="staff.js?v=17"></script>
+<script src="appointments.js?v=17"></script>
 </body>
 </html>

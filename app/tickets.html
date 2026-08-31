@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tickets — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="style.css?v=17">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html">Orders</a>
+    <a href="drilling.html">Drilling</a>
+    <a href="appointments.html">Appointments</a>
+    <a href="order.html">New Order</a>
+    <a href="tickets.html" class="active">Tickets</a>
+    <a href="board.html">Day Board</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search ticket, submitter, assignee …">
+    <select id="assignee">
+      <option value="">Anyone</option>
+      <option value="__none__">Unassigned</option>
+    </select>
+    <select id="priority">
+      <option value="">Any priority</option>
+      <option value="urgent">Urgent</option>
+      <option value="high">High</option>
+      <option value="normal">Normal</option>
+      <option value="low">Low</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button id="managestaff">Manage staff</button>
+    <a class="btnlink" href="ticket.html">Submit a ticket</a>
+  </div>
+
+  <!-- Review first. Everything a staff member has sent that Keith has not
+       looked at yet sits in its own tab, and that tab carries the count so
+       the number is visible without switching to it. -->
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-view="review">To review <span class="pill" id="n_review">0</span></button>
+    <button class="tab" data-view="open">In progress <span class="pill" id="n_open">0</span></button>
+    <button class="tab" data-view="done">Done</button>
+    <button class="tab" data-view="all">All</button>
+  </div>
+
+  <div id="list" class="ticketlist"></div>
+  <div id="empty" class="empty-state hidden">Nothing here.</div>
+</main>
+
+<!-- Assign / edit -->
+<dialog id="dlg" class="wide">
+  <form method="dialog" id="ticketform">
+    <h3 id="dlgtitle">Ticket</h3>
+    <div class="body">
+      <div class="forwhom">
+        <div class="nm" id="t_title"></div>
+        <div class="it" id="t_meta"></div>
+      </div>
+
+      <div class="ticketdetails" id="t_details"></div>
+
+      <div class="row2">
+        <label>Assign to
+          <select id="t_staff"></select>
+        </label>
+        <label>Status
+          <select id="t_status">
+            <option value="new">To review</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="done">Done</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row2">
+        <label>Priority
+          <select id="t_priority">
+            <option value="low">Low</option>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </label>
+        <label>Due
+          <input type="date" id="t_due">
+        </label>
+      </div>
+
+      <label>Resolution / notes
+        <textarea id="t_resolution" rows="3"
+                  placeholder="What was done, or what it is waiting on."></textarea>
+      </label>
+    </div>
+    <div class="foot">
+      <button type="button" class="danger" id="t_delete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="t_cancel">Cancel</button>
+      <button type="submit" class="primary" id="t_save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- The roster. Names change, people leave, and neither should mean editing
+     a source file. -->
+<dialog id="staffdlg">
+  <form method="dialog" id="staffform">
+    <h3>Staff</h3>
+    <div class="body">
+      <p class="lede">
+        These names fill every “assign to” list — tickets, the drilling queue
+        and appointments. Renaming someone here changes the dropdowns; work
+        already recorded against the old spelling keeps it.
+      </p>
+      <div id="stafflist" class="stafflist"></div>
+      <div class="addstaff">
+        <input type="text" id="s_new" placeholder="Add a name" autocomplete="off">
+        <button type="button" class="primary" id="s_add">Add</button>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="spacer"></span>
+      <button type="button" id="s_close">Done</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="staff.js?v=17"></script>
+<script src="tickets.js?v=17"></script>
+</body>
+</html>
