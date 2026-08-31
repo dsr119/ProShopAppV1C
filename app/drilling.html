@@ -6,7 +6,7 @@
 <title>Drilling — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 
@@ -17,6 +17,8 @@
     <a href="drilling.html" class="active">Drilling</a>
     <a href="appointments.html">Appointments</a>
     <a href="order.html">New Order</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
   </nav>
 </header>
 
@@ -31,6 +33,10 @@
       <option>Valley</option>
       <option>South Side</option>
       <option>Both</option>
+    </select>
+    <select id="assignee">
+      <option value="">Anyone</option>
+      <option value="__none__">Unassigned</option>
     </select>
     <label class="checkline">
       <input type="checkbox" id="showdone"> Show finished
@@ -49,6 +55,8 @@
           <th class="nowrap">Phone</th>
           <th>Pickup</th>
           <th class="nowrap">Ordered</th>
+          <th class="nowrap">Due</th>
+          <th>Assigned</th>
           <th></th>
         </tr>
       </thead>
@@ -59,6 +67,7 @@
 
   <div class="legend">
     <span>Customer orders only — shop stock is excluded.</span>
+    <span>Due date and assignee feed the <a href="board.html">day board</a>.</span>
   </div>
 </main>
 
@@ -108,8 +117,9 @@
   </form>
 </dialog>
 
-<script src="config.js?v=10"></script>
-<script src="db.js?v=10"></script>
-<script src="drilling.js?v=10"></script>
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="staff.js?v=17"></script>
+<script src="drilling.js?v=17"></script>
 </body>
 </html>

@@ -85,3 +85,19 @@ priority order and the first to claim a row wins. **588 duplicates dropped.**
 1. Run `schema.sql` in the Supabase SQL editor.
 2. Import the three CSVs (see the note at the bottom of `schema.sql`).
 3. Work through `review_needed.csv` whenever convenient — it's not a blocker.
+
+## Later changes
+
+These came after the import. Run them in order, in the Supabase SQL editor.
+Each is idempotent — running one twice does nothing the second time.
+
+| File | Adds | Needed by |
+|---|---|---|
+| `add_drilled.sql` | `orders.drilled`, `drilled_at` | Drilling page |
+| `add_no_drill_needed.sql` | `orders.no_drill_needed` | Drilling page |
+| `add_staff_and_tickets.sql` | `staff` and `tickets` tables | Tickets pages |
+| `add_board_fields.sql` | `appointments.staff_member`, `appointments.paid`, `orders.due_date` | Day board |
+
+`add_staff_and_tickets.sql` seeds the roster from names already recorded in
+`orders.staff_member`, so the assign dropdowns are not empty on day one. Edit
+the list afterwards from **Tickets → Manage staff**, not in SQL.

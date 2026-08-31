@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "proshop",
-      "runtimeExecutable": "python",
+      "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8765", "--directory", "app"],
       "port": 8765
     }

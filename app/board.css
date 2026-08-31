@@ -1,0 +1,390 @@
+/* Day board -- the wall screen.
+ *
+ * Its own stylesheet rather than a section of style.css, because nothing here
+ * is shared with the app: no hover states, no inputs, no phone breakpoint. It
+ * is read from across a room by someone holding a bowling ball, so the whole
+ * design brief is "large, dark, and still legible at ten feet".
+ *
+ * Sizes are in vw/vh with clamp(), not pixels. The Pi might be driving a 1080p
+ * TV or a 1024x600 panel, and the board has to fill either without anyone
+ * editing a stylesheet to make it fit. */
+
+:root {
+  --bg:      #0d1117;
+  --panel:   #161b22;
+  --panel-2: #1c2430;
+  --line:    #2a3441;
+  --ink:     #e8edf3;
+  --muted:   #8b98a8;
+  --accent:  #58a6ff;
+  --ok:      #3fb950;
+  --warn:    #d29922;
+  --danger:  #f85149;
+  --valley:  #58a6ff;
+  --south:   #bc8cff;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;              /* a wall screen has no scrollbar to drag */
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Nobody taps a wall screen on purpose. Killing selection stops a stray
+   finger or a wireless mouse leaving half the board highlighted in blue. */
+body { user-select: none; cursor: none; }
+
+#app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, .8vh, 14px);
+  padding: clamp(10px, 1.4vh, 20px) clamp(12px, 1.2vw, 26px);
+}
+
+/* ---------- header ---------- */
+
+.top {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: clamp(10px, 1.4vw, 26px);
+  border-bottom: 2px solid var(--line);
+  padding-bottom: clamp(6px, .7vh, 12px);
+}
+
+.top .day {
+  font-size: clamp(30px, 3.7vw, 63px);
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.top .date { font-size: clamp(22px, 2.2vw, 39px); color: var(--muted); }
+
+.house {
+  font-size: clamp(24px, 2.4vw, 42px);
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 2px clamp(10px, .9vw, 18px);
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.house.valley { color: var(--valley); border-color: var(--valley); }
+.house.south  { color: var(--south);  border-color: var(--south); }
+
+.top .clock {
+  margin-left: auto;
+  font-size: clamp(36px, 4.5vw, 78px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+
+/* Quiet until it matters: it turns amber only once the data on screen is old
+   enough to mislead someone. */
+.stale {
+  font-size: clamp(16px, 1.4vw, 24px);
+  color: var(--muted);
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+.stale.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: rgba(210, 153, 34, .08);
+}
+
+/* ---------- columns ---------- */
+
+.cols {
+  flex: 1;                       /* the only thing that takes the leftover height */
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: clamp(10px, 1.2vw, 24px);
+  min-height: 0;                 /* lets the children scroll instead of the page */
+}
+
+.col {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.col > h2 {
+  margin: 0;
+  padding: clamp(8px, .9vh, 14px) clamp(12px, 1vw, 20px);
+  font-size: clamp(19px, 1.7vw, 30px);
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.col > h2 .pg {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .82em;
+  letter-spacing: .04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.col > h2 .n {
+  margin-left: 6px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 1px 12px;
+  font-size: .92em;
+}
+
+/* Scrollbars are hidden rather than styled -- there is no pointer to drag one
+   with, and the list auto-scrolls itself when it overflows. */
+.rows {
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* A page boundary rarely lands exactly on the pane edge, so the first row of
+   the next page shows as a sliver. Sliced in half it looks broken; faded, it
+   reads as "there is more", which is true. Only applied while a column is
+   actually paging -- a list that fits has nothing to fade. */
+.rows.paged {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent 100%);
+}
+
+.scroller {
+  will-change: transform;
+  transition: transform .45s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* ---------- the pinned block ---------- */
+
+/* Today, held at the top of its column. It takes the height it needs and no
+   more. The cap is deliberately high: today is what the board is for, so the
+   rotating block gives up its space first and keeps only enough to stay
+   useful. On a day so full that even this is not enough, the pin pages as a
+   last resort -- rotating today's rows is bad, but silently hiding some of
+   them below a hard edge is worse. */
+.pin {
+  flex: 0 1 auto;
+  max-height: 76%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  border-bottom: 2px solid var(--line);
+}
+
+.pin > .rows { flex: 1; min-height: 0; }
+
+/* Only appears on the rare day when today alone overflows its share. Tucked
+   into the corner so it is available without competing with the work. */
+.pin-pg {
+  position: absolute;
+  right: clamp(10px, .9vw, 18px);
+  bottom: clamp(4px, .5vh, 9px);
+  font-size: clamp(13px, 1.1vw, 18px);
+  color: var(--muted);
+  background: var(--panel);
+  padding: 0 6px;
+  border-radius: 4px;
+}
+
+.pin-pg:empty { display: none; }
+
+/* ---------- a line of work ---------- */
+
+.item {
+  display: grid;
+  grid-template-columns: clamp(90px, 10vw, 182px) 1fr auto;
+  gap: clamp(6px, .8vw, 16px);
+  align-items: start;
+  padding: clamp(8px, 1vh, 16px) clamp(12px, 1vw, 20px);
+  border-bottom: 1px solid var(--line);
+}
+
+.item:last-child { border-bottom: 0; }
+
+/* When -- a time for today, a date for what is coming. */
+.when {
+  font-size: clamp(22px, 2.3vw, 42px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+
+/* A weekday is orientation; a clock time is the thing someone is actually
+   working to. Sizing the day labels down keeps "Tomorrow" inside the same
+   fixed track that has to hold "12:45pm". */
+.when.dayonly { font-size: clamp(18px, 1.9vw, 34px); }
+
+.when .sub {
+  display: block;
+  font-size: .58em;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.who {
+  font-size: clamp(22px, 2.25vw, 40px);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.phone {
+  display: block;
+  font-size: clamp(18px, 1.6vw, 28px);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: .01em;
+}
+
+.what {
+  font-size: clamp(19px, 1.7vw, 31px);
+  color: #c3cedb;
+  margin-top: 2px;
+  /* Service notes run long. Two lines, then clip -- a wall board is a
+     prompt, not the record. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Right-hand stack: who owns it, and whether it is paid. */
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.tag {
+  font-size: clamp(16px, 1.4vw, 25px);
+  font-weight: 700;
+  padding: 2px clamp(6px, .55vw, 11px);
+  border-radius: 999px;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.tag.staff  { background: rgba(88, 166, 255, .16); color: var(--accent); }
+.tag.nobody { background: transparent; color: var(--muted); border: 1px dashed var(--line); }
+.tag.paid   { background: rgba(63, 185, 80, .16);  color: var(--ok); }
+.tag.unpaid { background: rgba(248, 81, 73, .16);  color: var(--danger); }
+
+/* Keith's note on a ticket: his answer, not the reporter's description. Set
+   apart from the title so a glance can tell "here is what we are doing about
+   it" from "here is what is wrong". */
+.what.note {
+  /* Keith's note is the one line on this board that tells someone what to do,
+     so it gets a third line before it clips. */
+  -webkit-line-clamp: 3;
+  color: var(--accent);
+  border-left: 3px solid var(--line);
+  padding-left: clamp(6px, .5vw, 11px);
+  margin-top: 5px;
+}
+
+/* States. A left bar rather than a background wash, so the text keeps its
+   contrast at a distance. */
+.item.late    { box-shadow: inset 4px 0 0 var(--danger); }
+.item.duetoday{ box-shadow: inset 4px 0 0 var(--warn); }
+.item.now     { background: rgba(88, 166, 255, .09); box-shadow: inset 4px 0 0 var(--accent); }
+.item.done    { opacity: .38; }
+.item.done .when { color: var(--muted); }
+
+.item.done .who { text-decoration: line-through; }
+
+.empty {
+  padding: clamp(14px, 2.6vh, 40px) 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: clamp(19px, 1.8vw, 33px);
+}
+
+/* ---------- section headings inside a column ---------- */
+
+/* Today and what is coming share the left column, so they need a divider that
+   reads as a heading without competing with the column's own title. */
+.section {
+  padding: clamp(5px, .6vh, 10px) clamp(12px, 1vw, 20px);
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  font-size: clamp(15px, 1.35vw, 22px);
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- tickets ---------- */
+
+/* A ticket with no date shows its priority in the when column instead. Quieter
+   than a date, because it is not one. */
+.when.nodate { color: var(--muted); font-weight: 600; font-size: clamp(18px, 1.65vw, 30px); }
+
+.item.urgentrow { box-shadow: inset 4px 0 0 var(--danger); }
+
+.tag.pri-urgent { background: rgba(248, 81, 73, .16); color: var(--danger); }
+.tag.pri-high   { background: rgba(210, 153, 34, .16); color: var(--warn); }
+.tag.pri-low    { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+
+/* A ticket title is a sentence, not a name -- let it wrap to two lines rather
+   than run off the edge. */
+.item.ticket .who {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------- errors ---------- */
+
+/* The board never blanks on a failed poll -- yesterday's real list beats an
+   empty screen. The banner says the numbers are frozen. */
+.banner {
+  flex: none;
+  background: rgba(248, 81, 73, .12);
+  border: 1px solid var(--danger);
+  color: #ffb4ae;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: clamp(20px, 2vw, 34px);
+}
+
+.hidden { display: none !important; }
+
+/* ---------- narrow / portrait panels ---------- */
+
+@media (max-aspect-ratio: 1/1), (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; grid-template-rows: 1.15fr 1fr; }
+  body { cursor: auto; }
+}

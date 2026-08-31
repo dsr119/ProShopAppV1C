@@ -6,7 +6,7 @@
 <title>Orders — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 
@@ -17,6 +17,8 @@
     <a href="drilling.html">Drilling</a>
     <a href="appointments.html">Appointments</a>
     <a href="order.html">New Order</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
   </nav>
 </header>
 
@@ -31,6 +33,13 @@
       <option>Valley</option>
       <option>South Side</option>
       <option>Both</option>
+    </select>
+    <select id="source">
+      <option value="">Any source</option>
+      <option value="website">Website</option>
+      <option value="google_form">Google Form</option>
+      <option value="in_shop">Manual entry</option>
+      <option value="import">Imported</option>
     </select>
     <select id="status">
       <option value="">Any status</option>
@@ -56,6 +65,8 @@
           <th class="nowrap">Phone</th>
           <th>Order&nbsp;loc</th>
           <th>Pickup</th>
+          <th class="nowrap">Came&nbsp;in</th>
+          <th>From</th>
           <th class="nowrap">Shop&nbsp;ordered</th>
           <th>Supplier</th>
           <th>Order&nbsp;#</th>
@@ -88,8 +99,8 @@
   <datalist id="items"></datalist>
 </main>
 
-<script src="config.js?v=10"></script>
-<script src="db.js?v=10"></script>
-<script src="orders.js?v=10"></script>
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="orders.js?v=17"></script>
 </body>
 </html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Day Board — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="board.css?v=17">
+</head>
+<!--
+  The wall screen.
+
+  Open this full-screen on the Raspberry Pi. It has no navigation and no
+  controls on purpose: it is read, never operated. Everything on it is set
+  from the app -- appointments on the calendar, due dates and assignees on the
+  drilling queue, tickets on the tickets page.
+
+  Left: what is booked, today first, then what is coming. Right: every open
+  ticket.
+
+  Today's work is pinned to the top of both columns and never pages away --
+  it is the whole reason someone looks up. Only the rest rotates.
+
+  Tuning, all optional, via the query string:
+
+    ?days=7          how far ahead "coming up" reaches   (default 7)
+    ?location=Valley limit to one house                  (default both)
+
+  The shop runs one board per house, so each Pi opens its own URL:
+
+    board.html?location=Valley
+    board.html?location=South%20Side
+
+  The house is named in the header, because two identical-looking dark screens
+  in two buildings is exactly how someone ends up reading the wrong one.
+    ?refresh=60      seconds between polls               (default 60)
+    ?page=12         seconds a page is held before it flips (default 12)
+    ?rotate=0        stop long lists paging; show only the top (default on)
+
+  See README.md for the Pi kiosk setup.
+-->
+<body>
+
+<div id="app">
+  <div class="top">
+    <span class="day"   id="day"></span>
+    <span class="date"  id="date"></span>
+    <span class="house" id="house"></span>
+    <span class="stale" id="stale"></span>
+    <span class="clock" id="clock"></span>
+  </div>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <div class="cols">
+    <section class="col">
+      <h2>Appointments <span class="n" id="n_sched">0</span>
+          <span class="pg" id="pg_sched"></span></h2>
+      <!-- Pinned. Today never pages away -- see the note above. -->
+      <div class="pin" id="pinbox_sched">
+        <div class="rows"><div class="scroller" id="pin_sched" data-pager="pg_pinsched"></div></div>
+        <span class="pg pin-pg" id="pg_pinsched"></span>
+      </div>
+      <div class="rows"><div class="scroller" id="schedule" data-pager="pg_sched"></div></div>
+    </section>
+
+    <section class="col">
+      <h2>Open tickets <span class="n" id="n_tix">0</span>
+          <span class="pg" id="pg_tix"></span></h2>
+      <div class="pin" id="pinbox_tix">
+        <div class="rows"><div class="scroller" id="pin_tix" data-pager="pg_pintix"></div></div>
+        <span class="pg pin-pg" id="pg_pintix"></span>
+      </div>
+      <div class="rows"><div class="scroller" id="tickets" data-pager="pg_tix"></div></div>
+    </section>
+  </div>
+</div>
+
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="board.js?v=17"></script>
+</body>
+</html>

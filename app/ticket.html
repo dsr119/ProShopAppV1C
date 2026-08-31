@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submit a Ticket — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="style.css?v=17">
+</head>
+<body class="ticketpage">
+
+<!-- Deliberately no app nav. This page is what gets bookmarked on a staff
+     phone or taped to the wall as a QR code, and the people using it have no
+     business in the order book. The one way back out is the link in the
+     footer, for whoever opens it from a shop computer. -->
+<header class="slim">
+  <h1>Perfexxxxion Pro Shop</h1>
+  <span class="tag">Staff tickets</span>
+</header>
+
+<main class="narrow">
+  <div id="error" class="error hidden"></div>
+  <div id="ok" class="ok hidden"></div>
+
+  <p class="lede">
+    Something broken, running low, or needing attention? Send it here.
+    Keith reviews the queue and assigns the work.
+  </p>
+
+  <form class="formcard" id="ticketform">
+    <div class="formgrid">
+      <div class="pair">
+        <label><span>Your name <span class="req">*</span></span>
+          <input type="text" id="f_by" list="staffnames" autocomplete="off"
+                 placeholder="Who is submitting this">
+        </label>
+        <label>Location
+          <select id="f_location">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+            <option>Both</option>
+          </select>
+        </label>
+      </div>
+
+      <label><span>What is it <span class="req">*</span></span>
+        <input type="text" id="f_title" autocomplete="off"
+               placeholder="Short version — “Lane 6 ball return jamming”">
+      </label>
+
+      <div class="pair">
+        <label>Category
+          <select id="f_category">
+            <option value="">—</option>
+            <option>Equipment</option>
+            <option>Building</option>
+            <option>Supplies</option>
+            <option>Customer</option>
+            <option>Computer</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>How urgent
+          <select id="f_priority">
+            <option value="low">Low — whenever</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High — this week</option>
+            <option value="urgent">Urgent — today</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- "Needed by", not "Due". A staff member is telling Keith when it
+           matters, not setting a deadline for someone else -- Keith can move
+           it on the review page. Optional: most tickets do not have a date,
+           and demanding one would get a made-up one. -->
+      <label><span>Needed by <span class="opt">— only if it has to be done by a certain day</span></span>
+        <input type="date" id="f_due">
+      </label>
+
+      <label>Details
+        <textarea id="f_details" rows="4"
+                  placeholder="What happened, what you already tried, anything Keith needs to know."></textarea>
+      </label>
+    </div>
+
+    <div class="formactions">
+      <button type="submit" class="primary" id="f_save">Send ticket</button>
+      <span class="spacer"></span>
+      <button type="button" id="f_clear">Clear</button>
+    </div>
+  </form>
+
+  <div class="saved hidden" id="minewrap">
+    <h3>Sent from this device today</h3>
+    <div id="minelist"></div>
+  </div>
+
+  <datalist id="staffnames"></datalist>
+
+  <p class="footlink"><a href="tickets.html">Ticket queue</a> · <a href="index.html">Pro shop app</a></p>
+</main>
+
+<script src="config.js?v=17"></script>
+<script src="db.js?v=17"></script>
+<script src="staff.js?v=17"></script>
+<script src="ticket.js?v=17"></script>
+</body>
+</html>

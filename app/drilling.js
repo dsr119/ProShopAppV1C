@@ -13,7 +13,7 @@ let ROWS = [];
 const COLUMNS =
   "id,customer_name,is_stock,phone,item,pickup_location,order_location," +
   "shop_order_date,submitted_at,drilled,drilled_at,no_drill_needed," +
-  "out_the_door,paid,notes,quarter";
+  "out_the_door,paid,notes,quarter,due_date,staff_member";
 
 // Names that mean "no customer", so the row is shop stock by another route.
 const NOT_A_CUSTOMER = new Set(["", "stock", "unknown", "shop", "shop stock"]);
@@ -125,17 +125,27 @@ function daysSince(v) {
 function visible() {
   const q = $("search").value.trim().toLowerCase();
   const loc = $("location").value;
+  const who = $("assignee").value;
   const showDone = $("showdone").checked;
 
   return ROWS.filter((r) => {
     if (!showDone && finished(r)) return false;
     if (loc && r.pickup_location !== loc) return false;
+    if (who === "__none__" && r.staff_member) return false;
+    if (who && who !== "__none__" && r.staff_member !== who) return false;
     if (q) {
       const hay = [r.customer_name, r.item, r.phone].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   }).sort((a, b) => {
+    // A promised date beats a long wait: a ball due Friday for league night
+    // has to come off the bench before one that merely arrived first.
+    const ad = !finished(a) && a.due_date, bd = !finished(b) && b.due_date;
+    if (ad && bd && ad !== bd) return ad.localeCompare(bd);
+    if (ad && !bd) return -1;
+    if (!ad && bd) return 1;
+
     // Longest wait first; things not ordered yet sink to the bottom, since
     // you cannot drill a ball that has not arrived.
     if (!a.shop_order_date && !b.shop_order_date) {
@@ -217,6 +227,23 @@ function row(r) {
     when.innerHTML = '<span style="color:#c3c8ce">not ordered</span>';
   }
 
+  // Due date and owner: what the day board reads, and the two things a
+  // shop-floor queue cannot work without. Editable in place, like the
+  // orders grid, because these get set while standing at the bench.
+  const dueCell = td("Due", "nowrap");
+  dueCell.appendChild(editable(r, "due_date", "date"));
+  if (r.due_date && !finished(r)) {
+    const late = daysSince(r.due_date);
+    if (late !== null && late >= 0) {
+      const tag = document.createElement("div");
+      tag.className = "sub " + (late > 0 ? "overdue" : "duetoday");
+      tag.textContent = late === 0 ? "due today" : `${late} day${late === 1 ? "" : "s"} late`;
+      dueCell.appendChild(tag);
+    }
+  }
+
+  td("Assigned").appendChild(assignSelect(r));
+
   const act = td("");
   // Already collected -- the drill flag no longer means anything, and an
   // "Undo" here would clear it while the row still reads "Out the door".
@@ -274,6 +301,100 @@ function row(r) {
 
   act.append(drilled, nodrill, sched);
   return tr;
+}
+
+// Click-to-edit, the same gesture as the orders grid. Kept local rather than
+// shared with orders.js: the pages load different scripts, and one small
+// duplicated editor is cheaper than a fifth file everything has to include.
+function editable(r, field, type) {
+  const span = document.createElement("span");
+  span.className = "cell";
+
+  const paint = () => {
+    const text = field === "due_date" ? shortDate(r[field]) : (r[field] || "");
+    span.textContent = text;
+    span.classList.toggle("empty", text === "");
+  };
+  paint();
+
+  span.addEventListener("click", () => {
+    if (span.querySelector("input")) return;
+    const input = document.createElement("input");
+    input.type = type;
+    input.value = r[field] || "";
+    span.textContent = "";
+    span.appendChild(input);
+    input.focus();
+
+    let settled = false;
+    const commit = async () => {
+      if (settled) return;
+      settled = true;
+      const value = input.value.trim() || null;
+      if (value === r[field]) return paint();
+
+      span.classList.add("saving");
+      try {
+        await db.update("orders", `id=eq.${r.id}`, { [field]: value });
+        r[field] = value;
+        span.classList.remove("saving", "saveerr");
+        // A due date changes where the row sorts, so the page has to re-sort.
+        render();
+      } catch (err) {
+        span.classList.remove("saving");
+        span.classList.add("saveerr");
+        paint();
+        showError(err);
+      }
+    };
+
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { settled = true; paint(); }
+    });
+  });
+
+  return span;
+}
+
+function assignSelect(r) {
+  const sel = document.createElement("select");
+  sel.className = "assign";
+  // Filled asynchronously from the cached roster -- the first call fetches,
+  // every later one resolves off the cache, so a 200-row table is one request.
+  staff.fillSelect(sel, r.staff_member).catch(showError);
+
+  sel.addEventListener("change", async () => {
+    const value = sel.value || null;
+    const before = r.staff_member;
+    sel.disabled = true;
+    try {
+      await db.update("orders", `id=eq.${r.id}`, { staff_member: value });
+      r.staff_member = value;
+    } catch (err) {
+      sel.value = before || "";
+      showError(err);
+    } finally {
+      sel.disabled = false;
+    }
+  });
+  return sel;
+}
+
+// Fills the toolbar filter. Failing to load the roster must not take the
+// drilling queue down with it -- the filter just stays at "Anyone".
+async function loadAssignees() {
+  try {
+    const sel = $("assignee");
+    for (const name of await staff.names()) {
+      const o = document.createElement("option");
+      o.value = o.textContent = name;
+      sel.appendChild(o);
+    }
+  } catch (err) {
+    console.error("Could not load the staff roster:", err);
+  }
 }
 
 async function setFlags(r, btn, patch) {
@@ -471,6 +592,10 @@ async function bookAppointment(e) {
     appt_date: sched.picked,
     appt_time: $("s_time").value || null,
     completed: false,
+    // Carried across so the day board shows one owner for the whole job
+    // rather than an assigned order and an unassigned appointment for it.
+    staff_member: o.staff_member || null,
+    paid: !!o.paid,
   };
   if (!row.service) return;
 
@@ -499,6 +624,7 @@ $("search").addEventListener("input", () => {
 });
 $("quarter").addEventListener("change", load);
 $("location").addEventListener("change", render);
+$("assignee").addEventListener("change", render);
 $("showdone").addEventListener("change", render);
 
 $("s_prev").addEventListener("click", () => stepWeek(-1));
@@ -514,6 +640,7 @@ $("s_cancel").addEventListener("click", () => $("dlg").close());
 
 (async function init() {
   try {
+    loadAssignees();       // not worth blocking the queue on
     await loadQuarters();
     await load();
   } catch (err) {
