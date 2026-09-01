@@ -97,6 +97,7 @@ Each is idempotent — running one twice does nothing the second time.
 | `add_no_drill_needed.sql` | `orders.no_drill_needed` | Drilling page |
 | `add_staff_and_tickets.sql` | `staff` and `tickets` tables | Tickets pages |
 | `add_board_fields.sql` | `appointments.staff_member`, `appointments.paid`, `orders.due_date` | Day board |
+| `add_hours.sql` | `hours` table, seeded with the fourteen rows | Weekly hours confirmation, and the public website |
 
 `add_staff_and_tickets.sql` seeds the roster from names already recorded in
 `orders.staff_member`, so the assign dropdowns are not empty on day one. Edit

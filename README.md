@@ -13,6 +13,7 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 |---|---|
 | `migration/` | One-time import of the Excel workbook into Supabase, plus the later schema changes |
 | `app/` | The site itself |
+| `website/` | The pages embedded in the public Google Sites site |
 | `apps-script/` | Google Form → Supabase trigger, and the weekly Drive backup |
 
 Start with [migration/README.md](migration/README.md).
@@ -21,7 +22,7 @@ Start with [migration/README.md](migration/README.md).
 
 | Page | Who opens it | What it is for |
 |---|---|---|
-| `index.html` | Behind the counter | The order book. Every order, inline editable, bulk "mark as ordered" |
+| `index.html` | Behind the counter | The order book. Every order, inline editable, bulk "mark as ordered". Also where Sunday's hours are confirmed |
 | `drilling.html` | The bench | Customer orders waiting to be drilled, with a due date and an owner |
 | `appointments.html` | Behind the counter | Month calendar |
 | `order.html` | Behind the counter | Taking an order at the counter |
@@ -165,7 +166,7 @@ up any deploy and to shake off a browser that has been open for six months.
 GitHub Pages serves static assets with a long cache life, so **bump the `?v=`
 query on every `<script>` and `<link>` when you change one of them**, or
 browsers keep the old copy. They are all on the same number; the current one
-is `v=17`.
+is `v=19`.
 
 ## Local development
 

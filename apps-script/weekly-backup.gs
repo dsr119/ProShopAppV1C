@@ -26,7 +26,7 @@ var BACKUP_KEEP = 26;
 // running is indistinguishable from one that never existed.
 var BACKUP_ALERT_EMAIL = '';
 
-var BACKUP_TABLES = ['orders', 'appointments', 'items'];
+var BACKUP_TABLES = ['orders', 'appointments', 'items', 'hours'];
 
 // Supabase returns at most 1000 rows per response no matter what limit is
 // asked for. Paging is not an optimization here -- without it the backup
