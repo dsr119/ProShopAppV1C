@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-JQY3245NQJ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-JQY3245NQJ');
+</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Perfexxxxion Pro Shop</title>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #1a1a1a;
+      --surface:      #242424;
+      --purple:       #7b2fbe;
+      --purple-light: #9b4ddb;
+      --purple-dim:   rgba(123,47,190,0.15);
+      --text:         #ffffff;
+      --text-muted:   #aaaaaa;
+      --border:       #333333;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Raleway', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 17px;
+    }
+
+
+
+    /* ── HERO ──────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      background:
+        linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, rgba(26,26,26,0.88) 100%),
+        url('https://lh3.googleusercontent.com/d/1fC5fUNx6YDAwylPkaGC4h4ATKDBzq569') center 30%/cover no-repeat;
+      height: 520px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 3rem 1.5rem 4rem;
+      overflow: hidden;
+    }
+
+    @media (max-width: 600px) {
+      .hero {
+        height: 380px;
+        background-position: center 25%;
+        padding: 2rem 1.2rem 3rem;
+      }
+    }
+
+    /* purple glow blob behind text */
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 560px; height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(123,47,190,0.38) 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      filter: blur(18px);
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 900px; height: 900px;
+      border-radius: 50%;
+      border: 1px solid rgba(123,47,190,0.12);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      position: relative;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: #fff;
+      background: rgba(123,47,190,0.55);
+      border: 1px solid rgba(155,77,219,0.6);
+      padding: 5px 16px;
+      border-radius: 30px;
+      margin-bottom: 1.2rem;
+      animation: fadeUp 0.6s 0.1s both;
+      backdrop-filter: blur(6px);
+    }
+
+    .hero h1 {
+      position: relative;
+      font-size: clamp(3rem, 8vw, 6rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-shadow:
+        0 2px 0 rgba(0,0,0,0.4),
+        0 0 60px rgba(123,47,190,0.6),
+        0 8px 40px rgba(0,0,0,0.6);
+      animation: fadeUp 0.6s 0.2s both;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: #c97fff;
+      text-shadow:
+        0 0 30px rgba(180,100,255,0.9),
+        0 0 80px rgba(123,47,190,0.5);
+    }
+
+    .hero-sub {
+      position: relative;
+      margin-top: 1.4rem;
+      font-size: clamp(0.95rem, 2.5vw, 1.15rem);
+      font-weight: 500;
+      color: rgba(255,255,255,0.92);
+      letter-spacing: 0.02em;
+      max-width: 500px;
+      line-height: 1.65;
+      animation: fadeUp 0.6s 0.3s both;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.7);
+    }
+
+    .hero-actions {
+      position: relative;
+      margin-top: 2.4rem;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeUp 0.6s 0.4s both;
+    }
+
+    .btn-primary {
+      padding: 14px 32px;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 28px rgba(123,47,190,0.65), 0 0 0 1px rgba(155,77,219,0.4);
+    }
+
+    .btn-primary:hover {
+      background: var(--purple-light);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(123,47,190,0.8), 0 0 0 1px rgba(155,77,219,0.6);
+    }
+
+    .btn-ghost {
+      padding: 13px 32px;
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 50px;
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s, background 0.2s;
+      backdrop-filter: blur(6px);
+    }
+
+    .btn-ghost:hover {
+      border-color: rgba(255,255,255,0.85);
+      background: rgba(255,255,255,0.15);
+    }
+
+    /* scroll indicator */
+    .scroll-hint {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255,255,255,0.3);
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      animation: fadeUp 0.6s 0.8s both;
+    }
+
+    .scroll-hint svg {
+      width: 18px;
+      animation: bob 1.6s ease-in-out infinite;
+    }
+
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(5px); }
+    }
+
+    /* ── SECTION LABEL ─────────────────────────────────── */
+    .section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--purple-light);
+      margin-bottom: 0.6rem;
+    }
+
+    /* ── INTRO STRIP ───────────────────────────────────── */
+    .intro {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 3.5rem 2rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 700px) {
+      .intro { grid-template-columns: 1fr; gap: 1.5rem; }
+    }
+
+    .intro-text h2 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .intro-text h2 span { color: var(--purple-light); }
+
+    .intro-text p {
+      margin-top: 1rem;
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    .intro-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .stat-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .stat-box:hover { border-color: var(--purple); }
+
+    .stat-box .num {
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--purple-light);
+      line-height: 1;
+    }
+
+    .stat-box .lbl {
+      margin-top: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── REVIEWS ───────────────────────────────────────── */
+    .reviews-section {
+      padding: 4rem 2rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .reviews-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .reviews-header {
+      text-align: center;
+      margin-bottom: 2.4rem;
+    }
+
+    .reviews-header h2 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .reviews-widget-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .elfsight-app-placeholder {
+      width: 100%;
+    }
+
+    .reviews-fallback {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.2rem;
+    }
+
+    .reviews-link-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 26px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      color: var(--text-muted);
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .reviews-link-btn:hover {
+      border-color: var(--purple-light);
+      color: #fff;
+    }
+
+    .google-badge a {
+      text-decoration: none;
+    }
+
+    .g-badge-inner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 22px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .g-badge-inner:hover {
+      border-color: var(--purple);
+      box-shadow: 0 4px 20px rgba(123,47,190,0.2);
+    }
+
+    .g-badge-text {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .g-badge-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .g-stars .star {
+      color: #fbbc05;
+      font-size: 1rem;
+    }
+
+    .g-badge-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    @media (max-width: 600px) {
+      .reviews-section { padding: 2.5rem 1.2rem; }
+      .reviews-header h2 { font-size: 1.6rem; }
+    }
+
+    /* ── HOURS ─────────────────────────────────────────── */
+    .hours-section {
+      padding: 4rem 2rem;
+      background: var(--bg);
+    }
+
+    .hours-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .hours-header {
+      text-align: center;
+      margin-bottom: 2.8rem;
+    }
+
+    .hours-header h2 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .hours-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 660px) {
+      .hours-grid { grid-template-columns: 1fr; }
+    }
+
+    .location-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+
+    .location-card:hover {
+      border-color: var(--purple);
+      box-shadow: 0 8px 40px rgba(123,47,190,0.18);
+    }
+
+    .loc-header {
+      background: linear-gradient(135deg, var(--purple) 0%, #5a1fa0 100%);
+      padding: 22px 24px 18px;
+    }
+
+    .loc-header .loc-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 4px;
+    }
+
+    .loc-header h3 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .loc-header .loc-phone {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      color: rgba(255,255,255,0.8);
+      font-weight: 600;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .loc-header .loc-phone:hover { color: #fff; }
+
+    .loc-header .loc-phone svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .hours-list {
+      padding: 18px 24px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .hours-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 1rem;
+    }
+
+    .hours-row:last-child { border-bottom: none; }
+
+    .day-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      width: 110px;
+      flex-shrink: 0;
+    }
+
+    .day-name.today {
+      color: var(--purple-light);
+    }
+
+    .day-date {
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-top: 1px;
+      letter-spacing: 0.02em;
+    }
+
+    .day-time {
+      font-size: 0.97rem;
+      font-weight: 700;
+      color: #fff;
+      text-align: right;
+    }
+
+    .day-time.closed {
+      color: #666;
+      font-weight: 600;
+    }
+
+    .day-time.appt {
+      color: #f0a030;
+    }
+
+    .today-badge {
+      display: inline-block;
+      background: var(--purple-dim);
+      border: 1px solid var(--purple);
+      color: var(--purple-light);
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 20px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .hours-row.is-today {
+      background: rgba(123,47,190,0.07);
+      border-radius: 6px;
+      margin: 0 -8px;
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    .day-times {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+    }
+
+    .day-time-sep {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .hours-note {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #f0a030;
+    }
+
+    .hours-loading {
+      display: flex;
+      justify-content: center;
+      padding: 2rem 0;
+    }
+
+    .hours-spinner {
+      width: 24px; height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hours-error {
+      padding: 1.2rem;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* ── CONTACT BAR ───────────────────────────────────── */
+    .contact-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+    }
+
+    .contact-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .contact-text h3 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .contact-text p {
+      margin-top: 4px;
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+
+    .contact-phone {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+      font-size: 1.75rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      transition: color 0.2s;
+    }
+
+    .contact-phone:hover { color: var(--purple-light); }
+
+    .contact-phone svg {
+      width: 22px;
+      color: var(--purple-light);
+    }
+
+    /* ── FOOTER ────────────────────────────────────────── */
+    footer {
+      border-top: 3px solid var(--purple);
+      background: #111;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    /* ── ANIMATIONS ────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── MOBILE ────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .hero-eyebrow { font-size: 0.62rem; margin-bottom: 0.8rem; }
+      .hero h1 { font-size: 2.4rem; }
+      .hero-sub { font-size: 0.9rem; margin-top: 1rem; }
+      .hero-actions { margin-top: 1.6rem; flex-direction: column; align-items: center; }
+      .btn-primary, .btn-ghost { width: 100%; max-width: 260px; text-align: center; padding: 13px 24px; }
+      .scroll-hint { display: none; }
+
+      .intro { padding: 2.5rem 1.2rem; }
+      .intro-text h2 { font-size: 1.5rem; }
+      .intro-text p { font-size: 0.88rem; }
+      .intro-stats { gap: 10px; }
+      .stat-box { padding: 14px 10px; }
+      .stat-box .num { font-size: 1.6rem; }
+      .stat-box .lbl { font-size: 0.65rem; }
+
+      .hours-section { padding: 2.5rem 1.2rem; }
+      .hours-header { margin-bottom: 1.8rem; }
+      .hours-header h2 { font-size: 1.6rem; }
+      .loc-header { padding: 16px 18px 14px; }
+      .loc-header h3 { font-size: 1.05rem; }
+      .hours-list { padding: 12px 18px 16px; }
+      .hours-row { padding: 9px 0; }
+      .day-name { font-size: 0.78rem; width: 82px; }
+      .day-time { font-size: 0.8rem; }
+      .today-badge { font-size: 0.52rem; padding: 1px 5px; }
+
+      .contact-bar { padding: 2rem 1.2rem; }
+      .contact-inner { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .contact-text h3 { font-size: 1.1rem; }
+      .contact-phone { font-size: 1.2rem; }
+
+      footer { padding: 1.2rem 1rem; font-size: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">Professional Bowling Equipment</div>
+    <h1>Perfe<em>xxxx</em>ion<br>Pro Shop</h1>
+    <p class="hero-sub">Your local source for premium bowling balls, expert drilling, and pro-level gear — serving the Pocono region.</p>
+    <div class="hero-actions">
+      <a href="https://www.perfexxxxionproshop.com/bowling-balls" class="btn-primary">Shop Bowling Balls</a>
+      <a href="#hours" class="btn-ghost" onclick="document.getElementById('hours').scrollIntoView({behavior:'smooth'}); return false;">View Hours</a>
+    </div>
+    <div class="scroll-hint">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+      </svg>
+      Scroll
+    </div>
+  </section>
+
+  <!-- INTRO -->
+  <div style="background: var(--surface); border-bottom: 1px solid var(--border);">
+    <div class="intro">
+      <div class="intro-text">
+        <div class="section-label">Who We Are</div>
+        <h2>Equipment &amp; expertise<br>you can <span>trust</span></h2>
+        <p>At Perfexxxxion Pro Shop, we're passionate about the sport of bowling. Whether you're picking up your first ball or competing at the highest level, we have the gear and the knowledge to keep you at your best — at Valley Lanes and Idle Hours South.</p>
+      </div>
+      <div class="intro-stats">
+        <div class="stat-box">
+          <div class="num">2</div>
+          <div class="lbl">Locations</div>
+        </div>
+        <div class="stat-box">
+          <div class="num">Pro</div>
+          <div class="lbl">Level Staff</div>
+        </div>
+        <div class="stat-box">
+          <div class="num">Top</div>
+          <div class="lbl">Brand Selection</div>
+        </div>
+        <div class="stat-box">
+          <div class="num">Local</div>
+          <div class="lbl">&amp; Trusted</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="hours-section" id="hours">
+    <div class="hours-inner">
+      <div class="hours-header">
+        <div class="section-label">Find Us</div>
+        <h2>Hours of Operation</h2>
+      </div>
+      <div class="hours-grid">
+
+        <!-- IDLE HOURS SOUTH -->
+        <div class="location-card">
+          <div class="loc-header">
+            <div class="loc-label">Location 1</div>
+            <h3>Idle Hours South</h3>
+            <a class="loc-phone" href="tel:5708151026">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+              </svg>
+              (570) 815-1026
+            </a>
+          </div>
+          <div class="hours-list" id="idleHoursList">
+            <div class="hours-loading"><div class="hours-spinner"></div></div>
+          </div>
+        </div>
+
+        <!-- VALLEY LANES -->
+        <div class="location-card">
+          <div class="loc-header">
+            <div class="loc-label">Location 2</div>
+            <h3>Valley Lanes</h3>
+            <a class="loc-phone" href="tel:5708151026">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+              </svg>
+              (570) 815-1026
+            </a>
+          </div>
+          <div class="hours-list" id="valleyLanesList">
+            <div class="hours-loading"><div class="hours-spinner"></div></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT BAR -->
+  <section class="contact-bar" id="contact">
+    <div class="contact-inner">
+      <div class="contact-text">
+        <h3>Have a question? Give us a call.</h3>
+        <p>We're happy to help with orders, drilling, or anything else.</p>
+      </div>
+      <a href="tel:5708151026" class="contact-phone">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+        </svg>
+        (570) 815-1026
+      </a>
+    </div>
+  </section>
+
+  <!-- GOOGLE REVIEWS -->
+  <section class="reviews-section" id="reviews">
+    <div class="reviews-inner">
+      <div class="reviews-header">
+        <div class="section-label">What People Say</div>
+        <h2>Google Reviews</h2>
+      </div>
+      <div class="reviews-widget-wrap">
+        <div class="elfsight-app-placeholder">
+          <!-- Elfsight Google Reviews | Untitled Google Reviews -->
+          <script src="https://elfsightcdn.com/platform.js" async></script>
+          <div class="elfsight-app-8f9d4335-f8e7-4c44-9703-88fb95eac8e7" data-elfsight-app-lazy></div>
+        </div>
+        <div class="reviews-fallback">
+          <a href="https://search.google.com/local/reviews?placeid=ChIJh_R-5vHfxIkRT-UcipBYWeo" target="_blank" rel="noopener" class="reviews-link-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm.5 14.5h-1v-6h1v6zm0-8h-1V7h1v1.5z"/>
+            </svg>
+            View Our Google Reviews
+          </a>
+          <div class="google-badge">
+            <a href="https://search.google.com/local/reviews?placeid=ChIJh_R-5vHfxIkRT-UcipBYWeo" target="_blank" rel="noopener">
+              <div class="g-badge-inner">
+                <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                <div class="g-badge-text">
+                  <span class="g-badge-title">Perfexxxxion Pro Shop</span>
+                  <div class="g-stars">
+                    <span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span><span class="star">★</span>
+                  </div>
+                  <span class="g-badge-sub">See our reviews on Google</span>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>© 2025 Perfexxxxion Pro Shop · All rights reserved</footer>
+
+  <script>
+    /* Hours -- read only.
+     *
+     * The two cards are filled from the `hours` table in Supabase, the same
+     * fourteen rows the shop confirms behind the counter every Sunday. There
+     * is deliberately no way to CHANGE hours from this page: a customer-facing
+     * page has no business carrying a write path.
+     *
+     * SUPABASE_KEY is the publishable key. It is meant to be in client-side
+     * code -- it carries no privileges beyond what the row level security
+     * policies allow. */
+
+    const SUPABASE_URL = 'https://ngghyuvykqqklztvvmld.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_X-ZHYha1P8FPVL2rvAk-bA_CdXD8g-g';
+
+    const DAY_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const now       = new Date();
+    const todayStr  = `${now.getMonth() + 1}/${now.getDate()}`;   // e.g. "9/7"
+
+    // Everything from the database lands in innerHTML, so it gets escaped.
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    }
+
+    // "2026-09-07" -> "9/7". Built from the parts on purpose: new Date() on a
+    // bare date string reads it as UTC midnight, which shows the day before to
+    // anyone west of Greenwich -- which is everyone reading this page.
+    function shortDate(iso) {
+      if (!iso) return '';
+      const [, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+      return (m && d) ? `${m}/${d}` : '';
+    }
+
+    // A day with no opening time is closed. "By Appointment" and free text like
+    // "After League" are printed as they are -- the shop does not only open at
+    // times, and that is why these columns are text.
+    function formatTimeRange(open, close, note) {
+      if (!open || !String(open).trim()) return { text: 'Closed', type: 'closed' };
+      const lc = String(open).toLowerCase().trim();
+      if (lc === 'closed') return { text: 'Closed', type: 'closed' };
+      if (lc.includes('appoint')) return { text: 'By Appointment', type: 'appt' };
+
+      let text = (close && String(close).trim() && String(close).toLowerCase() !== 'closed')
+        ? `${esc(open)} – ${esc(close)}`
+        : esc(open);
+      if (note && String(note).trim()) text += ` <span class="hours-note">(${esc(note)})</span>`;
+      return { text, type: 'normal' };
+    }
+
+    function buildList(containerId, rows) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+
+      if (!rows || !rows.length) {
+        el.innerHTML = '<div class="hours-error">No hours available.</div>';
+        return;
+      }
+
+      rows.sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day));
+
+      el.innerHTML = rows.map(row => {
+        const date    = shortDate(row.date);
+        const isToday = date === todayStr;
+        const dateStr = date ? `<span class="day-date">${date}</span>` : '';
+
+        const t1 = formatTimeRange(row.open1, row.close1, row.note1);
+        let timeHTML = `<span class="day-time ${t1.type}">${t1.text}</span>`;
+
+        // A day that shuts and reopens -- Tuesday at Idle Hours is 11:30-2 and
+        // again 6-8:30.
+        if (row.open2) {
+          const t2 = formatTimeRange(row.open2, row.close2, row.note2);
+          timeHTML += `<span class="day-time-sep">&amp;</span>
+                       <span class="day-time ${t2.type}">${t2.text}</span>`;
+        }
+
+        return `
+          <div class="hours-row${isToday ? ' is-today' : ''}">
+            <span class="day-name${isToday ? ' today' : ''}">
+              ${esc(row.day)}${dateStr}${isToday ? '<span class="today-badge">Today</span>' : ''}
+            </span>
+            <span class="day-times">${timeHTML}</span>
+          </div>`;
+      }).join('');
+    }
+
+    fetch(`${SUPABASE_URL}/rest/v1/hours?select=*&order=day_index.asc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+      cache: 'no-store',
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return r.json();
+      })
+      .then(rows => {
+        const valley = [], idle = [];
+        rows.forEach(row => {
+          const loc = (row.location || '').toLowerCase();
+          if (loc.includes('valley')) valley.push(row);
+          else if (loc.includes('idle')) idle.push(row);
+        });
+        buildList('valleyLanesList', valley);
+        buildList('idleHoursList',   idle);
+      })
+      .catch(err => {
+        ['valleyLanesList','idleHoursList'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML =
+            `<div class="hours-error">⚠️ Could not load hours.<br><small>${esc(err.message)}</small></div>`;
+        });
+      });
+  </script>
+</body>
+</html>

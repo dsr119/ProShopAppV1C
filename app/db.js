@@ -62,6 +62,22 @@ const db = {
     });
   },
 
+  // Insert-or-update in one request. `conflict` names the unique constraint's
+  // columns -- rows matching an existing one are merged rather than rejected.
+  //
+  // The alternative is a PATCH per row, which for the fourteen hours rows is
+  // fourteen round trips that can half-succeed and leave the week straddling
+  // two states. One request either lands or it does not.
+  upsert(table, rows, conflict) {
+    return request(`${table}?on_conflict=${conflict}`, {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(Array.isArray(rows) ? rows : [rows]),
+    });
+  },
+
   update(table, filter, patch) {
     return request(`${table}?${filter}`, {
       method: "PATCH",
