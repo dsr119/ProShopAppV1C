@@ -163,3 +163,4 @@ wearing a success costume.
 The CSVs import straight back through the Supabase dashboard
 (Table Editor → Import data from CSV), or open in Excel and Google Sheets as
 they are. Column order matches the table.
+
