@@ -22,10 +22,9 @@ Start with [migration/README.md](migration/README.md).
 
 | Page | Who opens it | What it is for |
 |---|---|---|
-| `index.html` | Behind the counter | The order book. Every order, inline editable, bulk "mark as ordered". Also where Sunday's hours are confirmed |
+| `index.html` | Behind the counter | The order book. Every order, inline editable, bulk "mark as ordered". Taking an order and confirming Sunday's hours both happen here |
 | `drilling.html` | The bench | Customer orders waiting to be drilled, with a due date and an owner |
 | `appointments.html` | Behind the counter | Month calendar |
-| `order.html` | Behind the counter | Taking an order at the counter |
 | `tickets.html` | Keith | Reviewing staff tickets and handing them out |
 | `ticket.html` | Any staff member | Sending a ticket in. Bookmark this one on phones |
 | `board.html` | Nobody — it is read | The wall screen on the Raspberry Pi |
@@ -166,7 +165,7 @@ up any deploy and to shake off a browser that has been open for six months.
 GitHub Pages serves static assets with a long cache life, so **bump the `?v=`
 query on every `<script>` and `<link>` when you change one of them**, or
 browsers keep the old copy. They are all on the same number; the current one
-is `v=19`.
+is `v=20`.
 
 ## Local development
 

@@ -1,74 +1,42 @@
 // New order — entry from behind the counter.
 //
+// A dialog on the orders page rather than a page of its own. Taking an order
+// is a thing you do *to* the order book: you are already looking at it, the
+// customer is at the counter, and a page navigation away and back loses your
+// filters and your place in the list. Saving refreshes the table underneath,
+// so the order you just took is visible the moment the dialog closes.
+//
 // Two modes, because 55% of what the shop orders is its own stock, not a
 // customer's ball. Stock entry is bulk work done in one sitting (tape,
 // sleeves, sanding pads), so that mode strips the form down to the item and
-// keeps the page open between saves.
+// keeps the dialog open between saves.
+//
+// This runs alongside orders.js and shares its globals -- `$`, `showError`
+// and `load` are all defined there. Redeclaring any of them here would throw
+// "already declared" and take the whole page down, so every name below is
+// distinct from one in orders.js.
 
-const $ = (id) => document.getElementById(id);
+let noStock = false;
+let noSession = [];   // added since the dialog was opened, newest first
 
-let stockMode = false;
-let session = [];   // what was added since the page loaded, newest first
-
-function showError(err) {
-  $("error").textContent = String(err && err.message ? err.message : err);
-  $("error").classList.remove("hidden");
-  $("ok").classList.add("hidden");
-  console.error(err);
+function noStatus(msg, bad) {
+  const el = $("o_status");
+  el.textContent = msg || "";
+  el.className = "hstatus" + (bad ? " bad" : msg ? " ok" : "");
+  if (bad) console.error(msg);
 }
 
-function showOk(msg) {
-  $("ok").textContent = msg;
-  $("ok").classList.remove("hidden");
-  $("error").classList.add("hidden");
-}
-
-// ---------------------------------------------------------------------------
-// Autocomplete — 1,474 items from ten years of order history
-// ---------------------------------------------------------------------------
-
-async function loadItems() {
-  try {
-    // Supabase caps a response at 1000 rows; ordering by frequency means the
-    // cut falls on things nobody has bought in years.
-    const rows = await db.select(
-      "items",
-      "select=item&order=times_ordered.desc&limit=1000"
-    );
-    const dl = $("items");
-    dl.innerHTML = "";
-    for (const r of rows) {
-      const o = document.createElement("option");
-      o.value = r.item;
-      dl.appendChild(o);
-    }
-  } catch (err) {
-    // A missing typeahead should not stop anyone taking an order.
-    console.error("Could not load item suggestions:", err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Mode
-// ---------------------------------------------------------------------------
-
-function setMode(stock) {
-  stockMode = stock;
-  $("mode_customer").classList.toggle("on", !stock);
-  $("mode_stock").classList.toggle("on", stock);
-
-  // A name, phone and fitting are meaningless for a box of inner sleeves.
-  $("customerfields").classList.toggle("hidden", stock);
-  $("lbl_fitting").classList.toggle("hidden", stock);
-
+// A name, phone and fitting are meaningless for a box of inner sleeves.
+function noSetMode(stock) {
+  noStock = stock;
+  $("o_mode_customer").classList.toggle("on", !stock);
+  $("o_mode_stock").classList.toggle("on", stock);
+  $("o_customerfields").classList.toggle("hidden", stock);
+  $("o_lbl_fitting").classList.toggle("hidden", stock);
   $("f_item").focus();
 }
 
-// ---------------------------------------------------------------------------
-// Saving
-// ---------------------------------------------------------------------------
-
-function normalizePhone(raw) {
+function noPhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
   const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
   return ten.length === 10
@@ -76,7 +44,7 @@ function normalizePhone(raw) {
     : String(raw || "").trim();
 }
 
-function readForm() {
+function noReadForm() {
   const item = $("f_item").value.trim();
   const name = $("f_name").value.trim();
   const phoneRaw = $("f_phone").value.trim();
@@ -86,14 +54,14 @@ function readForm() {
     $("f_item").focus();
     throw new Error("An item is required.");
   }
-  if (!stockMode && !name) {
+  if (!noStock && !name) {
     $("f_name").focus();
     throw new Error("A customer name is required — or switch to Shop stock.");
   }
 
   let phone = null;
-  if (!stockMode && phoneRaw) {
-    const formatted = normalizePhone(phoneRaw);
+  if (!noStock && phoneRaw) {
+    const formatted = noPhone(phoneRaw);
     // Same rule the importer and the form trigger use: anything that is not a
     // usable number is kept as a note rather than stored as a phone.
     if (/^\d{3}-\d{3}-\d{4}$/.test(formatted)) phone = formatted;
@@ -104,12 +72,12 @@ function readForm() {
   if (typed) notes.unshift(typed);
 
   return {
-    customer_name: stockMode ? "Stock" : name,
-    is_stock: stockMode,
+    customer_name: noStock ? "Stock" : name,
+    is_stock: noStock,
     phone,
     item,
     quantity: Math.max(1, parseInt($("f_qty").value, 10) || 1),
-    fitting: stockMode ? null : ($("f_fitting").value || null),
+    fitting: noStock ? null : ($("f_fitting").value || null),
     order_location: $("f_orderloc").value || null,
     pickup_location: $("f_pickuploc").value || null,
     notes: notes.length ? notes.join("; ") : null,
@@ -121,12 +89,12 @@ function readForm() {
   };
 }
 
-async function save(keepOpen) {
+async function noSave(keepOpen) {
   let row;
   try {
-    row = readForm();
+    row = noReadForm();
   } catch (err) {
-    showError(err);
+    noStatus(err.message, true);
     return;
   }
 
@@ -137,12 +105,13 @@ async function save(keepOpen) {
 
   try {
     const [created] = await db.insert("orders", row);
-    session.unshift(created || row);
-    renderSession();
-    showOk(
-      (row.is_stock ? "Stock" : row.customer_name) +
-        " — " + row.item + " added to the order queue."
-    );
+    noSession.unshift(created || row);
+    noRenderSession();
+    noStatus((row.is_stock ? "Stock" : row.customer_name) + " — " + row.item + " added.");
+
+    // Refresh the table behind the dialog. The point of taking the order here
+    // is that it turns up in the book you are already looking at.
+    load().catch((err) => console.error("Could not refresh the orders table:", err));
 
     if (keepOpen) {
       // Locations and mode carry over: stock gets entered in runs, and a
@@ -152,35 +121,32 @@ async function save(keepOpen) {
       $("f_notes").value = "";
       $("f_item").focus();
     } else {
-      clearForm();
+      noClearForm();
+      $("orderdlg").close();
     }
   } catch (err) {
-    showError(err);
+    noStatus(err.message, true);
   } finally {
     btn.disabled = false;
     btn.textContent = label;
   }
 }
 
-function clearForm() {
+function noClearForm() {
   for (const id of ["f_name", "f_phone", "f_item", "f_notes"]) $(id).value = "";
   $("f_qty").value = "1";
   $("f_fitting").value = "";
   $("f_orderloc").value = "";
   $("f_pickuploc").value = "";
-  $("f_item").focus();
 }
 
-// ---------------------------------------------------------------------------
-// What was just added — so a typo caught two seconds later is one click to fix
-// ---------------------------------------------------------------------------
-
-function renderSession() {
-  $("savedwrap").classList.toggle("hidden", session.length === 0);
-  const list = $("savedlist");
+// What was just added -- so a typo caught two seconds later is one click to fix.
+function noRenderSession() {
+  $("o_savedwrap").classList.toggle("hidden", noSession.length === 0);
+  const list = $("o_savedlist");
   list.innerHTML = "";
 
-  for (const row of session) {
+  for (const row of noSession) {
     const el = document.createElement("div");
     el.className = "savedrow";
 
@@ -201,12 +167,13 @@ function renderSession() {
         undo.disabled = true;
         try {
           await db.softDelete("orders", row.id);
-          session = session.filter((r) => r.id !== row.id);
-          renderSession();
-          showOk("Removed " + row.item + ".");
+          noSession = noSession.filter((r) => r.id !== row.id);
+          noRenderSession();
+          noStatus("Removed " + row.item + ".");
+          load().catch(() => {});
         } catch (err) {
           undo.disabled = false;
-          showError(err);
+          noStatus(err.message, true);
         }
       });
       el.appendChild(undo);
@@ -215,31 +182,39 @@ function renderSession() {
   }
 }
 
+function noOpen() {
+  noSession = [];
+  noRenderSession();
+  noClearForm();
+  noStatus("");
+  noSetMode(false);
+  $("orderdlg").showModal();
+  $("f_item").focus();
+}
+
 // ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
 
-$("mode_customer").addEventListener("click", () => setMode(false));
-$("mode_stock").addEventListener("click", () => setMode(true));
+$("neworder").addEventListener("click", noOpen);
+$("o_close").addEventListener("click", () => $("orderdlg").close());
+$("o_mode_customer").addEventListener("click", () => noSetMode(false));
+$("o_mode_stock").addEventListener("click", () => noSetMode(true));
 
 $("orderform").addEventListener("submit", (e) => {
   e.preventDefault();
-  save(false);
+  noSave(false);
 });
-$("f_saveanother").addEventListener("click", () => save(true));
-$("f_clear").addEventListener("click", () => {
-  clearForm();
-  $("ok").classList.add("hidden");
-  $("error").classList.add("hidden");
-});
+$("f_saveanother").addEventListener("click", () => noSave(true));
 
 // Enter in the item box is the fast path for stock runs.
 $("f_item").addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
-    save(true);
+    noSave(true);
   }
 });
 
-loadItems();
-setMode(false);
+// Arriving from the old order.html bookmark opens the dialog straight away, so
+// that URL still does what the person pressing it expects.
+if (new URLSearchParams(location.search).get("new") === "1") noOpen();
