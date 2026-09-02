@@ -4,107 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>New Order — Perfexxxxion Pro Shop</title>
-<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
-     cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=19">
+<!-- Taking an order is now a dialog on the orders page rather than a page of
+     its own. This stub is here for whoever has the old URL bookmarked or on a
+     phone home screen -- same pattern as the redirect at the repo root. -->
+<meta http-equiv="refresh" content="0; url=index.html?new=1">
+<link rel="canonical" href="index.html">
+<link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
-
-<header>
-  <h1>Perfexxxxion Pro Shop</h1>
-  <nav>
-    <a href="index.html">Orders</a>
-    <a href="drilling.html">Drilling</a>
-    <a href="appointments.html">Appointments</a>
-    <a href="order.html" class="active">New Order</a>
-    <a href="tickets.html">Tickets</a>
-    <a href="board.html">Day Board</a>
-  </nav>
-</header>
-
-<main>
-  <div id="error" class="error hidden"></div>
-  <div id="ok" class="ok hidden"></div>
-
-  <div class="modeswitch">
-    <button type="button" id="mode_customer" class="on">Customer order</button>
-    <button type="button" id="mode_stock">Shop stock</button>
-  </div>
-
-  <form class="formcard" id="orderform">
-    <div class="formgrid">
-      <div id="customerfields">
-        <div class="pair">
-          <label><span>Name <span class="req">*</span></span>
-            <input type="text" id="f_name" autocomplete="off">
-          </label>
-          <label>Phone
-            <input type="tel" id="f_phone" autocomplete="off" placeholder="570-555-1234">
-          </label>
-        </div>
-      </div>
-
-      <label><span>Item <span class="req">*</span></span>
-        <input type="text" id="f_item" list="items" autocomplete="off"
-               placeholder="Start typing — past orders will suggest">
-      </label>
-
-      <div class="pair">
-        <label>Quantity
-          <input type="number" id="f_qty" value="1" min="1" step="1">
-        </label>
-        <label id="lbl_fitting">Fitting
-          <select id="f_fitting">
-            <option value="">—</option>
-            <option>Specs on file</option>
-            <option>Need appointment to be fitted</option>
-            <option>N/A</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="pair">
-        <label>Order location
-          <select id="f_orderloc">
-            <option value="">—</option>
-            <option>Valley</option>
-            <option>South Side</option>
-            <option>Both</option>
-          </select>
-        </label>
-        <label>Pickup location
-          <select id="f_pickuploc">
-            <option value="">—</option>
-            <option>Valley</option>
-            <option>South Side</option>
-            <option>Both</option>
-          </select>
-        </label>
-      </div>
-
-      <label>Notes
-        <textarea id="f_notes" placeholder="Rebates, colours, who it's for…"></textarea>
-      </label>
-    </div>
-
-    <div class="formactions">
-      <button type="submit" class="primary" id="f_save">Save order</button>
-      <button type="button" id="f_saveanother">Save &amp; add another</button>
-      <span class="spacer"></span>
-      <button type="button" id="f_clear">Clear</button>
-    </div>
-  </form>
-
-  <div class="saved hidden" id="savedwrap">
-    <h3>Added just now</h3>
-    <div id="savedlist"></div>
-  </div>
-
-  <datalist id="items"></datalist>
-</main>
-
-<script src="config.js?v=19"></script>
-<script src="db.js?v=19"></script>
-<script src="order.js?v=19"></script>
+  <main class="narrow">
+    <p class="lede">Opening the order book… <a href="index.html?new=1">continue</a></p>
+  </main>
+  <script>location.replace("index.html?new=1");</script>
 </body>
 </html>
