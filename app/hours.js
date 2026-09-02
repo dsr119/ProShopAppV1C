@@ -12,7 +12,7 @@
 // TEST_MODE opens the dialog on every visit to the orders page, whatever the
 // day, and ignores "already confirmed". Set it to false to go live: Sundays
 // only, once per week. The Hours button in the toolbar works either way.
-const HOURS_TEST_MODE = true;
+const HOURS_TEST_MODE = false;
 
 const HOURS_DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 

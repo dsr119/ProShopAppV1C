@@ -1159,3 +1159,19 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
   .hoursgrid { grid-template-columns: 1fr; gap: 4px; }
   .hloc + .hloc { margin-top: 14px; }
 }
+
+/* ---------- new order dialog ---------- */
+
+/* Direct child only -- the "Added just now" heading below is also an h3 and
+   must not turn into a second title bar. */
+dialog#orderdlg > h3 { display: flex; align-items: center; gap: 8px; }
+
+dialog#orderdlg .body { max-height: min(66vh, 600px); overflow-y: auto; }
+
+/* The form fills the dialog; the standalone page's 640px cap was for a page. */
+dialog#orderdlg .modeswitch { max-width: none; margin-bottom: 4px; }
+dialog#orderdlg .saved { max-width: none; margin-top: 6px; }
+
+/* `dialog h3` is the title bar rule -- padding and a bottom border. A heading
+   inside the body is a label, not a title. */
+dialog .saved h3 { padding: 0; border-bottom: none; }
