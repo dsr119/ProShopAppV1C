@@ -165,7 +165,7 @@ up any deploy and to shake off a browser that has been open for six months.
 GitHub Pages serves static assets with a long cache life, so **bump the `?v=`
 query on every `<script>` and `<link>` when you change one of them**, or
 browsers keep the old copy. They are all on the same number; the current one
-is `v=20`.
+is `v=21`.
 
 ## Local development
 

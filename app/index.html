@@ -6,7 +6,7 @@
 <title>Orders — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
 
@@ -186,25 +186,24 @@
      in the toolbar reopens it any other day. -->
 <dialog id="hoursdlg" class="hoursdlg">
   <h3>
-    Confirm hours for <span id="hoursweek"></span>
-    <button type="button" id="hoursx" class="xclose" title="Close without updating hours">&times;</button>
+    Opening hours
+    <button type="button" id="hoursx" class="xclose" title="Close without saving">&times;</button>
   </h3>
   <div class="body">
-    <p class="lede">Last week's hours on this week's dates. Change what is different,
-      then confirm — the website picks the new week up on its next load.</p>
-    <div id="hoursgrid" class="hoursgrid"></div>
+    <div class="weektabs" id="hourstabs"></div>
+    <div id="hoursgrid"></div>
   </div>
   <div class="foot">
     <span id="hoursstatus" class="hstatus"></span>
     <span class="spacer"></span>
-    <button type="button" class="primary" id="hourssave">Confirm hours</button>
+    <button type="button" class="primary" id="hourssave">Save hours</button>
   </div>
 </dialog>
 
-<script src="config.js?v=20"></script>
-<script src="db.js?v=20"></script>
-<script src="orders.js?v=20"></script>
-<script src="hours.js?v=20"></script>
-<script src="order.js?v=20"></script>
+<script src="config.js?v=21"></script>
+<script src="db.js?v=21"></script>
+<script src="orders.js?v=21"></script>
+<script src="hours.js?v=21"></script>
+<script src="order.js?v=21"></script>
 </body>
 </html>

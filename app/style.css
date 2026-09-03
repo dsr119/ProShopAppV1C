@@ -1076,7 +1076,7 @@ main.narrow { max-width: 620px; margin: 0 auto; }
    whole point, and a week you have to scroll through is a week you skim. */
 dialog.hoursdlg { width: min(860px, calc(100vw - 24px)); }
 
-dialog.hoursdlg h3 {
+dialog.hoursdlg > h3 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1175,3 +1175,49 @@ dialog#orderdlg .saved { max-width: none; margin-top: 6px; }
 /* `dialog h3` is the title bar rule -- padding and a bottom border. A heading
    inside the body is a label, not a title. */
 dialog .saved h3 { padding: 0; border-bottom: none; }
+
+/* ---------- hours: the two week tabs ---------- */
+
+.weektabs {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.weektabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  padding: 8px 12px;
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.weektabs button + button { border-left: 1px solid var(--line); }
+.weektabs button:hover { background: #f0f2f5; }
+.weektabs button.on { background: var(--accent); color: #fff; }
+
+/* The dates, under the tab name. Dimmed on the selected tab rather than a
+   different colour -- white-on-blue at 11px is already loud enough. */
+.weektabs button span {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .75;
+}
+
+/* Today, so a Thursday being fixed on Thursday is findable at a glance. */
+.hrow.istoday { background: var(--accent-soft); border-radius: var(--radius); }
+.hrow.istoday .hday .hdate { color: var(--accent); font-weight: 600; }
+
+.hempty {
+  padding: 18px 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
