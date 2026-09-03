@@ -895,7 +895,6 @@
     const SUPABASE_URL = 'https://ngghyuvykqqklztvvmld.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_X-ZHYha1P8FPVL2rvAk-bA_CdXD8g-g';
 
-    const DAY_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
     const now       = new Date();
     const todayStr  = `${now.getMonth() + 1}/${now.getDate()}`;   // e.g. "9/7"
 
@@ -940,7 +939,8 @@
         return;
       }
 
-      rows.sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day));
+      // By date, so Sunday leads the week rather than trailing it.
+      rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
       el.innerHTML = rows.map(row => {
         const date    = shortDate(row.date);
@@ -968,21 +968,25 @@
       }).join('');
     }
 
-    // This week, Monday to Sunday, asked for by date. Not "the latest rows":
-    // that would happily print a week that ended a fortnight ago as though it
-    // were this one, and a customer would drive out to a shut shop.
-    function mondayOfThisWeek() {
-      const m = new Date();
-      m.setHours(0, 0, 0, 0);
-      m.setDate(m.getDate() - ((m.getDay() + 6) % 7));   // Sun=0 back 6, Mon=1 back 0
-      return m;
+    // This week only, Sunday to Saturday, asked for by date -- so it rolls over
+    // to the new week on Sunday morning by itself.
+    //
+    // Not "every row" and not "the latest rows". The table holds next week as
+    // well, so asking for everything prints fourteen days; asking for the
+    // newest would print a week that has not started yet, or one that ended a
+    // fortnight ago. Either sends someone to a shut shop.
+    function sundayOfThisWeek() {
+      const s = new Date();
+      s.setHours(0, 0, 0, 0);
+      s.setDate(s.getDate() - s.getDay());   // Sun=0 back 0, Sat=6 back 6
+      return s;
     }
 
     function isoOf(d) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     }
 
-    const weekFrom = mondayOfThisWeek();
+    const weekFrom = sundayOfThisWeek();
     const weekTo   = new Date(weekFrom); weekTo.setDate(weekTo.getDate() + 6);
 
     fetch(`${SUPABASE_URL}/rest/v1/hours`

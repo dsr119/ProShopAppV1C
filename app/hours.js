@@ -1,8 +1,9 @@
 // Opening hours -- this week and next.
 //
-// Every Sunday the shop confirms the coming week. The rest of the time it
-// fixes a Thursday in the week it is actually working. Both are the same
-// dialog: two tabs, one save.
+// Weeks run Sunday to Saturday and roll over on Sunday morning, which is what
+// the shop means by "this week" and what the public website shows. On Sunday
+// the dialog opens on next week; the rest of the time it opens on the week
+// being worked. Both are the same dialog: two tabs, one save.
 //
 // Hours live in the `hours` table, keyed on (location, date) -- a row is a
 // specific day, not a slot, so both weeks exist at once. See
@@ -30,7 +31,7 @@ const HOURS_FIELDS = ["open1", "close1", "note1", "open2", "close2", "note2"];
 const DONE_KEY = "proshop.hoursConfirmedWeek";
 const SKIP_KEY = "proshop.hoursDismissedWeek";
 
-// { this: {monday, idle:[…], valley:[…]}, next: {…} }
+// { this: {start, idle:[…], valley:[…]}, next: {…} }
 let hoursWeeks = null;
 let hoursTab = "this";
 let hoursSaved = false;
@@ -40,14 +41,16 @@ let hoursSaved = false;
 
 function addDays(d, n) { const c = new Date(d); c.setDate(c.getDate() + n); return c; }
 
-function mondayOf(d) {
-  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));   // Sun=0 back 6, Mon=1 back 0
-  return m;
+// The week runs Sunday to Saturday, and rolls over on Sunday morning -- which
+// is what the shop means by "this week" and what the website shows.
+function sundayOf(d) {
+  const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  s.setDate(s.getDate() - s.getDay());               // Sun=0 back 0, Sat=6 back 6
+  return s;
 }
 
-function thisMonday() { return mondayOf(new Date()); }
-function nextMonday() { return addDays(thisMonday(), 7); }
+function thisSunday() { return sundayOf(new Date()); }
+function nextSunday() { return addDays(thisSunday(), 7); }
 
 function isoOf(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -70,37 +73,73 @@ function dateFromIso(iso) {
 /* ---------- loading ---------- */
 
 async function loadHours() {
-  const from = isoOf(thisMonday());
-  const to   = isoOf(addDays(nextMonday(), 6));
+  // A week either side of the two on show, so a day with no row of its own has
+  // the same weekday from a previous week to copy.
+  const from = isoOf(addDays(thisSunday(), -7));
+  const to   = isoOf(addDays(nextSunday(), 6));
 
   const rows = await db.select(
     "hours",
     `select=*&date=gte.${from}&date=lte.${to}&order=date.asc`
   );
 
-  const weeks = {
-    this: { monday: thisMonday() },
-    next: { monday: nextMonday() },
-  };
-  const nextIso = isoOf(nextMonday());
-
-  for (const which of ["this", "next"]) {
-    HOURS_LOCATIONS.forEach(l => { weeks[which][l.key] = []; });
-  }
+  const byLocation = {};
+  HOURS_LOCATIONS.forEach(l => { byLocation[l.key] = []; });
 
   rows.forEach(row => {
     const where = HOURS_LOCATIONS.find(l => (row.location || "").toLowerCase().includes(l.match));
-    if (!where) return;
-    const which = String(row.date).slice(0, 10) >= nextIso ? "next" : "this";
-    weeks[which][where.key].push(row);
+    if (where) byLocation[where.key].push(row);
   });
 
+  const weeks = {
+    this: { start: thisSunday() },
+    next: { start: nextSunday() },
+  };
+
   for (const which of ["this", "next"]) {
-    HOURS_LOCATIONS.forEach(l =>
-      weeks[which][l.key].sort((a, b) => String(a.date).localeCompare(String(b.date))));
+    HOURS_LOCATIONS.forEach(loc => {
+      weeks[which][loc.key] = buildWeek(byLocation[loc.key], weeks[which].start, loc);
+    });
   }
 
   return weeks;
+}
+
+// Seven days, whether or not the database has a row for each.
+//
+// A week the shop has not touched yet would otherwise be seven blank fields,
+// or nothing at all -- and next week is always in that state until someone
+// fills it in. Missing days start as a copy of the same weekday from the most
+// recent week that does have one, which is the "last week's hours as the
+// starting point" the dialog has always offered. Saving is what turns a copy
+// into a real row.
+function buildWeek(locationRows, start, loc) {
+  const existing = {};
+  locationRows.forEach(r => { existing[String(r.date).slice(0, 10)] = r; });
+
+  // Newest first, so the first match for a weekday is the freshest one.
+  const templates = locationRows.slice().sort((a, b) =>
+    String(b.date).localeCompare(String(a.date)));
+
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    const iso = isoOf(d);
+
+    if (existing[iso]) { out.push(existing[iso]); continue; }
+
+    const sameWeekday = templates.find(r =>
+      dateFromIso(r.date).getDay() === d.getDay() && String(r.date).slice(0, 10) < iso);
+
+    const blank = { location: loc.title, day: HOURS_DAYS[(d.getDay() + 6) % 7], date: iso };
+    HOURS_FIELDS.forEach(f => { blank[f] = sameWeekday ? sameWeekday[f] : null; });
+    // The location string has to match what the table already uses, or the
+    // upsert inserts a second location rather than updating this one.
+    if (sameWeekday) blank.location = sameWeekday.location;
+    else if (locationRows.length) blank.location = locationRows[0].location;
+    out.push(blank);
+  }
+  return out;
 }
 
 function weekHasRows(which) {
@@ -117,8 +156,8 @@ function shouldAsk() {
   if (!hoursWeeks || !weekHasRows("this")) return false;
   if (HOURS_TEST_MODE) return true;
   if (new Date().getDay() !== 0) return false;                        // Sundays
-  if (storeGet("localStorage", DONE_KEY) === isoOf(nextMonday())) return false;
-  if (storeGet("sessionStorage", SKIP_KEY) === isoOf(nextMonday())) return false;
+  if (storeGet("localStorage", DONE_KEY) === isoOf(nextSunday())) return false;
+  if (storeGet("sessionStorage", SKIP_KEY) === isoOf(nextSunday())) return false;
   return true;
 }
 
@@ -186,7 +225,7 @@ function weekGrid(which) {
 }
 
 function weekLabel(which) {
-  const m = hoursWeeks[which].monday;
+  const m = hoursWeeks[which].start;
   return `${shortDay(m)} – ${shortDay(addDays(m, 6))}`;
 }
 
@@ -235,7 +274,7 @@ function openHours(startOn) {
 // The X and Escape both mean "not now": nothing is written, and the Sunday
 // prompt stays shut for this sitting rather than reopening on the next page.
 function dismissHours() {
-  if (!hoursSaved) storeSet("sessionStorage", SKIP_KEY, isoOf(nextMonday()));
+  if (!hoursSaved) storeSet("sessionStorage", SKIP_KEY, isoOf(nextSunday()));
   document.getElementById("hoursdlg").close();
 }
 
@@ -284,7 +323,7 @@ async function confirmHours() {
 
     hoursWeeks = await loadHours();
     hoursSaved = true;
-    storeSet("localStorage", DONE_KEY, isoOf(nextMonday()));
+    storeSet("localStorage", DONE_KEY, isoOf(nextSunday()));
 
     status.className = "hstatus ok";
     status.textContent = `Saved. ${written.length} days written — the website has them now.`;
