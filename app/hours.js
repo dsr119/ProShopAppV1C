@@ -194,7 +194,9 @@ function showTab(which) {
   hoursTab = which;
   document.querySelectorAll("#hourstabs button").forEach(b =>
     b.classList.toggle("on", b.dataset.week === which));
-  document.querySelectorAll("#hoursgrid [data-week]").forEach(el =>
+  // Direct children only. Every input carries data-week too, so the loose
+  // selector was hiding 168 individual inputs as well as the two grids.
+  document.querySelectorAll("#hoursgrid > [data-week]").forEach(el =>
     el.classList.toggle("hidden", el.dataset.week !== which));
 }
 
