@@ -935,7 +935,8 @@
       if (!el) return;
 
       if (!rows || !rows.length) {
-        el.innerHTML = '<div class="hours-error">No hours available.</div>';
+        el.innerHTML = '<div class="hours-error">This week\'s hours are not posted yet.<br>'
+                     + 'Please give us a call — (570) 815-1026.</div>';
         return;
       }
 
@@ -967,7 +968,25 @@
       }).join('');
     }
 
-    fetch(`${SUPABASE_URL}/rest/v1/hours?select=*&order=day_index.asc`, {
+    // This week, Monday to Sunday, asked for by date. Not "the latest rows":
+    // that would happily print a week that ended a fortnight ago as though it
+    // were this one, and a customer would drive out to a shut shop.
+    function mondayOfThisWeek() {
+      const m = new Date();
+      m.setHours(0, 0, 0, 0);
+      m.setDate(m.getDate() - ((m.getDay() + 6) % 7));   // Sun=0 back 6, Mon=1 back 0
+      return m;
+    }
+
+    function isoOf(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    const weekFrom = mondayOfThisWeek();
+    const weekTo   = new Date(weekFrom); weekTo.setDate(weekTo.getDate() + 6);
+
+    fetch(`${SUPABASE_URL}/rest/v1/hours`
+          + `?select=*&date=gte.${isoOf(weekFrom)}&date=lte.${isoOf(weekTo)}&order=date.asc`, {
       headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
       cache: 'no-store',
     })

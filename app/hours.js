@@ -1,24 +1,25 @@
-// Weekly hours confirmation.
+// Opening hours -- this week and next.
 //
-// Every Sunday the shop confirms next week's opening hours. This puts last
-// week's hours on next week's dates in front of whoever opens the app, so the
-// normal week is one click and only the exceptions need typing.
+// Every Sunday the shop confirms the coming week. The rest of the time it
+// fixes a Thursday in the week it is actually working. Both are the same
+// dialog: two tabs, one save.
 //
-// Hours live in the `hours` table -- fourteen rows, one per location per day,
-// updated in place. See migration/add_hours.sql. The public website reads the
-// same table with the same publishable key, so confirming here is all it takes
-// for the website to show the new week.
+// Hours live in the `hours` table, keyed on (location, date) -- a row is a
+// specific day, not a slot, so both weeks exist at once. See
+// migration/add_hours_two_weeks.sql. The public website reads the same table,
+// asking for the current week by date range, so confirming here is all it
+// takes for the website to be right.
 
-// TEST_MODE opens the dialog on every visit to the orders page, whatever the
-// day, and ignores "already confirmed". Set it to false to go live: Sundays
-// only, once per week. The Hours button in the toolbar works either way.
+// TEST_MODE opens the dialog on every visit, whatever the day, and ignores
+// "already confirmed". Live, it opens by itself on Sundays only. The Hours
+// button in the toolbar works either way.
 const HOURS_TEST_MODE = false;
 
 const HOURS_DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 
-// The two cards, matched on a fragment of the location name rather than the
-// whole string -- the same way staff names are matched elsewhere. Renaming
-// "Valley Bowling Lanes" in the table does not have to mean editing this.
+// Matched on a fragment of the location name rather than the whole string --
+// the same way staff names are matched elsewhere. Renaming "Valley Bowling
+// Lanes" in the table does not have to mean editing this.
 const HOURS_LOCATIONS = [
   { key: "idle",   title: "Idle Hours South", match: "idle"   },
   { key: "valley", title: "Valley Lanes",     match: "valley" },
@@ -29,16 +30,14 @@ const HOURS_FIELDS = ["open1", "close1", "note1", "open2", "close2", "note2"];
 const DONE_KEY = "proshop.hoursConfirmedWeek";
 const SKIP_KEY = "proshop.hoursDismissedWeek";
 
-let hoursWeek = null;      // { idle: [row…], valley: [row…] } once loaded
-let hoursSaved = false;    // this week's rows are in the database
+// { this: {monday, idle:[…], valley:[…]}, next: {…} }
+let hoursWeeks = null;
+let hoursTab = "this";
+let hoursSaved = false;
 
 
 /* ---------- dates ---------- */
 
-// The week runs Monday to Sunday, the order the cards are drawn in. On Sunday
-// you are confirming the week that starts tomorrow, so the target is always
-// the next Monday -- which also means the stored key changes exactly once a
-// week, on Sunday, and that is what makes "not again until next Sunday" work.
 function addDays(d, n) { const c = new Date(d); c.setDate(c.getDate() + n); return c; }
 
 function mondayOf(d) {
@@ -47,48 +46,65 @@ function mondayOf(d) {
   return m;
 }
 
-function weekMonday() { return addDays(mondayOf(new Date()), 7); }
-
-function md(d)  { return `${d.getMonth() + 1}/${d.getDate()}`; }
+function thisMonday() { return mondayOf(new Date()); }
+function nextMonday() { return addDays(thisMonday(), 7); }
 
 function isoOf(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function longDate(d) {
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+function md(d) { return `${d.getMonth() + 1}/${d.getDate()}`; }
+
+function shortDay(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function dateForDay(day) {
-  const i = HOURS_DAYS.indexOf(day);
-  return addDays(weekMonday(), i < 0 ? 0 : i);
-}
-
-// A date column comes back as "2026-09-07". Parsing that with new Date() would
-// read it as UTC midnight and show the day before to anyone west of Greenwich,
-// so build it from the parts instead.
+// "2026-09-07" built from its parts. new Date() on a bare date string reads it
+// as UTC midnight, which is the previous day everywhere west of Greenwich.
 function dateFromIso(iso) {
-  if (!iso) return null;
   const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
-  return (y && m && d) ? new Date(y, m - 1, d) : null;
+  return new Date(y, m - 1, d);
 }
 
 
 /* ---------- loading ---------- */
 
 async function loadHours() {
-  const rows = await db.select("hours", "select=*&order=day_index.asc");
+  const from = isoOf(thisMonday());
+  const to   = isoOf(addDays(nextMonday(), 6));
 
-  const out = {};
-  HOURS_LOCATIONS.forEach(l => { out[l.key] = []; });
+  const rows = await db.select(
+    "hours",
+    `select=*&date=gte.${from}&date=lte.${to}&order=date.asc`
+  );
+
+  const weeks = {
+    this: { monday: thisMonday() },
+    next: { monday: nextMonday() },
+  };
+  const nextIso = isoOf(nextMonday());
+
+  for (const which of ["this", "next"]) {
+    HOURS_LOCATIONS.forEach(l => { weeks[which][l.key] = []; });
+  }
 
   rows.forEach(row => {
     const where = HOURS_LOCATIONS.find(l => (row.location || "").toLowerCase().includes(l.match));
-    if (!where || !HOURS_DAYS.includes(row.day)) return;
-    out[where.key].push(row);
+    if (!where) return;
+    const which = String(row.date).slice(0, 10) >= nextIso ? "next" : "this";
+    weeks[which][where.key].push(row);
   });
 
-  return out;
+  for (const which of ["this", "next"]) {
+    HOURS_LOCATIONS.forEach(l =>
+      weeks[which][l.key].sort((a, b) => String(a.date).localeCompare(String(b.date))));
+  }
+
+  return weeks;
+}
+
+function weekHasRows(which) {
+  return HOURS_LOCATIONS.some(l => hoursWeeks[which][l.key].length);
 }
 
 
@@ -97,21 +113,12 @@ async function loadHours() {
 function storeGet(store, key) { try { return window[store].getItem(key); } catch (e) { return null; } }
 function storeSet(store, key, v) { try { window[store].setItem(key, v); } catch (e) {} }
 
-// Someone at the other counter may have confirmed already. The table says so,
-// and it says so more reliably than this browser's localStorage does.
-function alreadyOnTargetWeek() {
-  const monday = isoOf(weekMonday());
-  return HOURS_LOCATIONS.some(l =>
-    hoursWeek[l.key].some(r => r.day === "Monday" && String(r.date || "").slice(0, 10) === monday));
-}
-
 function shouldAsk() {
-  if (!HOURS_LOCATIONS.some(l => hoursWeek[l.key].length)) return false;
+  if (!hoursWeeks || !weekHasRows("this")) return false;
   if (HOURS_TEST_MODE) return true;
   if (new Date().getDay() !== 0) return false;                        // Sundays
-  if (storeGet("localStorage", DONE_KEY) === isoOf(weekMonday())) return false;
-  if (storeGet("sessionStorage", SKIP_KEY) === isoOf(weekMonday())) return false;
-  if (alreadyOnTargetWeek()) return false;
+  if (storeGet("localStorage", DONE_KEY) === isoOf(nextMonday())) return false;
+  if (storeGet("sessionStorage", SKIP_KEY) === isoOf(nextMonday())) return false;
   return true;
 }
 
@@ -123,17 +130,21 @@ function escHtml(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function hoursDayRow(locKey, row) {
+function hoursDayRow(which, locKey, row) {
   const extra = !!(row.note1 || row.open2 || row.close2 || row.note2);
+  const d = dateFromIso(row.date);
+  const isToday = isoOf(d) === isoOf(new Date());
+
   const box = (name, placeholder) =>
     `<input type="text" placeholder="${placeholder}" value="${escHtml(row[name] || "")}"
-            data-loc="${locKey}" data-day="${escHtml(row.day)}" data-field="${name}">`;
+            data-week="${which}" data-loc="${locKey}" data-date="${escHtml(String(row.date).slice(0,10))}"
+            data-field="${name}">`;
 
   return `
-    <div class="hrow">
+    <div class="hrow${isToday ? " istoday" : ""}">
       <div class="hday">
         <span class="hd">${escHtml(row.day)}</span>
-        <span class="hdate">${md(dateForDay(row.day))}</span>
+        <span class="hdate">${md(d)}${isToday ? " · today" : ""}</span>
       </div>
       <div class="hfields">
         <div class="htimes">
@@ -155,26 +166,56 @@ function hoursDayRow(locKey, row) {
     </div>`;
 }
 
-function openHours() {
-  const monday = weekMonday();
+function weekGrid(which) {
+  const w = hoursWeeks[which];
 
-  document.getElementById("hoursweek").textContent =
-    `${longDate(monday)} – ${longDate(addDays(monday, 6))}`;
+  if (!weekHasRows(which)) {
+    return `<div class="hempty" data-week="${which}">
+              No hours saved for this week yet. Run migration/add_hours_two_weeks.sql,
+              or add them in the Supabase table editor.
+            </div>`;
+  }
 
-  document.getElementById("hoursgrid").innerHTML = HOURS_LOCATIONS.map(l => `
-    <div class="hloc">
-      <h4>${escHtml(l.title)}</h4>
-      ${hoursWeek[l.key].map(r => hoursDayRow(l.key, r)).join("")}
-    </div>`).join("");
+  return `<div class="hoursgrid" data-week="${which}">` +
+    HOURS_LOCATIONS.map(l => `
+      <div class="hloc">
+        <h4>${escHtml(l.title)}</h4>
+        ${w[l.key].map(r => hoursDayRow(which, l.key, r)).join("")}
+      </div>`).join("") +
+    `</div>`;
+}
+
+function weekLabel(which) {
+  const m = hoursWeeks[which].monday;
+  return `${shortDay(m)} – ${shortDay(addDays(m, 6))}`;
+}
+
+function showTab(which) {
+  hoursTab = which;
+  document.querySelectorAll("#hourstabs button").forEach(b =>
+    b.classList.toggle("on", b.dataset.week === which));
+  document.querySelectorAll("#hoursgrid [data-week]").forEach(el =>
+    el.classList.toggle("hidden", el.dataset.week !== which));
+}
+
+function openHours(startOn) {
+  document.getElementById("hourstabs").innerHTML = `
+    <button type="button" data-week="this">This week <span>${weekLabel("this")}</span></button>
+    <button type="button" data-week="next">Next week <span>${weekLabel("next")}</span></button>`;
+
+  document.getElementById("hoursgrid").innerHTML = weekGrid("this") + weekGrid("next");
 
   const status = document.getElementById("hoursstatus");
   status.className = "hstatus";
   status.textContent = "Leave a time empty to show the day as closed.";
 
   const save = document.getElementById("hourssave");
-  save.textContent = "Confirm hours";
+  save.textContent = "Save hours";
   save.disabled = false;
   hoursSaved = false;
+
+  document.querySelectorAll("#hourstabs button").forEach(b =>
+    b.addEventListener("click", () => showTab(b.dataset.week)));
 
   document.querySelectorAll("#hoursgrid .hmore").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -183,31 +224,36 @@ function openHours() {
     });
   });
 
+  // Sunday is about the week ahead. Any other day, you opened this to fix
+  // something in the week you are standing in.
+  showTab(startOn || (new Date().getDay() === 0 ? "next" : "this"));
   document.getElementById("hoursdlg").showModal();
 }
 
-// The X and Escape both mean "not now": nothing is written, and it stays shut
-// for this sitting rather than reopening on the next page.
+// The X and Escape both mean "not now": nothing is written, and the Sunday
+// prompt stays shut for this sitting rather than reopening on the next page.
 function dismissHours() {
-  if (!hoursSaved) storeSet("sessionStorage", SKIP_KEY, isoOf(weekMonday()));
+  if (!hoursSaved) storeSet("sessionStorage", SKIP_KEY, isoOf(nextMonday()));
   document.getElementById("hoursdlg").close();
 }
 
-// The rows as the dialog has them, on the coming week's dates. Sent as an
-// upsert keyed on (location, day), so the fourteen rows are matched by what
-// they are rather than by an id the dialog would have to keep track of.
+// Both weeks go in one upsert, whichever tab is showing. Saving only the
+// visible one would quietly throw away edits made on the other.
 function collectHours() {
   const rows = [];
-  HOURS_LOCATIONS.forEach(l => {
-    hoursWeek[l.key].forEach(row => {
-      const entry = { location: row.location, day: row.day, date: isoOf(dateForDay(row.day)) };
-      HOURS_FIELDS.forEach(name => {
-        const el = document.querySelector(
-          `#hoursgrid [data-loc="${l.key}"][data-day="${row.day}"][data-field="${name}"]`);
-        const v = el ? el.value.trim() : "";
-        entry[name] = v === "" ? null : v;      // empty means closed, and null is how the column says it
+  ["this", "next"].forEach(which => {
+    HOURS_LOCATIONS.forEach(l => {
+      hoursWeeks[which][l.key].forEach(row => {
+        const date = String(row.date).slice(0, 10);
+        const entry = { location: row.location, day: row.day, date };
+        HOURS_FIELDS.forEach(name => {
+          const el = document.querySelector(
+            `#hoursgrid [data-week="${which}"][data-loc="${l.key}"][data-date="${date}"][data-field="${name}"]`);
+          const v = el ? el.value.trim() : "";
+          entry[name] = v === "" ? null : v;   // empty means closed, and null is how the column says it
+        });
+        rows.push(entry);
       });
-      rows.push(entry);
     });
   });
   return rows;
@@ -219,23 +265,27 @@ async function confirmHours() {
 
   if (hoursSaved) { document.getElementById("hoursdlg").close(); return; }
 
+  const rows = collectHours();
+  if (!rows.length) {
+    status.className = "hstatus bad";
+    status.textContent = "Nothing to save.";
+    return;
+  }
+
   save.disabled = true;
   save.textContent = "Saving…";
   status.className = "hstatus";
-  status.textContent = "Writing the week…";
+  status.textContent = "Saving both weeks…";
 
   try {
-    const written = await db.upsert("hours", collectHours(), "location,day");
+    const written = await db.upsert("hours", rows, "location,date");
 
-    // Take the rows the database actually stored rather than the ones we sent
-    // -- if a default or a trigger changed anything, the dialog should be
-    // showing what is really there.
-    hoursWeek = regroup(written);
+    hoursWeeks = await loadHours();
     hoursSaved = true;
-    storeSet("localStorage", DONE_KEY, isoOf(weekMonday()));
+    storeSet("localStorage", DONE_KEY, isoOf(nextMonday()));
 
     status.className = "hstatus ok";
-    status.textContent = `Confirmed. ${written.length} rows saved — the website has the new week now.`;
+    status.textContent = `Saved. ${written.length} days written — the website has them now.`;
     save.textContent = "Done";
     save.disabled = false;
 
@@ -243,20 +293,8 @@ async function confirmHours() {
     status.className = "hstatus bad";
     status.textContent = `Could not save: ${err.message}. Nothing was changed — try again.`;
     save.disabled = false;
-    save.textContent = "Confirm hours";
+    save.textContent = "Save hours";
   }
-}
-
-function regroup(rows) {
-  const out = {};
-  HOURS_LOCATIONS.forEach(l => { out[l.key] = []; });
-  rows.forEach(row => {
-    const where = HOURS_LOCATIONS.find(l => (row.location || "").toLowerCase().includes(l.match));
-    if (where) out[where.key].push(row);
-  });
-  HOURS_LOCATIONS.forEach(l =>
-    out[l.key].sort((a, b) => HOURS_DAYS.indexOf(a.day) - HOURS_DAYS.indexOf(b.day)));
-  return out;
 }
 
 
@@ -272,10 +310,10 @@ document.getElementById("hoursdlg").addEventListener("cancel", e => {
 const hoursBtn = document.getElementById("hoursbtn");
 
 loadHours()
-  .then(data => {
-    hoursWeek = data;
+  .then(weeks => {
+    hoursWeeks = weeks;
     hoursBtn.disabled = false;
-    if (shouldAsk()) openHours();
+    if (shouldAsk()) openHours("next");
   })
   .catch(err => {
     // The orders page is not the hours page. Hours that will not load must not
@@ -285,4 +323,4 @@ loadHours()
     hoursBtn.title = "Could not load hours: " + err.message;
   });
 
-hoursBtn.addEventListener("click", () => { if (hoursWeek) openHours(); });
+hoursBtn.addEventListener("click", () => { if (hoursWeeks) openHours(); });
