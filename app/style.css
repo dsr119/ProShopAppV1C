@@ -1132,6 +1132,14 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
 .hday .hd { display: block; font-size: 12.5px; font-weight: 600; }
 .hday .hdate { display: block; font-size: 11.5px; color: var(--accent); }
 
+/* Grid items are min-width:auto by default, which means a column refuses to
+   shrink below its content -- the inputs' own intrinsic width -- and the
+   second location gets pushed off the right edge of the dialog. The same trap
+   `dialog .body > *` already guards against, one level further in. */
+.hoursgrid > *,
+.hrow > *,
+.hextra > * { min-width: 0; }
+
 .htimes { display: flex; align-items: center; gap: 5px; }
 .htimes input { flex: 1; min-width: 0; }
 .hdash { color: var(--muted); flex: 0 0 auto; }
