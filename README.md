@@ -199,3 +199,7 @@ Use **Drilling → Export** to copy a list of undrilled, unscheduled customer it
 Copy writes only the displayed names, items, quantities, and location labels to the clipboard, confirms success, and closes the dialog. Failed clipboard access leaves selectable text for manual copying. Reopening refreshes data and resets removals. No new database migration is required.
 
 Run all regression tests with `node --test tests/*.test.cjs`.
+
+### Drilling contact tracking
+
+Run `migration/add_order_contact.sql` before deploying. Each drilling row has a Called / messaged button, which records the latest contact timestamp for that order. A successful save changes it to Contacted today and disables it until the next calendar day in America/New_York. The last contact date/time remains visible after the button resets. Open tabs update the daily state every 30 seconds and on becoming visible; Refresh or returning focus reloads shared records. The button records outreach already performed; it does not send messages or place calls. This stores the latest contact per order, not a full contact log.
