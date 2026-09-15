@@ -84,7 +84,7 @@ async function load() {
     ROWS = [...pending, ...thisQuarter].filter(
       (r) => !NOT_A_CUSTOMER.has((r.customer_name || "").trim().toLowerCase())
     );
-    await loadAppointments();
+    await Promise.all([loadAppointments(), loadContacts()]);
     render();
   } catch (err) {
     showError(err);
@@ -101,6 +101,90 @@ async function loadAppointments() {
     APPOINTMENTS = [];
     showError(new Error("Could not load appointment status. Ensure migration/add_appointment_order_link.sql has been applied. " + err.message));
   }
+}
+
+// Contact is recorded per order. The timestamp stays; only the daily button resets.
+let CONTACTS = new Map();
+let contactsLoaded = false;
+const contactSaving = new Set();
+
+function shopDay(value = new Date()) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+function contactedToday(value, now = new Date()) {
+  return !!value && shopDay(value) === shopDay(now);
+}
+
+async function loadContacts() {
+  try {
+    const rows = await db.selectAll('orders',
+      'select=id,last_contacted_at&deleted_at=is.null&is_stock=is.false&order=id.asc');
+    CONTACTS = new Map(rows.map(r => [r.id, r.last_contacted_at]));
+    contactsLoaded = true;
+  } catch (err) {
+    contactsLoaded = false;
+    showError(new Error('Could not load contact tracking: ' + err.message));
+  }
+}
+
+function paintContact(cell, order) {
+  const last = CONTACTS.get(order.id);
+  const today = contactedToday(last);
+  const saving = contactSaving.has(order.id);
+  const button = cell.querySelector('button');
+  button.textContent = saving ? 'Saving…' : today ? 'Contacted today ✓' : 'Called / messaged';
+  button.disabled = !contactsLoaded || saving || today;
+  const note = cell.querySelector('.contact-last');
+  note.textContent = !contactsLoaded ? 'Contact status unavailable' : last
+    ? 'Last: ' + new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+      }).format(new Date(last))
+    : 'No contact recorded';
+}
+
+async function markContact(order, cell) {
+  if (!contactsLoaded || contactSaving.has(order.id) || contactedToday(CONTACTS.get(order.id))) return;
+  contactSaving.add(order.id);
+  paintContact(cell, order);
+  try {
+    const written = await db.update('orders', `id=eq.${order.id}&deleted_at=is.null`, {
+      last_contacted_at: new Date().toISOString(),
+    });
+    const saved = written?.find(r => r.id === order.id);
+    if (!saved?.last_contacted_at) throw new Error('Contact was not saved. Please refresh and try again.');
+    CONTACTS.set(order.id, saved.last_contacted_at);
+  } catch (err) {
+    showError(err);
+  } finally {
+    contactSaving.delete(order.id);
+    paintContact(cell, order);
+  }
+}
+
+function contactCell(order) {
+  const cell = document.createElement('div');
+  cell.dataset.contactOrder = order.id;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.title = 'Record that you called or messaged this customer about this item';
+  button.addEventListener('click', () => markContact(order, cell));
+  const note = document.createElement('div');
+  note.className = 'contact-last';
+  cell.append(button, note);
+  paintContact(cell, order);
+  return cell;
+}
+
+function refreshContactButtons() {
+  document.querySelectorAll('[data-contact-order]').forEach(cell => {
+    paintContact(cell, { id: cell.dataset.contactOrder });
+  });
 }
 
 function appointmentStatus(order, appointments, today) {
@@ -285,6 +369,7 @@ function row(r) {
     booking.appendChild(detail);
   }
 
+  td("Contact").appendChild(contactCell(r));
   td("Assigned").appendChild(assignSelect(r));
 
   const act = td("");
@@ -672,7 +757,7 @@ $("quarter").addEventListener("change", load);
 $("refresh").addEventListener("click", load);
 window.addEventListener("focus", async () => {
   if ($("dlg").open || $("exportdlg").open || document.activeElement?.matches("input,select,textarea")) return;
-  await loadAppointments();
+  await Promise.all([loadAppointments(), loadContacts()]);
   render();
 });
 $("location").addEventListener("change", render);
@@ -699,3 +784,9 @@ $("s_cancel").addEventListener("click", () => $("dlg").close());
     showError(err);
   }
 })();
+
+// A tab left open overnight resets within 30 seconds without clearing history.
+setInterval(refreshContactButtons, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshContactButtons();
+});
