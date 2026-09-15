@@ -194,7 +194,7 @@ Verification: `node --test tests/workflows.test.cjs`. Database migrations must b
 
 ### Drilling export
 
-Use **Drilling → Export** to copy an all-quarter list of undrilled, unscheduled customer items. Choose Valley, Southside, or Both; the × removes a row from this export only, and Restore removed brings excluded rows back. Both includes unassigned locations and shows location labels. Orders assigned to Both appear under either shop. The export excludes collected/no-drill items, any linked booking (including past/completed bookings), and exact legacy name/item booking matches. It uses the existing queue's no-drill flag to exclude non-drilling merchandise.
+Use **Drilling → Export** to copy a list of undrilled, unscheduled customer items ordered July 1, 2026 or later (unplaced orders use their intake date; undated orders are excluded). Choose Valley, Southside, or Both; the × removes a row from this export only, and Restore removed brings excluded rows back. Both includes unassigned locations and shows location labels. Orders assigned to Both appear under either shop. The export excludes collected/no-drill items, any linked booking (including past/completed bookings), and exact legacy name/item booking matches. It uses the existing queue's no-drill flag to exclude non-drilling merchandise.
 
 Copy writes only the displayed names, items, quantities, and location labels to the clipboard, confirms success, and closes the dialog. Failed clipboard access leaves selectable text for manual copying. Reopening refreshes data and resets removals. No new database migration is required.
 

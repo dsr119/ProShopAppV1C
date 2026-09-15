@@ -23,13 +23,13 @@ function setup() {
   }
   return {ctx,els};
 }
-const order = (id, extra={}) => ({id,customer_name:'Sample Customer',item:'Sample Ball',pickup_location:'Valley',...extra});
+const order = (id, extra={}) => ({id,shop_order_date:'2026-07-01',customer_name:'Sample Customer',item:'Sample Ball',pickup_location:'Valley',...extra});
 
-test('all-quarter export excludes finished, stock, deleted and booked rows including past/completed bookings',()=>{
+test('export excludes finished, stock, deleted and booked rows including past/completed bookings',()=>{
   const {ctx}=setup();
-  const rows=[order('open'),order('older',{quarter:'2025 Q1'}),order('drilled',{drilled:true}),order('no-drill',{no_drill_needed:true}),order('collected',{out_the_door:true}),order('stock',{is_stock:true}),order('deleted',{deleted_at:'date'}),order('booked')];
+  const rows=[order('open'),order('older',{quarter:'2025 Q1',shop_order_date:'2025-01-10'}),order('drilled',{drilled:true}),order('no-drill',{no_drill_needed:true}),order('collected',{out_the_door:true}),order('stock',{is_stock:true}),order('deleted',{deleted_at:'date'}),order('booked')];
   const result=ctx.unscheduledOrders(rows,[{order_id:'booked',completed:true,appt_date:'2025-01-01'}]);
-  assert.deepEqual(Array.from(result,r=>r.id).sort(),['older','open']);
+  assert.deepEqual(Array.from(result,r=>r.id).sort(),['open']);
 });
 test('legacy exact item bookings are omitted; deleted bookings and name-only matches do not hide orders',()=>{
   const {ctx}=setup();
@@ -73,4 +73,11 @@ test('copy success confirms and closes; clipboard failure keeps the dialog and e
 test('failed appointment reads prevent copying an incomplete list',async()=>{
   const {ctx,els}=setup();ctx.db={selectAll:async t=>{if(t==='appointments')throw new Error('offline');return [order('one')];}};
   await ctx.openDrillingExport();assert.equal(els.export_copy.disabled,true);assert.match(els.export_status.textContent,/Could not load the complete list/);
+});
+
+
+test('July 1 cutoff is inclusive and excludes older or undated orders',()=>{
+  const {ctx}=setup();
+  const rows=[order('june',{shop_order_date:'2026-06-30'}),order('july'),order('later',{shop_order_date:'2026-09-15'}),order('undated',{shop_order_date:null}),order('pending',{shop_order_date:null,submitted_at:'2026-07-01T04:00:00Z'}),order('pending-june',{shop_order_date:null,submitted_at:'2026-07-01T03:59:59Z'}),order('old-placed',{shop_order_date:'2026-06-30',submitted_at:'2026-09-15T12:00:00Z'})];
+  assert.deepEqual(Array.from(ctx.unscheduledOrders(rows,[]),r=>r.id).sort(),['july','later','pending']);
 });
