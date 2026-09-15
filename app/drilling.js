@@ -9,6 +9,8 @@
 const $ = (id) => document.getElementById(id);
 
 let ROWS = [];
+let APPOINTMENTS = [];
+let appointmentsLoaded = false;
 
 const COLUMNS =
   "id,customer_name,is_stock,phone,item,pickup_location,order_location," +
@@ -82,10 +84,39 @@ async function load() {
     ROWS = [...pending, ...thisQuarter].filter(
       (r) => !NOT_A_CUSTOMER.has((r.customer_name || "").trim().toLowerCase())
     );
+    await loadAppointments();
     render();
   } catch (err) {
     showError(err);
   }
+}
+
+async function loadAppointments() {
+  appointmentsLoaded = false;
+  try {
+    APPOINTMENTS = await db.selectAll("appointments",
+      "select=id,order_id,customer_name,service,appt_date,appt_time,location,completed&deleted_at=is.null&order=appt_date.asc,appt_time.asc,id.asc");
+    appointmentsLoaded = true;
+  } catch (err) {
+    APPOINTMENTS = [];
+    showError(new Error("Could not load appointment status. Ensure migration/add_appointment_order_link.sql has been applied. " + err.message));
+  }
+}
+
+function appointmentStatus(order, appointments, today) {
+  const linked = appointments.filter(a => a.order_id === order.id);
+  const upcoming = linked.filter(a => !a.completed && a.appt_date >= today);
+  if (upcoming.length) return { label: "Scheduled", appointments: upcoming };
+  const past = linked.filter(a => !a.completed && a.appt_date < today);
+  if (past.length) return { label: "Past appointment — check status", appointments: past.slice(-1) };
+  if (linked.length) return { label: "Appointment completed", appointments: linked.slice(-1) };
+  // Old bookings have no order ID. Surface exact name/item matches as candidates,
+  // never mark a second identical ball as definitely scheduled by guessing.
+  const norm = v => (v || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const possible = appointments.filter(a => !a.order_id && !a.completed &&
+    norm(a.customer_name) === norm(order.customer_name) &&
+    [norm(order.item), norm("Drill " + order.item)].includes(norm(a.service)));
+  return { label: possible.length ? "Possible booking — link in Appointments" : "Not scheduled", appointments: possible };
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +271,18 @@ function row(r) {
       tag.textContent = late === 0 ? "due today" : `${late} day${late === 1 ? "" : "s"} late`;
       dueCell.appendChild(tag);
     }
+  }
+
+  const booking = td("Appointment");
+  const info = appointmentsLoaded ? appointmentStatus(r, APPOINTMENTS, isoOf(new Date()))
+    : { label: "Appointment status unavailable", appointments: [] };
+  const label = document.createElement("strong");
+  label.textContent = info.label;
+  booking.appendChild(label);
+  for (const a of info.appointments) {
+    const detail = document.createElement("div");
+    detail.textContent = [shortDate(a.appt_date), prettyTime(a.appt_time) || "Time TBD", a.location].filter(Boolean).join(" · ");
+    booking.appendChild(detail);
   }
 
   td("Assigned").appendChild(assignSelect(r));
@@ -585,6 +628,7 @@ async function bookAppointment(e) {
   e.preventDefault();
   const o = sched.order;
   const row = {
+    order_id: o.id,
     customer_name: o.customer_name,
     phone: o.phone || null,
     service: $("s_service").value.trim(),
@@ -605,6 +649,8 @@ async function bookAppointment(e) {
   try {
     await db.insert("appointments", row);
     $("dlg").close();
+    await loadAppointments();
+    render();
   } catch (err) {
     showError(err);
   } finally {
@@ -623,6 +669,12 @@ $("search").addEventListener("input", () => {
   t = setTimeout(render, 150);
 });
 $("quarter").addEventListener("change", load);
+$("refresh").addEventListener("click", load);
+window.addEventListener("focus", async () => {
+  if ($("dlg").open || document.activeElement?.matches("input,select,textarea")) return;
+  await loadAppointments();
+  render();
+});
 $("location").addEventListener("change", render);
 $("assignee").addEventListener("change", render);
 $("showdone").addEventListener("change", render);
