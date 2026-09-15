@@ -6,7 +6,7 @@
 <title>Drilling — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
 
@@ -22,10 +22,12 @@
 </header>
 
 <main>
+  <div id="export_notice" class="export-notice" role="status" aria-live="polite"></div>
   <div id="error" class="error hidden"></div>
 
   <div class="toolbar">
     <button type="button" id="refresh">Refresh</button>
+    <button type="button" id="export_open">Export</button>
     <input type="search" id="search" placeholder="Search name or item …">
     <select id="quarter"></select>
     <select id="location">
@@ -118,9 +120,34 @@
   </form>
 </dialog>
 
-<script src="config.js?v=22"></script>
-<script src="db.js?v=22"></script>
-<script src="staff.js?v=22"></script>
-<script src="drilling.js?v=22"></script>
+<dialog id="exportdlg" class="wide" aria-labelledby="export_title">
+  <h3 id="export_title">Export drilling list</h3>
+  <div class="body">
+    <label>Location
+      <select id="export_location">
+        <option value="Valley">Valley</option>
+        <option value="South Side">Southside</option>
+        <option value="Both">Both</option>
+      </select>
+    </label>
+    <p id="export_status" role="status"></p>
+    <div id="export_list" class="export-list" aria-label="Names and balls to copy"></div>
+    <p id="export_empty" class="hidden">No undrilled, unscheduled items for this location.</p>
+    <textarea id="export_manual" class="hidden" readonly aria-label="Text to copy manually" rows="8"></textarea>
+  </div>
+  <div class="foot">
+    <span id="export_count" class="count"></span>
+    <button type="button" id="export_reset">Restore removed</button>
+    <span class="spacer"></span>
+    <button type="button" id="export_close">Cancel</button>
+    <button type="button" id="export_copy" class="primary">Copy</button>
+  </div>
+</dialog>
+
+<script src="config.js?v=23"></script>
+<script src="db.js?v=23"></script>
+<script src="staff.js?v=23"></script>
+<script src="drilling.js?v=23"></script>
+<script src="drilling-export.js?v=23"></script>
 </body>
 </html>

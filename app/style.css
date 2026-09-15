@@ -1221,3 +1221,15 @@ dialog .saved h3 { padding: 0; border-bottom: none; }
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Drilling list prepared for a group chat. */
+#exportdlg .body { max-height: 65vh; overflow-y: auto; }
+#exportdlg .foot { flex-wrap: wrap; }
+#export_status, #export_empty { margin: 0; color: var(--muted); font-size: 13px; }
+.export-list { border: 1px solid var(--line); border-radius: 5px; }
+.export-list:empty { display: none; }
+.export-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; }
+.export-row + .export-row { border-top: 1px solid var(--line); }
+.export-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.export-row button { flex-shrink: 0; min-width: 36px; min-height: 36px; font-size: 20px; }
+.export-notice:not(:empty) { padding: 10px 12px; margin-bottom: 10px; background: #e8f5eb; color: #185b2b; border-radius: 5px; }

@@ -671,7 +671,7 @@ $("search").addEventListener("input", () => {
 $("quarter").addEventListener("change", load);
 $("refresh").addEventListener("click", load);
 window.addEventListener("focus", async () => {
-  if ($("dlg").open || document.activeElement?.matches("input,select,textarea")) return;
+  if ($("dlg").open || $("exportdlg").open || document.activeElement?.matches("input,select,textarea")) return;
   await loadAppointments();
   render();
 });
