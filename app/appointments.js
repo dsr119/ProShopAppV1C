@@ -206,8 +206,41 @@ function apptChip(a) {
 // Add / edit dialog
 // ---------------------------------------------------------------------------
 
+let orderChoices = [];
+let orderChoicesReady = false;
+let orderChoiceRequest = 0;
+
+async function fillOrderChoices(appt) {
+  const requestId = ++orderChoiceRequest;
+  const select = $("f_order");
+  orderChoicesReady = false;
+  select.disabled = true;
+  select.replaceChildren(new Option("Loading orders…", ""));
+  try {
+    const choices = await db.selectAll("orders",
+      "select=id,customer_name,item,shop_order_date&deleted_at=is.null&is_stock=is.false&order=customer_name.asc,id.asc");
+    if (requestId !== orderChoiceRequest) return;
+    orderChoices = choices;
+    select.replaceChildren(new Option("No linked order", ""));
+    for (const order of orderChoices) {
+      select.add(new Option(`${order.customer_name} — ${order.item} (${order.shop_order_date || "not ordered"}; ${order.id.slice(0, 8)})`, order.id));
+    }
+    if (appt?.order_id && !orderChoices.some(o => o.id === appt.order_id)) {
+      select.add(new Option("Previously linked order (archived or stock)", appt.order_id));
+    }
+    select.value = appt?.order_id || "";
+    orderChoicesReady = true;
+    select.disabled = false;
+  } catch (err) {
+    if (requestId !== orderChoiceRequest) return;
+    select.replaceChildren(new Option("Orders unavailable — existing link preserved", appt?.order_id || ""));
+    console.error(err);
+  }
+}
+
 function openDialog(appt, dateStr) {
   editing = appt;
+  fillOrderChoices(appt);
   $("dlgtitle").textContent = appt ? "Edit appointment" : "New appointment";
   $("f_delete").classList.toggle("hidden", !appt);
 
@@ -243,6 +276,8 @@ async function save(e) {
     paid: $("f_paid").checked,
     completed: $("f_completed").checked,
   };
+  // Omit the field if loading failed, preserving any existing relationship.
+  if (orderChoicesReady) row.order_id = $("f_order").value || null;
   if (!row.customer_name || !row.appt_date || !row.service) return;
 
   const btn = $("f_save");
@@ -300,6 +335,12 @@ $("location").addEventListener("change", render);
 $("add").addEventListener("click", () => {
   const t = todayParts();
   openDialog(null, iso(t.y, t.m, t.d));
+});
+$("f_order").addEventListener("change", () => {
+  const order = orderChoices.find(o => o.id === $("f_order").value);
+  if (!order) return;
+  if (!$("f_name").value.trim()) $("f_name").value = order.customer_name;
+  if (!$("f_service").value.trim()) $("f_service").value = `Drill ${order.item}`;
 });
 $("apptform").addEventListener("submit", save);
 $("f_cancel").addEventListener("click", () => $("dlg").close());

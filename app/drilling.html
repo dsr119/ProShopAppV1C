@@ -6,7 +6,7 @@
 <title>Drilling — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 
@@ -25,6 +25,7 @@
   <div id="error" class="error hidden"></div>
 
   <div class="toolbar">
+    <button type="button" id="refresh">Refresh</button>
     <input type="search" id="search" placeholder="Search name or item …">
     <select id="quarter"></select>
     <select id="location">
@@ -55,6 +56,7 @@
           <th>Pickup</th>
           <th class="nowrap">Ordered</th>
           <th class="nowrap">Due</th>
+          <th>Appointment</th>
           <th>Assigned</th>
           <th></th>
         </tr>
@@ -116,9 +118,9 @@
   </form>
 </dialog>
 
-<script src="config.js?v=21"></script>
-<script src="db.js?v=21"></script>
-<script src="staff.js?v=21"></script>
-<script src="drilling.js?v=21"></script>
+<script src="config.js?v=22"></script>
+<script src="db.js?v=22"></script>
+<script src="staff.js?v=22"></script>
+<script src="drilling.js?v=22"></script>
 </body>
 </html>

@@ -69,9 +69,36 @@ function dateFromIso(iso) {
 
 /* ---------- loading ---------- */
 
+// Build missing dates from the most recent earlier occurrence of that weekday.
+// Never copy a future holiday override backwards or overwrite a saved date.
+function missingHours(history, monday) {
+  const missing = [];
+  for (const loc of HOURS_LOCATIONS) {
+    const rows = history.filter(r => (r.location || "").toLowerCase().includes(loc.match));
+    const location = [...rows].sort((a, b) => b.date.localeCompare(a.date))[0]?.location
+      || (loc.key === "valley" ? "Valley Bowling Lanes" : loc.title);
+    for (let i = 0; i < 14; i++) {
+      const date = isoOf(addDays(monday, i));
+      const day = HOURS_DAYS[i % 7];
+      if (rows.some(r => r.location === location && r.date === date)) continue;
+      const template = rows.filter(r => r.location === location && r.day === day && r.date < date)
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      const entry = { location, day, date };
+      HOURS_FIELDS.forEach(field => { entry[field] = template?.[field] ?? null; });
+      missing.push(entry);
+      rows.push(entry);
+    }
+  }
+  return missing;
+}
+
 async function loadHours() {
   const from = isoOf(thisMonday());
   const to   = isoOf(addDays(nextMonday(), 6));
+
+  const history = await db.selectAll("hours", `select=*&date=lte.${to}&order=date.desc,id.asc`);
+  const missing = missingHours(history, thisMonday());
+  if (missing.length) await db.insertMissing("hours", missing, "location,date");
 
   const rows = await db.select(
     "hours",
@@ -323,4 +350,14 @@ loadHours()
     hoursBtn.title = "Could not load hours: " + err.message;
   });
 
-hoursBtn.addEventListener("click", () => { if (hoursWeeks) openHours(); });
+hoursBtn.addEventListener("click", async () => {
+  hoursBtn.disabled = true;
+  try {
+    hoursWeeks = await loadHours(); // Also handles a tab left open across Monday.
+    openHours();
+  } catch (err) {
+    alert("Could not load hours: " + err.message);
+  } finally {
+    hoursBtn.disabled = false;
+  }
+});
