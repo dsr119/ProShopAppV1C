@@ -262,11 +262,8 @@ function orderRow(o) {
 
   // customer
   const nameCell = td(tr, "Customer");
-  if (o.is_stock) {
-    nameCell.innerHTML = '<span class="stock">Stock</span>';
-  } else {
-    nameCell.appendChild(editable(o, "customer_name", "text"));
-  }
+  nameCell.appendChild(editable(o, "customer_name", "text"));
+  nameCell.title = "Click to edit. Enter a customer name to assign stock; enter Stock to return it to stock.";
 
   td(tr, "Item").appendChild(editable(o, "item", "text", { list: "items" }));
   td(tr, "Qty", "num").appendChild(editable(o, "quantity", "number"));
@@ -375,7 +372,7 @@ function editable(order, field, type, opts = {}) {
   const span = document.createElement("span");
   span.className = "cell";
   const paint = () => {
-    const text = display(field, order[field]);
+    const text = field === "customer_name" && order.is_stock ? "Stock" : display(field, order[field]);
     span.textContent = text;
     span.classList.toggle("empty", text === "");
   };
@@ -416,17 +413,27 @@ function editable(order, field, type, opts = {}) {
       if (value === "") value = null;
       else if (type === "number") value = Number(value);
 
-      if (value === order[field]) return paint();
+      if (field === "customer_name" && !value) {
+        paint();
+        showError(new Error("Enter a customer name, or Stock to keep this as shop stock."));
+        return;
+      }
+      if (value === order[field] && field !== "customer_name") return paint();
 
       span.classList.add("saving");
       try {
-        await db.update("orders", `id=eq.${order.id}`, { [field]: value });
-        order[field] = value;
+        const patch = { [field]: value };
+        if (field === "customer_name") {
+          patch.is_stock = ["stock", "shop stock"].includes(value.toLowerCase());
+          if (patch.is_stock) patch.customer_name = "Stock";
+        }
+        await db.update("orders", `id=eq.${order.id}`, patch);
+        Object.assign(order, patch);
         span.classList.remove("saving", "saveerr");
         paint();
         // Clearing or setting the shop order date moves the row between the
         // pending queue and the placed list, so the page has to re-sort.
-        if (field === "shop_order_date") render();
+        if (field === "shop_order_date" || field === "customer_name") render();
       } catch (err) {
         span.classList.remove("saving");
         span.classList.add("saveerr");

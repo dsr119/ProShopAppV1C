@@ -78,6 +78,15 @@ const db = {
     });
   },
 
+  // Fill missing dates without overwriting another workstation's edits.
+  insertMissing(table, rows, conflict) {
+    return request(`${table}?on_conflict=${conflict}`, {
+      method: "POST",
+      headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
+      body: JSON.stringify(rows),
+    });
+  },
+
   update(table, filter, patch) {
     return request(`${table}?${filter}`, {
       method: "PATCH",
