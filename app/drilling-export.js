@@ -1,4 +1,4 @@
-// A fresh, all-quarter snapshot for sharing with the shop team.
+// Only include orders from when drilling tracking began.
 let exportOrders = [];
 let exportRemoved = new Set();
 let exportReady = false;
@@ -7,11 +7,20 @@ let exportRequest = 0;
 const exportClean = value => String(value || '').replace(/\s+/g, ' ').trim();
 const exportNorm = value => exportClean(value).toLowerCase();
 
+const EXPORT_START_DATE = '2026-07-01';
+function exportTrackingStarted(order) {
+  if (order.shop_order_date) return order.shop_order_date.slice(0, 10) >= EXPORT_START_DATE;
+  // Unplaced orders use their intake timestamp in the shop's timezone.
+  if (!order.submitted_at) return false;
+  const submitted = new Date(order.submitted_at);
+  return Number.isFinite(submitted.getTime()) && submitted >= new Date('2026-07-01T00:00:00-04:00');
+}
+
 function unscheduledOrders(orders, appointments) {
   const linked = new Set(appointments.filter(a => !a.deleted_at && a.order_id).map(a => a.order_id));
   const legacy = new Set(appointments.filter(a => !a.deleted_at && !a.order_id)
     .map(a => JSON.stringify([exportNorm(a.customer_name), exportNorm(a.service)])));
-  return orders.filter(o => !o.deleted_at && !o.is_stock && !finished(o) &&
+  return orders.filter(o => exportTrackingStarted(o) && !o.deleted_at && !o.is_stock && !finished(o) &&
     !NOT_A_CUSTOMER.has(exportNorm(o.customer_name)) && !linked.has(o.id) &&
     ![o.item, `Drill ${o.item}`].some(service => legacy.has(JSON.stringify([exportNorm(o.customer_name), exportNorm(service)]))))
     .sort((a, b) => exportClean(a.customer_name).localeCompare(exportClean(b.customer_name)) ||
@@ -81,13 +90,13 @@ async function openDrillingExport() {
   $('exportdlg').showModal();
   try {
     const [orders, appointments] = await Promise.all([
-      db.selectAll('orders', 'select=id,customer_name,item,quantity,is_stock,drilled,no_drill_needed,out_the_door,pickup_location,order_location&deleted_at=is.null&is_stock=is.false&drilled=is.false&no_drill_needed=is.false&out_the_door=is.false&order=id.asc'),
+      db.selectAll('orders', 'select=id,shop_order_date,submitted_at,customer_name,item,quantity,is_stock,drilled,no_drill_needed,out_the_door,pickup_location,order_location&deleted_at=is.null&is_stock=is.false&drilled=is.false&no_drill_needed=is.false&out_the_door=is.false&or=(shop_order_date.gte.2026-07-01,and(shop_order_date.is.null,submitted_at.gte.2026-07-01T00:00:00-04:00))&order=id.asc'),
       db.selectAll('appointments', 'select=order_id,customer_name,service&deleted_at=is.null&order=id.asc'),
     ]);
     if (requestId !== exportRequest) return;
     exportOrders = unscheduledOrders(orders, appointments);
     exportReady = true;
-    $('export_status').textContent = 'All quarters. Removing an entry only changes this export.';
+    $('export_status').textContent = 'Orders from July 1, 2026 onward. Removing an entry only changes this export.';
     renderExport();
   } catch (err) {
     if (requestId !== exportRequest) return;
