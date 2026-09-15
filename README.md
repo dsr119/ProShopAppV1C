@@ -176,3 +176,18 @@ python3 -m http.server 8765 --directory app
 Then open <http://localhost:8765>. There is no build step — the app is plain
 HTML, CSS and JavaScript, and `app/db.js` talks to Supabase's REST API over
 `fetch` with no SDK.
+
+### Rolling hours, stock assignment, and drilling appointments
+
+Before deploying this update, run these scripts in the Supabase SQL Editor:
+
+1. `migration/add_rolling_hours.sql` (after the existing `add_hours_two_weeks.sql`). It fills this week and next immediately and installs a daily pg_cron job using the shop's America/New_York calendar. Missing days copy the most recent earlier matching weekday, including notes and split hours; saved dates are never overwritten. Verify the `proshop-rolling-hours` job in `cron.job` and its executions in `cron.job_run_details`.
+2. `migration/add_appointment_order_link.sql`. It adds the optional order relationship without rewriting existing appointments.
+
+The order book also fills missing hours on load and whenever Hours is opened, so long-open tabs roll forward. Days without any historical template start closed and can be edited. Copied holiday exceptions need review just like other weekly hours.
+
+Click a stock order's customer name and enter the customer's name to assign it. This updates the name and stock flag together, allowing the order into customer workflows. Enter `Stock` to return it to shop stock; blank names are rejected. Assignment applies to the entire order row and its quantity.
+
+Bookings created from Drilling link automatically. In Appointments, use **Linked order** to associate an existing or new booking with the exact item. The drilling queue displays booking date/time/location, distinguishes past and completed appointments, and refreshes after booking or when returning to the page. Use **Refresh** for an explicit reload. Older exact name/item matches are labeled possible bookings until manually linked; customer name alone never marks an item scheduled.
+
+Verification: `node --test tests/workflows.test.cjs`. Database migrations must be run before deployment; local tests do not establish live database installation.
