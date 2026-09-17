@@ -199,3 +199,22 @@ Use **Drilling → Export** to copy a list of undrilled, unscheduled customer it
 Copy writes only the displayed names, items, quantities, and location labels to the clipboard, confirms success, and closes the dialog. Failed clipboard access leaves selectable text for manual copying. Reopening refreshes data and resets removals. No new database migration is required.
 
 Run all regression tests with `node --test tests/*.test.cjs`.
+
+### Order Check In
+
+Run `migration/add_order_check_in.sql` in Supabase SQL Editor, then open
+`app/check-in.html`. The page lists placed customer and stock orders that have
+not been collected, plus orders checked in within the last 24 hours. There is
+no quarter cutoff. Search accepts equipment, customer, supplier, order number,
+and invoice number; destination uses pickup location, falling back to order
+location.
+
+Check in records `orders.checked_in_at`. For quantity greater than one, the
+button explicitly checks in the whole row quantity. Checked rows stay grey for
+24 elapsed hours, with an Undo button. They then leave this page only; their
+arrival status stays recorded on Orders and Drilling. Completed drilling and
+collection badges remain independent. Existing records are not assumed to have
+arrived. Updates use a timestamp comparison to avoid resetting a check-in made
+by another device. The check-in list refreshes every minute; Orders and Drilling
+refresh every 30 seconds when no row editing or dialog is active, and on return
+to the page. Existing pages still load before the SQL update is applied.

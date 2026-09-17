@@ -39,7 +39,7 @@ function clearError() {
 // ---------------------------------------------------------------------------
 
 const COLUMNS =
-  "id,submitted_at,source,customer_name,is_stock,phone,item,quantity,notes," +
+  "checked_in_at,id,submitted_at,source,customer_name,is_stock,phone,item,quantity,notes," +
   "order_location,pickup_location,shop_order_date,supplier,supplier_order_no," +
   "invoice_no,price,paid,out_the_door,quarter,migration_flag";
 
@@ -51,14 +51,14 @@ async function load() {
     const quarter = $("quarter").value;
     const base = `select=${COLUMNS}&deleted_at=is.null`;
 
-    const pending = db.selectAll(
+    const pending = receiving.selectAll(
       "orders",
       `${base}&shop_order_date=is.null&order=submitted_at.asc.nullslast`
     );
 
     // Paged: "All quarters" is 2,176 rows and a single response stops at
     // 1000, with nothing to tell the user the rest is missing.
-    const placed = db.selectAll(
+    const placed = receiving.selectAll(
       "orders",
       `${base}&shop_order_date=not.is.null` +
         (quarter ? `&quarter=eq.${encodeURIComponent(quarter)}` : "") +
@@ -92,7 +92,7 @@ async function loadQuarters() {
   // PostgREST has no DISTINCT, so pull the column and reduce it here. Must
   // page: a single response stops at 1000 rows, which would silently drop
   // the oldest quarters off the end of the filter.
-  const rows = await db.selectAll(
+  const rows = await receiving.selectAll(
     "orders",
     "select=quarter&deleted_at=is.null&quarter=not.is.null"
   );
@@ -147,7 +147,7 @@ function fillDatalist(id, values) {
 function statusOf(o) {
   if (!o.shop_order_date) return "pending";
   if (o.out_the_door) return "done";
-  return "ordered";
+  return o.checked_in_at ? "received" : "ordered";
 }
 
 function visible() {
@@ -161,7 +161,8 @@ function visible() {
     if (src && o.source !== src) return false;
 
     if (st === "pending" && o.shop_order_date) return false;
-    if (st === "ordered" && (!o.shop_order_date || o.out_the_door)) return false;
+    if (st === "ordered" && (!o.shop_order_date || o.checked_in_at || o.out_the_door)) return false;
+    if (st === "received" && !o.checked_in_at) return false;
     if (st === "done" && !o.out_the_door) return false;
     if (st === "unpaid" && (o.paid || o.is_stock)) return false;
 
@@ -245,12 +246,14 @@ function orderRow(o) {
   cbCell.appendChild(cb);
 
   // status
-  const label = { pending: "Not ordered", ordered: "Ordered", done: "Out the door" }[status];
   const st = td(tr, "Status");
-  const b = document.createElement("span");
-  b.className = "badge " + status;
-  b.textContent = label;
-  st.appendChild(b);
+  st.appendChild(receiving.badge(o));
+  if (o.out_the_door) {
+    const done = document.createElement("span");
+    done.className = "badge done";
+    done.textContent = "Out the door";
+    st.appendChild(done);
+  }
   if (o.migration_flag) {
     const f = document.createElement("span");
     f.className = "badge flag";
@@ -598,3 +601,5 @@ $("checkall").addEventListener("change", (e) => {
     showError(err);
   }
 })();
+
+receiving.watch(load, () => !SELECTED.size && !document.querySelector('dialog[open]') && !document.querySelector('td input:focus, td select:focus'));

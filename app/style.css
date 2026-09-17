@@ -1243,3 +1243,6 @@ dialog .saved h3 { padding: 0; border-bottom: none; }
 .customer-options [aria-selected="true"] { background: #e8eef4; }
 .customer-hint { display: block; font-weight: normal; margin-top: 4px; }
 .customer-hint:empty { display: none; }
+
+.badge.received { background: #e1efe5; color: #24583a; }
+td[data-label="Status"] .badge { display: inline-block; margin: 2px 4px 2px 0; }

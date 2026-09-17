@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Check In — Perfexxxxion Pro Shop</title>
+<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="check-in.css?v=26">
+</head>
+<body>
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html">Orders</a>
+    <a href="check-in.html" class="active">Order Check In</a>
+    <a href="drilling.html">Drilling</a>
+    <a href="appointments.html">Appointments</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
+  </nav>
+</header>
+<main class="checkin-main">
+  <div class="checkin-heading"><h2>Order Check In</h2><button type="button" id="refresh">Refresh</button></div>
+  <p>Check equipment against the shipment. Checked-in items stay here for 24 hours.</p>
+  <div id="error" class="error hidden" role="alert"></div>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <div class="checkin-filters">
+    <label>Search<input id="search" type="search" placeholder="Item, customer, supplier or order #"></label>
+    <label>Destination<select id="location"><option value="">Both locations</option><option value="Valley">Valley</option><option value="South Side">Southside</option></select></label>
+  </div>
+  <p id="count" class="count" aria-live="polite">Loading equipment…</p>
+  <div id="rows" class="checkin-list"></div>
+  <p id="empty" class="hidden">No equipment matches this view.</p>
+</main>
+<script src="config.js?v=26"></script>
+<script src="db.js?v=26"></script>
+<script src="receiving.js?v=26"></script>
+<script src="check-in.js?v=26"></script>
+</body>
+</html>

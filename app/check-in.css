@@ -1,0 +1,26 @@
+.checkin-main { max-width: 850px; margin: 0 auto; }
+.checkin-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.checkin-heading h2 { margin-bottom: 8px; }
+.checkin-main p { line-height: 1.5; }
+.checkin-filters { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; margin: 20px 0 14px; }
+.checkin-filters label { display: grid; gap: 6px; font-weight: 600; }
+.checkin-main input, .checkin-main select, .checkin-main button { min-height: 48px; font-size: 16px; }
+.checkin-list { display: grid; gap: 12px; }
+.checkin-card { padding: 16px; border: 1px solid var(--border, #ccc); border-radius: 6px; background: white; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; }
+.checkin-card h3 { margin: 0 0 6px; font-size: 18px; overflow-wrap: anywhere; }
+.checkin-card p { margin: 4px 0; overflow-wrap: anywhere; }
+.checkin-card .meta { color: #555; font-size: 13px; }
+.checkin-card.is-received { background: #eee; color: #555; border-color: #ddd; }
+.checkin-card.is-received h3 { color: #666; }
+.checkin-card .destination { font-weight: 700; }
+.checkin-actions { display: grid; gap: 8px; min-width: 115px; text-align: center; }
+.checkin-actions .badge { white-space: normal; }
+#notice:not(:empty) { padding: 10px 0; }
+@media (max-width: 540px) {
+  .checkin-filters { grid-template-columns: 1fr; }
+  .checkin-card { grid-template-columns: minmax(0, 1fr); }
+  .checkin-actions { grid-template-columns: 1fr; }
+  .checkin-main { padding: 12px; }
+  header nav { overflow-x: auto; flex-wrap: nowrap; }
+  header nav a { white-space: nowrap; }
+}
