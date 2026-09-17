@@ -95,7 +95,7 @@ function readForm() {
     category: $("f_category").value || null,
     priority: $("f_priority").value,
     due_date: $("f_due").value || null,
-    details: $("f_details").value.trim() || null,
+    details: customers.ticketDetails($("f_customer").value, $("f_phone").value, $("f_details").value),
     // Every ticket lands unreviewed. Nothing here sets status or an assignee
     // -- that is the review page's job.
     status: "new",
@@ -118,6 +118,7 @@ async function send(e) {
 
   try {
     const [created] = await db.insert("tickets", row);
+    customers.invalidate();
     rememberWho(row.submitted_by);
     session.unshift(created || row);
     renderSession();
@@ -126,6 +127,8 @@ async function send(e) {
     // The name and location stay: a shift that turns up one problem usually
     // turns up three, and they are all being reported by the same person
     // standing in the same building.
+    $("f_customer").value = "";
+    $("f_phone").value = "";
     $("f_title").value = "";
     $("f_details").value = "";
     $("f_category").value = "";
@@ -192,7 +195,7 @@ function renderSession() {
 
 $("ticketform").addEventListener("submit", send);
 $("f_clear").addEventListener("click", () => {
-  for (const id of ["f_title", "f_details", "f_due"]) $(id).value = "";
+  for (const id of ["f_title", "f_details", "f_due", "f_customer", "f_phone"]) $(id).value = "";
   $("f_category").value = "";
   $("f_priority").value = "normal";
   $("ok").classList.add("hidden");
@@ -203,3 +206,5 @@ $("f_clear").addEventListener("click", () => {
 $("f_by").value = rememberedWho();
 loadStaffNames();
 $(rememberedWho() ? "f_title" : "f_by").focus();
+
+customers.attach("f_customer", "f_phone");

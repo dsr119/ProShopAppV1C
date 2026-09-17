@@ -105,6 +105,7 @@ async function noSave(keepOpen) {
 
   try {
     const [created] = await db.insert("orders", row);
+    customers.invalidate();
     noSession.unshift(created || row);
     noRenderSession();
     noStatus((row.is_stock ? "Stock" : row.customer_name) + " — " + row.item + " added.");
@@ -218,3 +219,5 @@ $("f_item").addEventListener("keydown", (e) => {
 // Arriving from the old order.html bookmark opens the dialog straight away, so
 // that URL still does what the person pressing it expects.
 if (new URLSearchParams(location.search).get("new") === "1") noOpen();
+
+customers.attach("f_name", "f_phone");

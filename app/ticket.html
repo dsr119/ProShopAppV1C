@@ -6,7 +6,7 @@
 <title>Submit a Ticket — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=24">
 </head>
 <body class="ticketpage">
 
@@ -80,6 +80,15 @@
         <input type="date" id="f_due">
       </label>
 
+      <div class="pair">
+        <label>Customer name (optional)
+          <input type="text" id="f_customer" autocomplete="off">
+        </label>
+        <label>Customer phone (optional)
+          <input type="tel" id="f_phone" autocomplete="off">
+        </label>
+      </div>
+
       <label>Details
         <textarea id="f_details" rows="4"
                   placeholder="What happened, what you already tried, anything Keith needs to know."></textarea>
@@ -105,7 +114,8 @@
 
 <script src="config.js?v=21"></script>
 <script src="db.js?v=21"></script>
+<script src="customers.js?v=25"></script>
 <script src="staff.js?v=21"></script>
-<script src="ticket.js?v=21"></script>
+<script src="ticket.js?v=24"></script>
 </body>
 </html>
