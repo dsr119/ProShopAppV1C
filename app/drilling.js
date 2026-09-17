@@ -13,7 +13,7 @@ let APPOINTMENTS = [];
 let appointmentsLoaded = false;
 
 const COLUMNS =
-  "id,customer_name,is_stock,phone,item,pickup_location,order_location," +
+  "checked_in_at,id,customer_name,is_stock,phone,item,pickup_location,order_location," +
   "shop_order_date,submitted_at,drilled,drilled_at,no_drill_needed," +
   "out_the_door,paid,notes,quarter,due_date,staff_member";
 
@@ -41,7 +41,7 @@ function quarterRank(label) {
 // ---------------------------------------------------------------------------
 
 async function loadQuarters() {
-  const rows = await db.selectAll(
+  const rows = await receiving.selectAll(
     "orders",
     "select=quarter&deleted_at=is.null&quarter=not.is.null&is_stock=is.false"
   );
@@ -67,13 +67,13 @@ async function load() {
     // Not-yet-ordered rows have no quarter, so they need their own request --
     // they are exactly the "new items" this page is supposed to surface.
     const [pending, thisQuarter] = await Promise.all([
-      db.selectAll(
+      receiving.selectAll(
         "orders",
         `select=${COLUMNS}&deleted_at=is.null&is_stock=is.false` +
           `&shop_order_date=is.null`
       ),
       quarter
-        ? db.selectAll(
+        ? receiving.selectAll(
             "orders",
             `select=${COLUMNS}&deleted_at=is.null&is_stock=is.false` +
               `&quarter=eq.${encodeURIComponent(quarter)}`
@@ -218,7 +218,9 @@ function row(r) {
   const badge = document.createElement("span");
   badge.className = "badge " + st.key;
   badge.textContent = st.label;
-  td("Status").appendChild(badge);
+  const statusCell = td("Status");
+  statusCell.appendChild(receiving.badge(r));
+  if (finished(r)) statusCell.appendChild(badge);
 
   td("Name").textContent = r.customer_name;
 
@@ -699,3 +701,5 @@ $("s_cancel").addEventListener("click", () => $("dlg").close());
     showError(err);
   }
 })();
+
+receiving.watch(load, () => !document.querySelector('dialog[open]') && !document.querySelector('td input:focus, td select:focus'));
