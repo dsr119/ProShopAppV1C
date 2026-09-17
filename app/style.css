@@ -1233,3 +1233,13 @@ dialog .saved h3 { padding: 0; border-bottom: none; }
 .export-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .export-row button { flex-shrink: 0; min-width: 36px; min-height: 36px; font-size: 20px; }
 .export-notice:not(:empty) { padding: 10px 12px; margin-bottom: 10px; background: #e8f5eb; color: #185b2b; border-radius: 5px; }
+
+/* Shared name / phone lookup stays inside the form and dialog. */
+.customer-picker { position: relative; min-width: 0; }
+.customer-picker input { width: 100%; box-sizing: border-box; }
+.customer-options { max-height: 220px; overflow-y: auto; border: 1px solid #aaa; background: #fff; color: #222; border-radius: 4px; margin-top: 4px; }
+.customer-options [role="option"] { padding: 10px 12px; cursor: pointer; font-weight: normal; overflow-wrap: anywhere; }
+.customer-options [role="option"]:hover,
+.customer-options [aria-selected="true"] { background: #e8eef4; }
+.customer-hint { display: block; font-weight: normal; margin-top: 4px; }
+.customer-hint:empty { display: none; }

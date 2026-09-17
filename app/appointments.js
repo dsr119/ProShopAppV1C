@@ -286,6 +286,7 @@ async function save(e) {
   try {
     if (editing) await db.update("appointments", `id=eq.${editing.id}`, row);
     else await db.insert("appointments", row);
+    customers.invalidate();
     $("dlg").close();
     await load();
   } catch (err) {
@@ -303,6 +304,7 @@ async function remove() {
   if (!confirm(`Delete this appointment?\n\n${editing.customer_name} — ${editing.service}\n\nIt is hidden, not erased.`)) return;
   try {
     await db.softDelete("appointments", editing.id);
+    customers.invalidate();
     $("dlg").close();
     await load();
   } catch (err) {
@@ -357,3 +359,5 @@ document.addEventListener("keydown", (e) => {
   view = { y: t.y, m: t.m };
   load();
 })();
+
+customers.attach("f_name", "f_phone");
