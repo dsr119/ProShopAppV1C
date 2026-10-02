@@ -91,8 +91,9 @@ error or stop the form. That makes silent failure the real risk, so:
 
 - Failed submissions are parked on a **Supabase Sync Failures** sheet with the
   full payload.
-- Set `ALERT_EMAIL` at the top of the script to get an email the moment one
-  fails, rather than hearing about it from the customer.
+- An email goes out the moment one fails, rather than you hearing about it
+  from the customer. It goes to the Google account that owns the script unless
+  you put another address in `ALERT_EMAIL` at the top (or `'off'` for none).
 - Once the problem is fixed, run **`replayFailures`** to send the parked rows.
   Rows already replayed are marked and skipped.
 
@@ -110,7 +111,8 @@ different, run `testInsert` afterwards and check the value still arrives.
 
 # Weekly backup → Google Drive
 
-Writes every order, appointment and item to dated CSVs in a Drive folder,
+Writes every order, appointment, item, hours row, ticket, staff member and
+imported customer contact to dated CSVs in a Drive folder,
 once a week. Ten years of order history should not live in exactly one place,
 and Supabase pauses free-tier projects that go quiet.
 
@@ -123,8 +125,10 @@ and Supabase pauses free-tier projects that go quiet.
    permission the first time. The log ends with the folder's URL.
 3. Run **`setupWeeklyBackupTrigger`** once. That schedules it for Sunday
    mornings around 3am. Safe to run twice — it replaces its own trigger.
-4. Set `BACKUP_ALERT_EMAIL` at the top of the file. A backup that quietly
-   stopped running is indistinguishable from one that never existed.
+4. A failed backup emails the Google account that owns the script. Put
+   another address in `BACKUP_ALERT_EMAIL` at the top to change that (or
+   `'off'` for none). A backup that quietly stopped working is
+   indistinguishable from one that never existed.
 
 `listBackups` prints what is currently in the folder.
 
@@ -136,6 +140,10 @@ A folder called **Perfexxxxion Pro Shop Backups** containing:
 orders-2026-08-30.csv         every column, ~2,200 rows
 appointments-2026-08-30.csv
 items-2026-08-30.csv
+hours-2026-08-30.csv
+tickets-2026-08-30.csv
+staff-2026-08-30.csv
+customer_directory-2026-08-30.csv
 ```
 
 Every column is included, `select=*`, so a column added later is picked up

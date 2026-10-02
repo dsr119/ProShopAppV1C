@@ -1,9 +1,10 @@
 /**
  * Perfexxxxion Pro Shop -- weekly Supabase backup to Google Drive
  *
- * Writes every order, appointment and item to dated CSVs in a Drive folder,
- * once a week. Ten years of order history should not live in exactly one
- * place, and Supabase's free tier pauses projects that go quiet.
+ * Writes every order, appointment, item, hours row, ticket, staff member and
+ * imported customer contact to dated CSVs in a Drive folder, once a week.
+ * Ten years of order history should not live in exactly one place, and
+ * Supabase's free tier pauses projects that go quiet.
  *
  * Every name in this file is prefixed so it can sit in the same Apps Script
  * project as form-to-supabase.gs without colliding. Apps Script resolves
@@ -22,11 +23,21 @@ var BACKUP_FOLDER = 'Perfexxxxion Pro Shop Backups';
 // does not grow without limit.
 var BACKUP_KEEP = 26;
 
-// Leave blank for no email. Worth setting: a backup that quietly stopped
-// running is indistinguishable from one that never existed.
+// Where a failed backup is reported. Blank sends it to the Google account that
+// owns this script, so alerts work without editing anything; put an address
+// here to send them somewhere else, or 'off' to send none. Worth keeping on: a
+// backup that quietly stopped working is indistinguishable from one that never
+// existed.
 var BACKUP_ALERT_EMAIL = '';
 
-var BACKUP_TABLES = ['orders', 'appointments', 'items', 'hours'];
+var BACKUP_TABLES = ['orders', 'appointments', 'items', 'hours',
+                     'tickets', 'staff', 'customer_directory'];
+
+// Tables that can honestly be empty, or not created yet on a database that
+// skipped their migration. These are skipped with a note rather than failing
+// the whole backup. The core tables above are never allowed to come back
+// empty.
+var BACKUP_OPTIONAL = ['tickets', 'staff', 'customer_directory'];
 
 // Supabase returns at most 1000 rows per response no matter what limit is
 // asked for. Paging is not an optimization here -- without it the backup
@@ -64,6 +75,7 @@ function bkFetchAll_(table) {
     );
 
     var code = res.getResponseCode();
+    if (code === 404 && BACKUP_OPTIONAL.indexOf(table) !== -1) return null;
     if (code !== 200 && code !== 206) {
       throw new Error('Could not read ' + table + ': ' + code + ' ' + res.getContentText());
     }
@@ -160,6 +172,17 @@ function bkPrune_(folder, table) {
 // Entry point
 // ---------------------------------------------------------------------------
 
+function bkAlertEmail_() {
+  if (BACKUP_ALERT_EMAIL === 'off') return '';
+  if (BACKUP_ALERT_EMAIL) return BACKUP_ALERT_EMAIL;
+  try {
+    return Session.getEffectiveUser().getEmail();
+  } catch (err) {
+    console.error('Could not work out who to alert: ' + err);
+    return '';
+  }
+}
+
 function backupProShopToDrive() {
   var summary = [];
   try {
@@ -170,6 +193,14 @@ function backupProShopToDrive() {
       var table = BACKUP_TABLES[i];
       var rows = bkFetchAll_(table);
 
+      if (rows === null) {
+        summary.push(table + ': not set up yet, skipped');
+        continue;
+      }
+      if (!rows.length && BACKUP_OPTIONAL.indexOf(table) !== -1) {
+        summary.push(table + ': empty, skipped');
+        continue;
+      }
       if (!rows.length) {
         // An empty result from a table that should have thousands of rows is
         // a failure wearing a success costume. Never overwrite with nothing.
@@ -185,10 +216,11 @@ function backupProShopToDrive() {
     console.log('Folder: ' + bkFolder_().getUrl());
   } catch (err) {
     console.error('Backup FAILED: ' + err);
-    if (BACKUP_ALERT_EMAIL) {
+    var to = bkAlertEmail_();
+    if (to) {
       try {
         MailApp.sendEmail(
-          BACKUP_ALERT_EMAIL,
+          to,
           'Pro shop: the weekly backup FAILED',
           'The weekly Supabase backup did not complete.\n\n' +
             'Error: ' + err + '\n\n' +
