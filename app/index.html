@@ -132,6 +132,13 @@
         <input type="text" id="f_item" list="items" autocomplete="off"
                placeholder="Start typing — past orders will suggest">
       </label>
+      <!-- Shown once the item has a comma: each comma-separated item becomes
+           its own order with the same name, phone and locations. -->
+      <div id="o_split" class="splitnote hidden" aria-live="polite">
+        <span id="o_splitmsg"></span>
+        <ul id="o_splitlist"></ul>
+        <label class="keepone"><input type="checkbox" id="f_keepone"> Keep as one item — the comma is part of the name</label>
+      </div>
 
       <div class="pair">
         <label>Quantity
@@ -208,6 +215,6 @@
 <script src="receiving.js?v=26"></script>
 <script src="orders.js?v=26"></script>
 <script src="hours.js?v=22"></script>
-<script src="order.js?v=24"></script>
+<script src="order.js?v=27"></script>
 </body>
 </html>
