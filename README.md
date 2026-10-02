@@ -167,6 +167,14 @@ query on every `<script>` and `<link>` when you change one of them**, or
 browsers keep the old copy. They are all on the same number; the current one
 is `v=21`.
 
+### What's new notes
+
+The **What's new** button at the top right of each page opens the list in
+`app/patch-notes.json`. To announce a release, add an entry at the top with a
+higher `version`, the date, and a few plain-language lines. No `?v=` bump is
+needed for that file. Each browser shows a blue dot on the button until it has
+opened the newest version.
+
 ## Local development
 
 ```bash

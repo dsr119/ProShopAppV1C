@@ -1,0 +1,23 @@
+[
+  {
+    "version": "1.1",
+    "date": "2026-10-02",
+    "notes": [
+      "New: the What's new button (top right) lists recent fixes and features.",
+      "New: orders where the customer needs a fitting show a purple \"Needs fitting\" badge, and Drilling offers Book fitting first.",
+      "New: typing several items separated by commas in New order saves one order per item.",
+      "Fixed: last quarter's unfinished drilling and open customer orders no longer disappear when a new quarter starts.",
+      "Fixed: the Drilling location filter now includes orders set to Both.",
+      "Fixed: both locations fit inside the Opening hours popup.",
+      "Fixed: a failed form order or weekly backup now sends an email alert."
+    ]
+  },
+  {
+    "version": "1.0",
+    "date": "2026-09-17",
+    "notes": [
+      "New: Order Check In page for marking orders as arrived.",
+      "New: customer name and phone suggestions from the Square customer list."
+    ]
+  }
+]
