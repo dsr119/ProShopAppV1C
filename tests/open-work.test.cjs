@@ -41,3 +41,15 @@ test('drilling location filter keeps Both, falls back to order location, keeps u
   assert.equal(atLocation({ pickup_location: 'Valley', order_location: 'South Side' }, 'South Side'), false);
   assert.equal(atLocation({}, 'Valley'), true);
 });
+
+test('needs fitting matches the form, website and workbook wording only', () => {
+  const ctx = vm.createContext({ window: {}, Date });
+  vm.runInContext(source('receiving.js'), ctx);
+  const { needsFitting } = ctx.window.receiving;
+  assert.equal(needsFitting({ fitting: 'Need appointment to be fitted' }), true);
+  assert.equal(needsFitting({ fitting: 'needs fitted' }), true);
+  assert.equal(needsFitting({ fitting: 'Specs on file' }), false);
+  assert.equal(needsFitting({ fitting: 'N/A' }), false);
+  assert.equal(needsFitting({ fitting: null }), false);
+  assert.equal(needsFitting({}), false);
+});

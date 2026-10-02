@@ -17,7 +17,7 @@ let appointmentsLoaded = false;
 const COLUMNS =
   "checked_in_at,id,customer_name,is_stock,phone,item,pickup_location,order_location," +
   "shop_order_date,submitted_at,drilled,drilled_at,no_drill_needed," +
-  "out_the_door,paid,notes,quarter,due_date,staff_member";
+  "out_the_door,paid,notes,quarter,due_date,staff_member,fitting";
 
 // Names that mean "no customer", so the row is shop stock by another route.
 const NOT_A_CUSTOMER = new Set(["", "stock", "unknown", "shop", "shop stock"]);
@@ -249,6 +249,14 @@ function row(r) {
 
   const item = td("Item", "col-item");
   item.textContent = r.item;
+  if (receiving.needsFitting(r) && !finished(r)) {
+    const fit = document.createElement("span");
+    fit.className = "badge fitting";
+    fit.textContent = "Needs fitting";
+    fit.title = "The customer asked to be fitted: " + r.fitting;
+    fit.style.marginLeft = "6px";
+    item.appendChild(fit);
+  }
   if (r.notes) {
     const n = document.createElement("div");
     n.style.cssText = "color:var(--muted);font-size:12px";
@@ -312,6 +320,13 @@ function row(r) {
 
   td("Assigned").appendChild(assignSelect(r));
 
+  // A customer who asked to be fitted has to be measured before the ball is
+  // drilled. Until a booking is linked to this order, the main action books
+  // that fitting instead; "Drilled" is still there, behind a confirm, for a
+  // customer measured at the counter without one.
+  const awaitingFitting = receiving.needsFitting(r) && appointmentsLoaded &&
+    !APPOINTMENTS.some((a) => a.order_id === r.id);
+
   const act = td("");
   // Already collected -- the drill flag no longer means anything, and an
   // "Undo" here would clear it while the row still reads "Out the door".
@@ -338,10 +353,13 @@ function row(r) {
 
   const drilled = document.createElement("button");
   drilled.textContent = "Drilled";
-  drilled.className = "primary";
-  drilled.addEventListener("click", () =>
-    setFlags(r, drilled, { drilled: true, drilled_at: new Date().toISOString() })
-  );
+  drilled.className = awaitingFitting ? "" : "primary";
+  drilled.addEventListener("click", () => {
+    if (awaitingFitting && !confirm(
+      `${r.customer_name} asked to be fitted and no fitting is booked.\n\nMark ${r.item} as drilled anyway?`
+    )) return;
+    setFlags(r, drilled, { drilled: true, drilled_at: new Date().toISOString() });
+  });
 
   // Bags, shoes, totes and tape all arrive for a named customer, so they land
   // here too. Marking them "drilled" would put a false record on the order.
@@ -354,10 +372,13 @@ function row(r) {
   );
 
   const sched = document.createElement("button");
-  sched.textContent = "Schedule";
-  sched.title = "Book a drilling appointment for this customer";
+  sched.textContent = awaitingFitting ? "Book fitting" : "Schedule";
+  sched.title = awaitingFitting
+    ? "Book the fitting this customer asked for"
+    : "Book a drilling appointment for this customer";
+  if (awaitingFitting) sched.className = "primary";
   sched.style.marginLeft = "5px";
-  sched.addEventListener("click", () => openScheduler(r));
+  sched.addEventListener("click", () => openScheduler(r, awaitingFitting));
 
   // Nothing to drill or book until the shop has actually placed the order.
   if (!r.shop_order_date) {
@@ -367,7 +388,14 @@ function row(r) {
     }
   }
 
-  act.append(drilled, nodrill, sched);
+  // The thing to do next goes first.
+  if (awaitingFitting) {
+    sched.style.marginLeft = "";
+    drilled.style.marginLeft = "5px";
+    act.append(sched, drilled, nodrill);
+  } else {
+    act.append(drilled, nodrill, sched);
+  }
   return tr;
 }
 
@@ -522,7 +550,7 @@ function prettyTime(t) {
   return mm === "00" ? `${h}${ap}` : `${h}:${mm}${ap}`;
 }
 
-function openScheduler(order) {
+function openScheduler(order, fitting = false) {
   const today = new Date();
   sched.order = order;
   sched.weekStart = startOfWeek(today);
@@ -530,7 +558,7 @@ function openScheduler(order) {
 
   $("s_who").textContent = order.customer_name + (order.phone ? ` · ${order.phone}` : "");
   $("s_what").textContent = order.item;
-  $("s_service").value = `Drill ${order.item}`;
+  $("s_service").value = `${fitting ? "Fit and drill" : "Drill"} ${order.item}`;
   $("s_location").value = order.pickup_location === "Both"
     ? ""
     : (order.pickup_location || order.order_location || "");

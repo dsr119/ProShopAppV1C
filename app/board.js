@@ -105,7 +105,7 @@ const APPT_COLS =
   "id,customer_name,phone,service,location,appt_date,appt_time,completed,paid,staff_member";
 const ORDER_COLS =
   "id,customer_name,phone,item,due_date,paid,staff_member,pickup_location," +
-  "order_location,drilled,no_drill_needed,out_the_door,is_stock";
+  "order_location,drilled,no_drill_needed,out_the_door,is_stock,fitting";
 // Every field the ticket column actually draws or sorts on, and nothing more.
 // Keeping this in step with the renderer is not optional: it once carried no
 // submitted_by while the column drew one, which put "undefined" on the wall.
@@ -183,6 +183,11 @@ function fromAppointment(a) {
   };
 }
 
+// Same rule as receiving.needsFitting, which the board does not load.
+function needsFitting(o) {
+  return /need/i.test(o.fitting || "") && /fit/i.test(o.fitting || "");
+}
+
 function fromOrder(o) {
   return {
     key: "o" + o.id,
@@ -191,7 +196,8 @@ function fromOrder(o) {
     who: o.customer_name,
     phone: o.phone,
     // The board should say what is left to do, not just what was bought.
-    what: (o.drilled || o.no_drill_needed ? "Ready — " : "Drill ") + o.item,
+    what: (o.drilled || o.no_drill_needed ? "Ready — "
+           : needsFitting(o) ? "Fit and drill " : "Drill ") + o.item,
     staff: o.staff_member,
     paid: !!o.paid,
     location: o.pickup_location || o.order_location,

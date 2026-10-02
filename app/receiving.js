@@ -11,6 +11,10 @@
     if (row.checked_in_at) return Date.parse(row.checked_in_at) > now - DAY;
     return !row.out_the_door;
   }
+  // The customer said they need measuring before the ball is drilled -- the
+  // website, the Google Form and the counter dialog all ask. Matched loosely
+  // because imported rows carry the workbook's own wording.
+  function needsFitting(row) { return /need/i.test(row.fitting || '') && /fit/i.test(row.fitting || ''); }
   function destination(row) { return row.pickup_location || row.order_location || 'Not specified'; }
   function badge(row) {
     const state = status(row), el = document.createElement('span');
@@ -37,5 +41,5 @@
     document.addEventListener('visibilitychange', update);
     window.addEventListener('storage', e => { if (e.key === 'proshop.receiving.changed') update(); });
   }
-  window.receiving = { status, visible, destination, badge, selectAll, notify, watch };
+  window.receiving = { status, visible, destination, needsFitting, badge, selectAll, notify, watch };
 })();
