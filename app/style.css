@@ -221,6 +221,7 @@ tbody tr.pending:hover { filter: brightness(.98); }
 .badge.ordered { background: var(--accent-soft); color: var(--accent); }
 .badge.done    { background: var(--ok-soft);   color: var(--ok); }
 .badge.flag    { background: #fde8e8; color: var(--danger); }
+.badge.fitting { background: #ede9fe; color: #6d28d9; }
 
 .stock { color: var(--muted); font-style: italic; }
 

@@ -42,7 +42,7 @@ function clearError() {
 const COLUMNS =
   "checked_in_at,id,submitted_at,source,customer_name,is_stock,phone,item,quantity,notes," +
   "order_location,pickup_location,shop_order_date,supplier,supplier_order_no," +
-  "invoice_no,price,paid,out_the_door,quarter,migration_flag";
+  "invoice_no,price,paid,out_the_door,quarter,migration_flag,fitting";
 
 async function load() {
   clearError();
@@ -285,6 +285,14 @@ function orderRow(o) {
     done.className = "badge done";
     done.textContent = "Out the door";
     st.appendChild(done);
+  }
+  if (receiving.needsFitting(o) && !o.out_the_door) {
+    const fit = document.createElement("span");
+    fit.className = "badge fitting";
+    fit.textContent = "Needs fitting";
+    fit.title = "The customer asked to be fitted: " + o.fitting;
+    fit.style.marginLeft = "4px";
+    st.appendChild(fit);
   }
   if (o.migration_flag) {
     const f = document.createElement("span");
