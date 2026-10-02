@@ -1102,9 +1102,13 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
 
 .hoursgrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, ...) rather than 1fr: a plain 1fr will not shrink below its
+     inputs' natural width, so the second location ran off the right edge. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 22px;
 }
+
+.hloc, .hfields, .hextra > * { min-width: 0; }
 
 .hloc h4 {
   margin: 0 0 2px;
@@ -1119,7 +1123,7 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
 
 .hrow {
   display: grid;
-  grid-template-columns: 74px 1fr;
+  grid-template-columns: 74px minmax(0, 1fr);
   gap: 8px;
   align-items: start;
   padding: 6px 0;
@@ -1148,6 +1152,7 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
 /* The note and the second opening. Hidden until a day needs them -- most days
    do not, and seven days of empty boxes is what makes people stop reading. */
 .hextra { display: none; margin-top: 5px; }
+.hextra input { width: 100%; }
 .hextra.open { display: grid; gap: 5px; }
 
 .hstatus { font-size: 12.5px; color: var(--muted); }
@@ -1156,7 +1161,7 @@ dialog.hoursdlg .body { max-height: min(62vh, 560px); overflow-y: auto; }
 .hstatus.bad  { color: var(--danger); }
 
 @media (max-width: 760px) {
-  .hoursgrid { grid-template-columns: 1fr; gap: 4px; }
+  .hoursgrid { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .hloc + .hloc { margin-top: 14px; }
 }
 
