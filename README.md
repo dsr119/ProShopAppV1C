@@ -4,8 +4,10 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 
 - **Hosting** — GitHub Pages (static)
 - **Database** — Supabase
-- **Intake** — the existing Google Form via an Apps Script trigger, plus an
-  order page embedded in the Google Sites website
+- **Intake** — the existing Google Form via an Apps Script trigger, plus the
+  order form on the website's Bowling Balls page
+- **Scheduled jobs** — GitHub Actions: the daily ball scraper and the weekly
+  backup
 
 ## Layout
 
@@ -14,7 +16,8 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 | `migration/` | One-time import of the Excel workbook into Supabase, plus the later schema changes |
 | `app/` | The site itself |
 | `website/` | The pages embedded in the public Google Sites site |
-| `apps-script/` | Google Form → Supabase trigger, and the weekly Drive backup |
+| `apps-script/` | Google Form → Supabase trigger (the Drive backup script is retired) |
+| `scraper/` | Daily ball catalog scraper and weekly backup, run by GitHub Actions — see [scraper/README.md](scraper/README.md) |
 
 Start with [migration/README.md](migration/README.md).
 

@@ -6,7 +6,7 @@ each file is distinct, so nothing collides.
 | File | What it does |
 |---|---|
 | [`form-to-supabase.gs`](form-to-supabase.gs) | Google Form submissions → the `orders` table |
-| [`weekly-backup.gs`](weekly-backup.gs) | Weekly CSV snapshot of the database → Google Drive |
+| [`weekly-backup.gs`](weekly-backup.gs) | **Retired.** The weekly backup now runs on GitHub Actions — see [scraper/README.md](../scraper/README.md). Remove its trigger from the Apps Script project |
 
 ---
 
