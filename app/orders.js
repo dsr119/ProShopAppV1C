@@ -20,6 +20,7 @@ const SOURCES = {
 
 let ORDERS = [];          // everything currently loaded
 let SELECTED = new Set(); // ids ticked for a bulk update
+let CARRIED = new Set();  // ids of last quarter's still-open orders
 
 const $ = (id) => document.getElementById(id);
 
@@ -65,8 +66,25 @@ async function load() {
         `&order=shop_order_date.desc,submitted_at.desc`
     );
 
-    const [a, b] = await Promise.all([pending, placed]);
-    ORDERS = [...a, ...b];
+    // On the current quarter, customer orders placed last quarter that have
+    // not gone out the door yet stay on the page. Without this, the first
+    // order placed in a new quarter hides every ball still waiting from the
+    // old one. Stock is left to Order Check In, which tracks its arrival.
+    const carried = quarter && quarter === currentQuarterLabel()
+      ? receiving.selectAll(
+          "orders",
+          `${base}&is_stock=is.false&out_the_door=is.false` +
+            `&shop_order_date=gte.${openSince(new Date())}` +
+            `&quarter=neq.${encodeURIComponent(quarter)}` +
+            `&order=shop_order_date.desc,submitted_at.desc`
+        )
+      : Promise.resolve([]);
+
+    const [a, b, more] = await Promise.all([pending, placed, carried]);
+    const inQuarter = new Set(b.map((o) => o.id));
+    const c = more.filter((o) => !inQuarter.has(o.id));
+    CARRIED = new Set(c.map((o) => o.id));
+    ORDERS = [...a, ...b, ...c];
     SELECTED.clear();
     render();
   } catch (err) {
@@ -81,6 +99,15 @@ async function load() {
 function quarterRank(label) {
   const m = /^(\d+)\s*Q([1-4])$/.exec(label || "");
   return m ? Number(m[1]) * 10 + Number(m[2]) : -1;
+}
+
+// First day of the previous quarter, as an ISO day: 2026-07-01 for any day in
+// October to December 2026.
+function openSince(now) {
+  const q = Math.floor(now.getMonth() / 3);
+  const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const m = q === 0 ? 9 : (q - 1) * 3;
+  return `${y}-${String(m + 1).padStart(2, "0")}-01`;
 }
 
 function currentQuarterLabel() {
@@ -197,7 +224,8 @@ function render() {
   body.innerHTML = "";
 
   const pending = rows.filter((o) => !o.shop_order_date);
-  const placed = rows.filter((o) => o.shop_order_date);
+  const placed = rows.filter((o) => o.shop_order_date && !CARRIED.has(o.id));
+  const carried = rows.filter((o) => CARRIED.has(o.id));
 
   if (pending.length) {
     body.appendChild(groupRow(`Not ordered yet — ${pending.length}`));
@@ -207,6 +235,10 @@ function render() {
     const q = $("quarter").value;
     body.appendChild(groupRow(q ? `${q} — ${placed.length}` : `All quarters — ${placed.length}`));
     placed.forEach((o) => body.appendChild(orderRow(o)));
+  }
+  if (carried.length) {
+    body.appendChild(groupRow(`Still open from last quarter — ${carried.length}`));
+    carried.forEach((o) => body.appendChild(orderRow(o)));
   }
 
   $("empty").classList.toggle("hidden", rows.length > 0);
