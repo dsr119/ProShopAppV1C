@@ -44,13 +44,55 @@ function noPhone(raw) {
     : String(raw || "").trim();
 }
 
+// "size 11 shoes, 12lb tzone, tzone bag" is three orders, not one: each item
+// is ordered, arrives and gets picked up on its own, and the book has one row
+// per item. Split on commas; blanks and a trailing full stop are dropped.
+function noSplitItems(text) {
+  return String(text || "")
+    .split(",")
+    .map((s) => s.trim().replace(/\.+$/, "").trim())
+    .filter(Boolean);
+}
+
+// The items this save will create. "Keep as one item" is the escape hatch for
+// the comma that belongs to the item ("Storm Phaze II, 15lb").
+function noItems() {
+  const text = $("f_item").value.trim();
+  if ($("f_keepone").checked) return text ? [text] : [];
+  return noSplitItems(text);
+}
+
+// Show staff what is about to be saved before they press Save, so a comma
+// meant as part of one item gets caught at the counter, not in the book.
+function noRenderSplit() {
+  const parts = noSplitItems($("f_item").value);
+  const wrap = $("o_split");
+  wrap.classList.toggle("hidden", parts.length < 2);
+  if (parts.length < 2) {
+    $("f_keepone").checked = false;
+    return;
+  }
+  const one = $("f_keepone").checked;
+  $("o_splitmsg").textContent = one
+    ? "Will save as one order."
+    : `Will save as ${parts.length} separate orders, each with the same customer details:`;
+  const list = $("o_splitlist");
+  list.innerHTML = "";
+  list.classList.toggle("hidden", one);
+  for (const p of parts) {
+    const li = document.createElement("li");
+    li.textContent = p;
+    list.appendChild(li);
+  }
+}
+
 function noReadForm() {
-  const item = $("f_item").value.trim();
+  const items = noItems();
   const name = $("f_name").value.trim();
   const phoneRaw = $("f_phone").value.trim();
   const notes = [];
 
-  if (!item) {
+  if (!items.length) {
     $("f_item").focus();
     throw new Error("An item is required.");
   }
@@ -71,7 +113,8 @@ function noReadForm() {
   const typed = $("f_notes").value.trim();
   if (typed) notes.unshift(typed);
 
-  return {
+  const submitted = new Date().toISOString();
+  return items.map((item) => ({
     customer_name: noStock ? "Stock" : name,
     is_stock: noStock,
     phone,
@@ -85,14 +128,14 @@ function noReadForm() {
     // Null on purpose: it means the shop has not placed this with a
     // distributor yet, which is what pins it to the top of the orders page.
     shop_order_date: null,
-    submitted_at: new Date().toISOString(),
-  };
+    submitted_at: submitted,
+  }));
 }
 
 async function noSave(keepOpen) {
-  let row;
+  let rows;
   try {
-    row = noReadForm();
+    rows = noReadForm();
   } catch (err) {
     noStatus(err.message, true);
     return;
@@ -104,11 +147,15 @@ async function noSave(keepOpen) {
   btn.textContent = "Saving…";
 
   try {
-    const [created] = await db.insert("orders", row);
+    // One request for all of them, so a split entry lands whole or not at all.
+    const created = (await db.insert("orders", rows)) || [];
     customers.invalidate();
-    noSession.unshift(created || row);
+    rows.forEach((row, i) => noSession.unshift(created[i] || row));
     noRenderSession();
-    noStatus((row.is_stock ? "Stock" : row.customer_name) + " — " + row.item + " added.");
+    const who = rows[0].is_stock ? "Stock" : rows[0].customer_name;
+    noStatus(rows.length === 1
+      ? who + " — " + rows[0].item + " added."
+      : who + " — " + rows.length + " orders added.");
 
     // Refresh the table behind the dialog. The point of taking the order here
     // is that it turns up in the book you are already looking at.
@@ -120,6 +167,7 @@ async function noSave(keepOpen) {
       $("f_item").value = "";
       $("f_qty").value = "1";
       $("f_notes").value = "";
+      noRenderSplit();
       $("f_item").focus();
     } else {
       noClearForm();
@@ -139,6 +187,7 @@ function noClearForm() {
   $("f_fitting").value = "";
   $("f_orderloc").value = "";
   $("f_pickuploc").value = "";
+  noRenderSplit();
 }
 
 // What was just added -- so a typo caught two seconds later is one click to fix.
@@ -207,6 +256,8 @@ $("orderform").addEventListener("submit", (e) => {
   noSave(false);
 });
 $("f_saveanother").addEventListener("click", () => noSave(true));
+$("f_item").addEventListener("input", noRenderSplit);
+$("f_keepone").addEventListener("change", noRenderSplit);
 
 // Enter in the item box is the fast path for stock runs.
 $("f_item").addEventListener("keydown", (e) => {
