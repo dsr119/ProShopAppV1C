@@ -1,10 +1,12 @@
 // Drilling queue.
 //
 // Customer orders waiting to be drilled: shop stock excluded, and only rows
-// that carry a customer name. Scoped to the current quarter plus anything not
-// ordered yet, because a ball from 2025 is not work anyone is still waiting
-// on -- the quarter picker is there for the days right after a quarter rolls
-// over, when the balls still on the bench were ordered under the old one.
+// that carry a customer name. Unfinished work from this quarter and the last
+// one always shows, whatever the quarter picker says -- a ball ordered on
+// September 28 is still on the bench on October 2, and a quarter rolling over
+// must never take it off the list. Older than that is not work anyone is still
+// waiting on. The picker adds a quarter's finished rows ("Show finished") and
+// is how you look further back.
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,6 +31,26 @@ function showError(err) {
 function currentQuarterLabel() {
   const n = new Date();
   return `${n.getFullYear()} Q${Math.floor(n.getMonth() / 3) + 1}`;
+}
+
+// First day of the previous quarter, as an ISO day: 2026-07-01 for any day in
+// October to December 2026. Unfinished work ordered on or after it is shown
+// regardless of the quarter picker.
+function openSince(now) {
+  const q = Math.floor(now.getMonth() / 3);
+  const y = q === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const m = q === 0 ? 9 : (q - 1) * 3;
+  return `${y}-${String(m + 1).padStart(2, "0")}-01`;
+}
+
+// Pickup falls back to the order location, as the Pickup column shows it. An
+// order for "Both" belongs to either shop, and one with no location at all is
+// far more likely an oversight than a statement that it is somewhere else --
+// the same rule the day board uses -- so neither disappears under a filter.
+function atLocation(r, loc) {
+  if (!loc) return true;
+  const where = r.pickup_location || r.order_location;
+  return !where || where === loc || where === "Both";
 }
 
 function quarterRank(label) {
@@ -66,22 +88,23 @@ async function load() {
   try {
     // Not-yet-ordered rows have no quarter, so they need their own request --
     // they are exactly the "new items" this page is supposed to surface.
-    const [pending, thisQuarter] = await Promise.all([
+    const base = `select=${COLUMNS}&deleted_at=is.null&is_stock=is.false`;
+    const [pending, open, thisQuarter] = await Promise.all([
+      receiving.selectAll("orders", `${base}&shop_order_date=is.null`),
       receiving.selectAll(
         "orders",
-        `select=${COLUMNS}&deleted_at=is.null&is_stock=is.false` +
-          `&shop_order_date=is.null`
+        `${base}&shop_order_date=gte.${openSince(new Date())}` +
+          `&drilled=is.false&no_drill_needed=is.false&out_the_door=is.false`
       ),
       quarter
-        ? receiving.selectAll(
-            "orders",
-            `select=${COLUMNS}&deleted_at=is.null&is_stock=is.false` +
-              `&quarter=eq.${encodeURIComponent(quarter)}`
-          )
+        ? receiving.selectAll("orders", `${base}&quarter=eq.${encodeURIComponent(quarter)}`)
         : Promise.resolve([]),
     ]);
 
-    ROWS = [...pending, ...thisQuarter].filter(
+    // The open list and the picked quarter overlap; keep one copy of each row.
+    const byId = new Map();
+    for (const r of [...pending, ...open, ...thisQuarter]) byId.set(r.id, r);
+    ROWS = [...byId.values()].filter(
       (r) => !NOT_A_CUSTOMER.has((r.customer_name || "").trim().toLowerCase())
     );
     await loadAppointments();
@@ -161,7 +184,7 @@ function visible() {
 
   return ROWS.filter((r) => {
     if (!showDone && finished(r)) return false;
-    if (loc && r.pickup_location !== loc) return false;
+    if (!atLocation(r, loc)) return false;
     if (who === "__none__" && r.staff_member) return false;
     if (who && who !== "__none__" && r.staff_member !== who) return false;
     if (q) {

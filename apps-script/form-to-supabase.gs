@@ -24,8 +24,10 @@ var SUPABASE_KEY = 'sb_publishable_X-ZHYha1P8FPVL2rvAk-bA_CdXD8g-g';
 // demand in whatever spreadsheet this script is bound to.
 var FAILURE_SHEET = 'Supabase Sync Failures';
 
-// Leave blank for no email. If set, you get a message the moment an order
-// fails to reach Supabase, instead of finding out from the customer.
+// Where a failed order is reported, the moment it fails to reach Supabase,
+// instead of finding out from the customer. Blank sends it to the Google
+// account that owns this script, so alerts work without editing anything; put
+// an address here to send them somewhere else, or 'off' to send none.
 var ALERT_EMAIL = '';
 
 var MAX_ATTEMPTS = 3;
@@ -237,6 +239,17 @@ function syncOrderToSupabase(e) {
   }
 }
 
+function alertEmail_() {
+  if (ALERT_EMAIL === 'off') return '';
+  if (ALERT_EMAIL) return ALERT_EMAIL;
+  try {
+    return Session.getEffectiveUser().getEmail();
+  } catch (err) {
+    console.error('Could not work out who to alert: ' + err);
+    return '';
+  }
+}
+
 function recordFailure_(order, e, err) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -259,10 +272,11 @@ function recordFailure_(order, e, err) {
     console.error('Could not write the failure row: ' + logErr);
   }
 
-  if (ALERT_EMAIL) {
+  var to = alertEmail_();
+  if (to) {
     try {
       MailApp.sendEmail(
-        ALERT_EMAIL,
+        to,
         'Pro shop: a form order did NOT reach the app',
         'A customer submitted the order form but it could not be saved.\n\n' +
           'Error: ' + err + '\n\n' +
