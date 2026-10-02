@@ -1,0 +1,53 @@
+# Weekly copy of the whole database, replacing the Apps Script that wrote
+# CSVs to Google Drive. This repo is public, so the CSVs are encrypted before
+# they are stored; only someone with BACKUP_PASSPHRASE can open them. See
+# scraper/README.md for how to restore one.
+
+name: Weekly backup
+
+on:
+  schedule:
+    # Sunday 07:00 UTC, about 3am Eastern.
+    - cron: '0 7 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write   # to keep the scheduled workflows switched on, below
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Export every table to CSV
+        env:
+          SUPABASE_URL: https://ngghyuvykqqklztvvmld.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scraper/backup.mjs backup
+      - name: Encrypt
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE is not set"; exit 1; }
+          stamp=$(TZ=America/New_York date +%F)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          tar czf - backup | openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:BACKUP_PASSPHRASE -out "proshop-backup-$stamp.tar.gz.enc"
+          rm -rf backup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proshop-backup-${{ env.STAMP }}
+          path: proshop-backup-${{ env.STAMP }}.tar.gz.enc
+          retention-days: 90
+      # GitHub switches off scheduled workflows in a repo with no commits for
+      # 60 days. Nothing here commits, so re-enable both schedules weekly.
+      - name: Keep the schedules switched on
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for wf in ball-scraper.yml weekly-backup.yml; do
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$wf/enable"
+          done

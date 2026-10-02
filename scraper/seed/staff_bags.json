@@ -1,0 +1,49 @@
+[
+  {
+    "staff_member": "Keith Danielowski",
+    "sort_order": 1,
+    "balls": [
+      "Hammer Spawn",
+      "Hammer Black Widow Tour V1",
+      "Hammer NU 2.0"
+    ]
+  },
+  {
+    "staff_member": "James Durland",
+    "sort_order": 2,
+    "balls": [
+      "Track Stealth Mode Hybrid",
+      "Brunswick Danger Zone",
+      "Brunswick Crown Victory Pearl"
+    ]
+  },
+  {
+    "staff_member": "Tim Bilski",
+    "sort_order": 3,
+    "balls": [
+      "Brunswick Infinity Quest",
+      "Brunswick Danger Zone",
+      "Radical Evil Eye",
+      "Brunswick Alert",
+      "Brunswick Crown Victory Pearl",
+      "Hammer Purple Pearl Urethane"
+    ]
+  },
+  {
+    "staff_member": "Brian Wertz",
+    "sort_order": 4,
+    "balls": []
+  },
+  {
+    "staff_member": "Doug Smith",
+    "sort_order": 5,
+    "balls": [
+      "Storm Ion Max Pearl",
+      "Storm Phaze II Pearl",
+      "Storm Concept",
+      "Storm IQ Tour",
+      "Storm Next Factor",
+      "Storm Hy-Road 40"
+    ]
+  }
+]

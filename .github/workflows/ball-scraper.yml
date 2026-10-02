@@ -1,0 +1,38 @@
+# Refreshes the ball catalog the website's Bowling Balls page shows: scrapes
+# bowling.com, Bowwwl and the manufacturer sites and saves to the Supabase
+# balls table. Replaces the Apps Script trigger on the old Proshop Ball Sheet.
+
+name: Ball scraper
+
+on:
+  schedule:
+    # 11:00 UTC = 7am Eastern in summer, 6am in winter.
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Scrape and report, but do not save anything
+        type: boolean
+        default: false
+
+concurrency:
+  group: ball-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the scraper against canned pages
+        run: node --test tests/ball-scraper.test.mjs
+      - name: Scrape and save
+        env:
+          SUPABASE_URL: https://ngghyuvykqqklztvvmld.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node scraper/ball-scraper.mjs
