@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.4",
+    "date": "2026-10-08",
+    "notes": [
+      "New: Drilling has an appointment filter to show only orders that need scheduling (or only ones with an appointment)."
+    ]
+  },
+  {
     "version": "1.3",
     "date": "2026-10-08",
     "notes": [
