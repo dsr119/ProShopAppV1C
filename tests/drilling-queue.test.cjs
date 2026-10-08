@@ -66,3 +66,21 @@ test('Drilling buttons are Drilled, No drill, Schedule again, fitting or not', (
   assert.doesNotMatch(src, /Book fitting/);
   assert.match(src, /act\.append\(drilled, nodrill, sched\)/);
 });
+
+test('waiting count follows the filters', () => {
+  const els = {
+    search: { value: '' }, location: { value: 'Valley' }, assignee: { value: '' }, showdone: { checked: false },
+    rows: { innerHTML: '', appendChild() {} }, empty: { classList: { toggle() {} } }, count: { textContent: '' },
+  };
+  const ctx = drilling(els);
+  ctx.row = () => ({});
+  const rows = [
+    { id: 'a', customer_name: 'A', pickup_location: 'Valley', shop_order_date: '2026-10-01' },
+    { id: 'b', customer_name: 'B', pickup_location: 'South Side', shop_order_date: '2026-10-01' },
+    { id: 'c', customer_name: 'C', pickup_location: 'Valley', shop_order_date: null },
+  ];
+  vm.runInContext('ROWS = rows', Object.assign(ctx, { rows }));
+  vm.runInContext('row = () => ({})', ctx);
+  ctx.render();
+  assert.equal(els.count.textContent, '1 waiting to drill · 1 not ordered yet');
+});

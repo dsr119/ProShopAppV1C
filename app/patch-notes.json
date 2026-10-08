@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.3",
+    "date": "2026-10-08",
+    "notes": [
+      "Fixed: the \"waiting to drill\" count on Drilling now matches the search, location and assignee filters.",
+      "New: Drilling shows how many days ago the shop ordered each item."
+    ]
+  },
+  {
     "version": "1.2",
     "date": "2026-10-08",
     "notes": [

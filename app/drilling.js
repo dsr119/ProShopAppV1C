@@ -276,8 +276,10 @@ function render() {
   for (const r of rows) body.appendChild(row(r));
 
   $("empty").classList.toggle("hidden", rows.length > 0);
-  const waiting = ROWS.filter((r) => !finished(r) && r.shop_order_date).length;
-  const notOrdered = ROWS.filter((r) => !finished(r) && !r.shop_order_date).length;
+  // Counts follow the search, location and assignee filters, so they match
+  // the rows on screen.
+  const waiting = rows.filter((r) => !finished(r) && r.shop_order_date).length;
+  const notOrdered = rows.filter((r) => !finished(r) && !r.shop_order_date).length;
   $("count").textContent =
     `${waiting} waiting to drill` + (notOrdered ? ` · ${notOrdered} not ordered yet` : "");
 }
@@ -353,6 +355,13 @@ function row(r) {
   const when = td("Shop ordered", "nowrap");
   if (r.shop_order_date) {
     when.textContent = shortDate(r.shop_order_date);
+    const age = daysSince(r.shop_order_date);
+    if (age !== null && age > 0 && !finished(r)) {
+      const d = document.createElement("div");
+      d.className = "sub";
+      d.textContent = `${age} day${age === 1 ? "" : "s"} ago`;
+      when.appendChild(d);
+    }
   } else {
     when.innerHTML = '<span style="color:#c3c8ce">not ordered</span>';
   }
