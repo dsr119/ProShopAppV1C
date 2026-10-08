@@ -174,7 +174,9 @@ is `v=21`.
 
 The **What's new** button at the top right of each page opens the list in
 `app/patch-notes.json`. To announce a release, add an entry at the top with a
-higher `version`, the date, and a few plain-language lines. No `?v=` bump is
+higher `version`, the date, and a few plain-language lines. Keep one entry per
+day: if something already shipped today, add its lines to today's entry
+instead of starting a new one. No `?v=` bump is
 needed for that file. Each browser shows a blue dot on the button until it has
 opened the newest version.
 
