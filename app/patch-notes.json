@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2",
+    "date": "2026-10-08",
+    "notes": [
+      "New: Drilling shows when the customer ordered next to when the shop ordered, and lists the longest-waiting customers first.",
+      "New: a Texted button on Drilling records when someone last texted the customer.",
+      "Changed: Drilling buttons are back to Drilled, No drill, Schedule for every order."
+    ]
+  },
+  {
     "version": "1.1",
     "date": "2026-10-02",
     "notes": [
