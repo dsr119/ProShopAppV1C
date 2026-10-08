@@ -107,7 +107,7 @@ async function load() {
     ROWS = [...byId.values()].filter(
       (r) => !NOT_A_CUSTOMER.has((r.customer_name || "").trim().toLowerCase())
     );
-    await loadAppointments();
+    await Promise.all([loadAppointments(), loadContacts()]);
     render();
   } catch (err) {
     showError(err);
@@ -124,6 +124,65 @@ async function loadAppointments() {
     APPOINTMENTS = [];
     showError(new Error("Could not load appointment status. Ensure migration/add_appointment_order_link.sql has been applied. " + err.message));
   }
+}
+
+// Last time someone texted the customer about this order. Loaded on its own,
+// not through COLUMNS, so the queue still loads before
+// migration/add_order_contact.sql has been run -- only the Texted column
+// goes quiet.
+let CONTACTS = new Map();
+let contactsLoaded = false;
+
+async function loadContacts() {
+  try {
+    const rows = await db.selectAll("orders",
+      "select=id,last_contacted_at&deleted_at=is.null&is_stock=is.false&last_contacted_at=not.is.null");
+    CONTACTS = new Map(rows.map((r) => [r.id, r.last_contacted_at]));
+    contactsLoaded = true;
+  } catch (err) {
+    contactsLoaded = false;
+    console.error("Could not load texted times. Run migration/add_order_contact.sql.", err);
+  }
+}
+
+function contactLabel(value) {
+  if (!value) return "Not texted yet";
+  const d = new Date(value);
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `Last: ${d.getMonth() + 1}/${d.getDate()} ${time}`;
+}
+
+function contactCell(r) {
+  const cell = document.createElement("div");
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Texted";
+  button.title = "Record that you just texted this customer about this item";
+  const note = document.createElement("div");
+  note.className = "sub";
+  const paint = () => {
+    note.textContent = contactsLoaded ? contactLabel(CONTACTS.get(r.id)) : "Unavailable";
+  };
+  button.disabled = !contactsLoaded;
+  paint();
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "…";
+    try {
+      const at = new Date().toISOString();
+      await db.update("orders", `id=eq.${r.id}`, { last_contacted_at: at });
+      CONTACTS.set(r.id, at);
+    } catch (err) {
+      showError(err);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Texted";
+      paint();
+    }
+  });
+  cell.append(button, note);
+  return cell;
 }
 
 function appointmentStatus(order, appointments, today) {
@@ -168,6 +227,13 @@ function shortDate(v) {
   return `${Number(m)}/${Number(d)}/${y.slice(2)}`;
 }
 
+// When the customer placed the order. A timestamp, so it is read in local
+// time: an order made at 9pm belongs to that evening, not tomorrow in UTC.
+function customerOrderDay(r) {
+  if (r.submitted_at) return isoOf(new Date(r.submitted_at));
+  return r.shop_order_date || "";
+}
+
 function daysSince(v) {
   if (!v) return null;
   const [y, m, d] = v.slice(0, 10).split("-").map(Number);
@@ -193,21 +259,12 @@ function visible() {
     }
     return true;
   }).sort((a, b) => {
-    // A promised date beats a long wait: a ball due Friday for league night
-    // has to come off the bench before one that merely arrived first.
-    const ad = !finished(a) && a.due_date, bd = !finished(b) && b.due_date;
-    if (ad && bd && ad !== bd) return ad.localeCompare(bd);
-    if (ad && !bd) return -1;
-    if (!ad && bd) return 1;
-
-    // Longest wait first; things not ordered yet sink to the bottom, since
-    // you cannot drill a ball that has not arrived.
-    if (!a.shop_order_date && !b.shop_order_date) {
-      return (a.submitted_at || "").localeCompare(b.submitted_at || "");
-    }
-    if (!a.shop_order_date) return 1;
-    if (!b.shop_order_date) return -1;
-    return a.shop_order_date.localeCompare(b.shop_order_date);
+    // The customer who has waited longest since they ordered goes first.
+    // Rows with no order date at all sink to the bottom.
+    const ac = a.submitted_at || a.shop_order_date || "";
+    const bc = b.submitted_at || b.shop_order_date || "";
+    if (!ac !== !bc) return ac ? -1 : 1;
+    return ac.localeCompare(bc);
   });
 }
 
@@ -277,16 +334,25 @@ function row(r) {
 
   td("Pickup").textContent = r.pickup_location || r.order_location || "";
 
-  const when = td("Ordered", "nowrap");
-  if (r.shop_order_date) {
-    when.textContent = shortDate(r.shop_order_date);
-    const age = daysSince(r.shop_order_date);
+  // How long the customer has been waiting, next to when the shop ordered it.
+  const custDay = customerOrderDay(r);
+  const cust = td("Customer ordered", "nowrap");
+  if (custDay) {
+    cust.textContent = shortDate(custDay);
+    const age = daysSince(custDay);
     if (age !== null && age > 0 && !finished(r)) {
       const d = document.createElement("div");
-      d.style.cssText = "color:var(--muted);font-size:12px";
+      d.className = "sub";
       d.textContent = `${age} day${age === 1 ? "" : "s"} ago`;
-      when.appendChild(d);
+      cust.appendChild(d);
     }
+  } else {
+    cust.innerHTML = '<span style="color:#c3c8ce">—</span>';
+  }
+
+  const when = td("Shop ordered", "nowrap");
+  if (r.shop_order_date) {
+    when.textContent = shortDate(r.shop_order_date);
   } else {
     when.innerHTML = '<span style="color:#c3c8ce">not ordered</span>';
   }
@@ -318,14 +384,8 @@ function row(r) {
     booking.appendChild(detail);
   }
 
+  td("Texted", "nowrap").appendChild(contactCell(r));
   td("Assigned").appendChild(assignSelect(r));
-
-  // A customer who asked to be fitted has to be measured before the ball is
-  // drilled. Until a booking is linked to this order, the main action books
-  // that fitting instead; "Drilled" is still there, behind a confirm, for a
-  // customer measured at the counter without one.
-  const awaitingFitting = receiving.needsFitting(r) && appointmentsLoaded &&
-    !APPOINTMENTS.some((a) => a.order_id === r.id);
 
   const act = td("");
   // Already collected -- the drill flag no longer means anything, and an
@@ -353,13 +413,10 @@ function row(r) {
 
   const drilled = document.createElement("button");
   drilled.textContent = "Drilled";
-  drilled.className = awaitingFitting ? "" : "primary";
-  drilled.addEventListener("click", () => {
-    if (awaitingFitting && !confirm(
-      `${r.customer_name} asked to be fitted and no fitting is booked.\n\nMark ${r.item} as drilled anyway?`
-    )) return;
-    setFlags(r, drilled, { drilled: true, drilled_at: new Date().toISOString() });
-  });
+  drilled.className = "primary";
+  drilled.addEventListener("click", () =>
+    setFlags(r, drilled, { drilled: true, drilled_at: new Date().toISOString() })
+  );
 
   // Bags, shoes, totes and tape all arrive for a named customer, so they land
   // here too. Marking them "drilled" would put a false record on the order.
@@ -372,13 +429,11 @@ function row(r) {
   );
 
   const sched = document.createElement("button");
-  sched.textContent = awaitingFitting ? "Book fitting" : "Schedule";
-  sched.title = awaitingFitting
-    ? "Book the fitting this customer asked for"
-    : "Book a drilling appointment for this customer";
-  if (awaitingFitting) sched.className = "primary";
+  sched.textContent = "Schedule";
+  sched.title = "Book a drilling appointment for this customer";
   sched.style.marginLeft = "5px";
-  sched.addEventListener("click", () => openScheduler(r, awaitingFitting));
+  // A customer who asked to be fitted gets "Fit and drill" filled in.
+  sched.addEventListener("click", () => openScheduler(r, receiving.needsFitting(r)));
 
   // Nothing to drill or book until the shop has actually placed the order.
   if (!r.shop_order_date) {
@@ -388,14 +443,7 @@ function row(r) {
     }
   }
 
-  // The thing to do next goes first.
-  if (awaitingFitting) {
-    sched.style.marginLeft = "";
-    drilled.style.marginLeft = "5px";
-    act.append(sched, drilled, nodrill);
-  } else {
-    act.append(drilled, nodrill, sched);
-  }
+  act.append(drilled, nodrill, sched);
   return tr;
 }
 
@@ -725,7 +773,7 @@ $("quarter").addEventListener("change", load);
 $("refresh").addEventListener("click", load);
 window.addEventListener("focus", async () => {
   if ($("dlg").open || $("exportdlg").open || document.activeElement?.matches("input,select,textarea")) return;
-  await loadAppointments();
+  await Promise.all([loadAppointments(), loadContacts()]);
   render();
 });
 $("location").addEventListener("change", render);

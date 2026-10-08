@@ -229,3 +229,12 @@ arrived. Updates use a timestamp comparison to avoid resetting a check-in made
 by another device. The check-in list refreshes every minute; Orders and Drilling
 refresh every 30 seconds when no row editing or dialog is active, and on return
 to the page. Existing pages still load before the SQL update is applied.
+
+### Drilling: customer order date and Texted
+
+Run `migration/add_order_contact.sql` in Supabase SQL Editor. Drilling shows
+when the customer ordered (with how many days ago) next to when the shop
+ordered, and sorts by the customer order date, oldest first. The **Texted**
+button records the time someone texted the customer about that order and shows
+the latest one under it. Only the latest time is kept, not a history. Until the
+SQL is run the page still loads; the Texted column just reads "Unavailable".
