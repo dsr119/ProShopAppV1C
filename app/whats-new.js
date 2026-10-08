@@ -2,7 +2,9 @@
 // a popup listing the releases in patch-notes.json.
 //
 // To add a release, put a new entry at the TOP of patch-notes.json with a
-// higher version number. No ?v= bump is needed for that: the file is fetched
+// higher version number. Keep one entry per day: if something already shipped
+// today, add your lines to today's entry instead. (Same-day entries are shown
+// together anyway, under the newest version number.) No ?v= bump is needed for that: the file is fetched
 // fresh each time the popup opens. The button shows a dot until each browser
 // has opened the newest version once.
 
@@ -45,9 +47,20 @@
     return isNaN(d) ? iso : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
+  // Entries sharing a date show as one release under the newest version.
+  function byDay(releases) {
+    const days = [];
+    for (const r of releases) {
+      const last = days[days.length - 1];
+      if (last && last.date === r.date) last.notes = last.notes.concat(r.notes || []);
+      else days.push({ version: r.version, date: r.date, notes: (r.notes || []).slice() });
+    }
+    return days;
+  }
+
   function render(releases) {
     body.textContent = "";
-    for (const r of releases) {
+    for (const r of byDay(releases)) {
       const sec = document.createElement("section");
       const h = document.createElement("h4");
       h.textContent = "Version " + r.version;

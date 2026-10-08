@@ -3,24 +3,12 @@
     "version": "1.4",
     "date": "2026-10-08",
     "notes": [
-      "New: Drilling has an appointment filter to show only orders that need scheduling (or only ones with an appointment)."
-    ]
-  },
-  {
-    "version": "1.3",
-    "date": "2026-10-08",
-    "notes": [
-      "Fixed: the \"waiting to drill\" count on Drilling now matches the search, location and assignee filters.",
-      "New: Drilling shows how many days ago the shop ordered each item."
-    ]
-  },
-  {
-    "version": "1.2",
-    "date": "2026-10-08",
-    "notes": [
       "New: Drilling shows when the customer ordered next to when the shop ordered, and lists the longest-waiting customers first.",
       "New: a Texted button on Drilling records when someone last texted the customer.",
-      "Changed: Drilling buttons are back to Drilled, No drill, Schedule for every order."
+      "New: Drilling shows how many days ago the shop ordered each item.",
+      "New: Drilling has an appointment filter to show only orders that need scheduling (or only ones with an appointment).",
+      "Changed: Drilling buttons are back to Drilled, No drill, Schedule for every order.",
+      "Fixed: the \"waiting to drill\" count on Drilling now matches the search, location and assignee filters."
     ]
   },
   {
