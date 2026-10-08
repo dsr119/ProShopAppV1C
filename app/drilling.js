@@ -247,12 +247,19 @@ function visible() {
   const loc = $("location").value;
   const who = $("assignee").value;
   const showDone = $("showdone").checked;
+  const booking = appointmentsLoaded ? $("booking").value : "";
+  const today = isoOf(new Date());
 
   return ROWS.filter((r) => {
     if (!showDone && finished(r)) return false;
     if (!atLocation(r, loc)) return false;
     if (who === "__none__" && r.staff_member) return false;
     if (who && who !== "__none__" && r.staff_member !== who) return false;
+    if (booking) {
+      const label = appointmentStatus(r, APPOINTMENTS, today).label;
+      if (booking === "none" && label !== "Not scheduled") return false;
+      if (booking === "booked" && label !== "Scheduled") return false;
+    }
     if (q) {
       const hay = [r.customer_name, r.item, r.phone].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
@@ -787,6 +794,7 @@ window.addEventListener("focus", async () => {
 });
 $("location").addEventListener("change", render);
 $("assignee").addEventListener("change", render);
+$("booking").addEventListener("change", render);
 $("showdone").addEventListener("change", render);
 
 $("s_prev").addEventListener("click", () => stepWeek(-1));

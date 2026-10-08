@@ -13,7 +13,7 @@ function drilling(elements = {}) {
 
 test('queue sorts by when the customer ordered, longest wait first', () => {
   const ctx = drilling({
-    search: { value: '' }, location: { value: '' }, assignee: { value: '' }, showdone: { checked: false },
+    search: { value: '' }, location: { value: '' }, assignee: { value: '' }, showdone: { checked: false }, booking: { value: '' },
   });
   const rows = [
     { id: 'recent', customer_name: 'A', submitted_at: '2026-10-05T14:00:00Z', shop_order_date: '2026-10-05' },
@@ -69,7 +69,7 @@ test('Drilling buttons are Drilled, No drill, Schedule again, fitting or not', (
 
 test('waiting count follows the filters', () => {
   const els = {
-    search: { value: '' }, location: { value: 'Valley' }, assignee: { value: '' }, showdone: { checked: false },
+    search: { value: '' }, location: { value: 'Valley' }, assignee: { value: '' }, showdone: { checked: false }, booking: { value: '' },
     rows: { innerHTML: '', appendChild() {} }, empty: { classList: { toggle() {} } }, count: { textContent: '' },
   };
   const ctx = drilling(els);
@@ -83,4 +83,20 @@ test('waiting count follows the filters', () => {
   vm.runInContext('row = () => ({})', ctx);
   ctx.render();
   assert.equal(els.count.textContent, '1 waiting to drill · 1 not ordered yet');
+});
+
+test('appointment filter shows only unscheduled or only scheduled orders', () => {
+  const els = { search: { value: '' }, location: { value: '' }, assignee: { value: '' }, showdone: { checked: false }, booking: { value: 'none' } };
+  const ctx = drilling(els);
+  const rows = [
+    { id: 'a', customer_name: 'A', item: 'Ball', shop_order_date: '2026-10-01' },
+    { id: 'b', customer_name: 'B', item: 'Ball', shop_order_date: '2026-10-02' },
+  ];
+  const appts = [{ order_id: 'b', appt_date: '2999-01-01', completed: false }];
+  vm.runInContext('ROWS = rows; APPOINTMENTS = appts; appointmentsLoaded = true', Object.assign(ctx, { rows, appts }));
+  assert.deepEqual(ctx.visible().map((r) => r.id), ['a']);
+  els.booking.value = 'booked';
+  assert.deepEqual(ctx.visible().map((r) => r.id), ['b']);
+  els.booking.value = '';
+  assert.equal(ctx.visible().length, 2);
 });
