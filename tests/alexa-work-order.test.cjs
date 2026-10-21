@@ -95,6 +95,6 @@ test('skill: a failed save tells the person to use the app', async () => {
 test('skill: works where Node has no built-in fetch', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'alexa', 'skill.js'), 'utf8');
   const mod = { exports: {} };
-  vm.runInContext(src, vm.createContext({ module: mod, exports: mod.exports, require, globalThis: {} }));
+  vm.runInContext(src, vm.createContext({ module: mod, exports: mod.exports, require }));
   assert.equal(typeof mod.exports.handler, 'function');
 });

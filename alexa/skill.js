@@ -72,7 +72,8 @@ function httpsFetch(url, { method, headers, body }) {
   });
 }
 
-const defaultFetch = typeof globalThis.fetch === "function" ? globalThis.fetch : httpsFetch;
+/* global fetch */
+const defaultFetch = typeof fetch === "function" ? fetch : httpsFetch;
 
 async function handle(event, fetchFn = defaultFetch) {
   const req = event.request || {};
