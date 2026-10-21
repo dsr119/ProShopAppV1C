@@ -2,9 +2,13 @@
 // the Alexa developer console (Code tab), fill in the three settings below,
 // then Save and Deploy. No other packages are needed.
 //
-// It hears "create a work order for ..." and hands the sentence to the
-// alexa-work-order Supabase function, which adds the ticket. This file holds
-// no database key -- only the password that function checks.
+// It passes what's said to the alexa-work-order Supabase function, which runs
+// the conversation (who's it for, what are we doing) and adds the ticket. This
+// file only relays: it holds no database key, just the password that function
+// checks, and keeps the conversation's state between turns.
+//
+// Note: Alexa+ does not run unpublished skills like this one. It works on an
+// Echo using the original Alexa.
 
 // --- settings ---------------------------------------------------------------
 const FUNCTION_URL = "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order";
@@ -14,9 +18,7 @@ const SHARED_SECRET = "paste the same password you set as ALEXA_SHARED_SECRET";
 const DEFAULT_LOCATION = "";
 // ----------------------------------------------------------------------------
 
-const ASK = "What's the work order for?";
-
-function speak(text, { endSession = true, reprompt, directives } = {}) {
+function speak(text, { endSession = true, reprompt, directives, state } = {}) {
   const response = {
     outputSpeech: { type: "PlainText", text },
     shouldEndSession: endSession,
@@ -26,30 +28,23 @@ function speak(text, { endSession = true, reprompt, directives } = {}) {
     response.directives = directives;
     delete response.shouldEndSession; // dialog directives keep the mic open
   }
-  return { version: "1.0", response };
+  const out = { version: "1.0", response };
+  if (state) out.sessionAttributes = { state };
+  return out;
 }
 
-// Ask for the request slot of the work order intent, so the next thing said
-// is taken as the whole work order.
-function askForRequest(prompt) {
-  return speak(prompt, {
-    reprompt: ASK,
+// Ask the next question, taking the answer as the work order intent's
+// request slot, so it comes straight back here with the state.
+function askNext(say, state) {
+  return speak(say, {
+    reprompt: say,
+    state,
     directives: [{
       type: "Dialog.ElicitSlot",
       slotToElicit: "request",
       updatedIntent: { name: "CreateWorkOrderIntent", confirmationStatus: "NONE", slots: {} },
     }],
   });
-}
-
-async function createWorkOrder(text, fetchFn) {
-  const res = await fetchFn(FUNCTION_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-alexa-secret": SHARED_SECRET },
-    body: JSON.stringify({ text, location: DEFAULT_LOCATION }),
-  });
-  if (!res.ok) throw new Error(`Function said ${res.status}: ${await res.text()}`);
-  return res.json();
 }
 
 // Alexa-hosted skills may run a Node version without a built-in fetch, so
@@ -75,40 +70,49 @@ function httpsFetch(url, { method, headers, body }) {
 /* global fetch */
 const defaultFetch = typeof fetch === "function" ? fetch : httpsFetch;
 
+async function turn(text, state, fetchFn) {
+  const res = await fetchFn(FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-alexa-secret": SHARED_SECRET },
+    body: JSON.stringify({ text, state, location: DEFAULT_LOCATION }),
+  });
+  if (!res.ok) throw new Error(`Function said ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function relay(text, state, fetchFn, opening) {
+  try {
+    const out = await turn(text, state, fetchFn);
+    if (out.done) return speak(out.say);
+    // "open shop tickets" can't take a dialog directive, so ask plainly there;
+    // the answer then needs to match a sample like "for ...".
+    if (opening) return speak(out.say, { endSession: false, reprompt: out.say, state: out.state });
+    return askNext(out.say, out.state);
+  } catch (err) {
+    console.log("work order failed", err);
+    // Say why, briefly: it's the only clue anyone at the Echo gets.
+    const why = String(err.message || err).slice(0, 120);
+    return speak(`Sorry, I couldn't add that work order. Please put it in the app instead. ${why}`);
+  }
+}
+
 async function handle(event, fetchFn = defaultFetch) {
   const req = event.request || {};
+  const state = (event.session && event.session.attributes && event.session.attributes.state) || "";
 
-  // A plain question, not a dialog directive: Alexa refuses those in reply to
-  // "open shop tickets" ("not supported on this device"). The answer "it's for
-  // ..." matches the intent's own sample utterances.
-  if (req.type === "LaunchRequest") {
-    return speak(ASK + " Start with: it's for.", { endSession: false, reprompt: ASK });
-  }
+  if (req.type === "LaunchRequest") return relay("", "", fetchFn, true);
   // SessionEndedRequest and the like take no speech.
   if (req.type !== "IntentRequest") return { version: "1.0", response: {} };
 
   const name = req.intent && req.intent.name;
-
   if (name === "CreateWorkOrderIntent") {
     const slot = req.intent.slots && req.intent.slots.request;
     const text = slot && slot.value ? slot.value.trim() : "";
-    if (!text) return askForRequest(ASK);
-    try {
-      const made = await createWorkOrder(text, fetchFn);
-      return speak(`Done. Work order added: ${made.title}.`);
-    } catch (err) {
-      console.log("work order failed", err);
-      // Say why, briefly: it's the only clue anyone at the Echo gets.
-      const why = String(err.message || err).slice(0, 120);
-      return speak(`Sorry, I couldn't add that work order. Please put it in the app instead. ${why}`);
-    }
+    return relay(text, state, fetchFn, false);
   }
-  if (name === "AMAZON.HelpIntent") {
-    return speak("Say: it's for, then the problem. Like: it's for the ball return on lane 3 is jammed.",
-      { endSession: false, reprompt: ASK });
-  }
-  if (name === "AMAZON.FallbackIntent") {
-    return speak("Sorry, I didn't catch that. Say: it's for, then the problem.", { endSession: false, reprompt: ASK });
+  if (name === "AMAZON.HelpIntent" || name === "AMAZON.FallbackIntent") {
+    return speak("Say who it's for and what we're doing, like: for Doug Smith to plug his 14 pound ball.",
+      { endSession: false, reprompt: "Who's it for, and what are we doing?", state });
   }
   // Stop, Cancel, and anything else.
   return speak("Okay.");

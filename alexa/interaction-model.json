@@ -12,7 +12,13 @@
               "samples": [
                 "it's for {request}",
                 "for {request}",
-                "the {request}"
+                "the {request}",
+                "it's {request}",
+                "we're {request}",
+                "we are {request}",
+                "to {request}",
+                "he needs {request}",
+                "she needs {request}"
               ]
             }
           ],

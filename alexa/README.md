@@ -1,131 +1,106 @@
-# Alexa work orders
+# Voice work orders
 
-Say this to the shop Echo:
+A work order is three things: **who it's for**, their **phone number**
+(looked up for you), and **what we're doing**. Say it all at once:
 
-> "Alexa, ask Shop Tickets to create a work order for the ball return on lane 3 is jammed."
+> "Hey Siri, work order" → "Who's it for, and what are we doing?" →
+> "Doug Smith, plug his 14 pound ball" → "Work order added for Doug Smith: Plug 14 lb ball."
 
-and a ticket appears in the **To review** tab of `tickets.html`, submitted by
-**Alexa**, status New, priority Normal. Alexa reads back what she heard, so a
-mishearing can be fixed on the Tickets page. Saying "Valley" or "South Side"
-in the sentence sets the location.
+or one piece at a time:
 
-Amazon only runs a custom skill when you say its name, so the "ask Shop Tickets
-to" part can't be dropped. If you open it without a request ("Alexa, open Shop
-Tickets"), she asks "What's the work order for?" Answer starting with "it's
-for...", e.g. "it's for the drill press needs a new bit".
+> "Doug Smith" → "What are we doing for Doug Smith?" → "plug his 14 pound ball"
+> → "Work order added for Doug Smith: Plug 14 lb ball."
+
+The ticket lands in the **To review** tab of `tickets.html`, submitted by
+**Alexa**, with the customer's name and phone at the top of the details (the
+same format the ticket page uses), category Customer, and the exact words
+spoken at the bottom as `Said: "..."`. Shop jobs work too: "the ball return
+on lane 3 is jammed" needs no customer.
+
+**Phone lookup:** the name is searched in the customer directory, orders and
+appointments. "Doug" finds "Douglas Smith". If two different numbers match,
+the phone is left blank and you're told to add it in the app.
+
+**Claude (optional, recommended):** with an Anthropic API key, Claude reads
+each answer, so "for doug smith to plug his fourteen pound ball before
+thursday league" becomes title *Plug 14 lb ball*, priority High, due Thursday's
+date. Without a key, simple rules do it ("for NAME to WORK", or the answer to
+the question just asked) and the words become the title.
 
 ## How it fits together
 
 ```
-Echo  ->  Shop Tickets skill (alexa/skill.js, hosted free by Amazon)
-      ->  alexa-work-order function (supabase/functions/alexa-work-order, on Supabase)
-      ->  tickets table
+Siri Shortcut  ─┐
+                ├─> alexa-work-order function (Supabase) ─> customer lookup, Claude, tickets table
+Alexa skill    ─┘
 ```
 
-The skill only knows a password. The Supabase function checks it and is the
-only part that holds a database key, and all it can do is add a ticket.
+The function runs the conversation and is the only part that holds a database
+key: it reads customer names and phones and adds tickets, nothing else. The
+callers only know a password, and pass back a `state` value between turns.
 
-## Setup (about 20 minutes, all free)
+## 1. Supabase function (needed for either voice route)
 
-### 1. Supabase function
-
-1. In the Supabase dashboard for the ProShop project, open **Edge Functions**
-   and choose **Deploy a new function → Via Editor**.
-2. Name it exactly `alexa-work-order`, replace the sample code with the whole of
+1. Supabase dashboard → **Edge Functions → Deploy a new function → Via Editor**
+   (or open the existing `alexa-work-order` → **Code**).
+2. Name it exactly `alexa-work-order`, paste the whole of
    `supabase/functions/alexa-work-order/index.ts`, and click **Deploy**.
-3. Open the function's **Details** (settings) and turn **off** "Enforce JWT
-   verification" (Alexa has no Supabase login, the password is the check). Save.
-4. Go to **Edge Functions → Secrets**, add a secret named
-   `ALEXA_SHARED_SECRET`, and set it to a long random password (30+ letters
-   and numbers). Keep it handy for step 2.4.
+3. Function **Settings**: turn **off** "Enforce JWT verification". Save.
+4. **Edge Functions → Secrets**:
+   - `ALEXA_SHARED_SECRET`: a password, letters and numbers only.
+   - `ANTHROPIC_API_KEY` (optional): from <https://console.anthropic.com>
+     (**API Keys**; add a few dollars under **Billing**). Each work order
+     costs well under a cent.
+5. **Deploy again** after adding or changing a secret, so the running function
+   picks it up.
 
-### 2. Alexa skill
+If Claude is slow (over 5 seconds) or unavailable, the rules take over and the
+work order is still added.
 
-1. Go to <https://developer.amazon.com/alexa/console/ask> and sign in with the
-   **same Amazon account the shop Echo is registered to**. Accept the free
-   developer agreement if asked.
-2. **Create Skill**: name `Shop Tickets`, language English (US), type **Custom**
-   (sometimes shown as "Other" → Custom), hosting **Alexa-hosted (Node.js)**,
-   template **Start from Scratch**. It takes a minute to set up.
-3. **Build** tab → **Interaction Model → JSON Editor**. Replace everything with
-   `alexa/interaction-model.json`, click **Save**, then **Build skill**.
-4. **Code** tab → open `lambda/index.js`, replace everything with
-   `alexa/skill.js`. At the top, paste the password from step 1.4 into
-   `SHARED_SECRET`, and set `DEFAULT_LOCATION` to the Echo's building
-   (`"Valley"` or `"South Side"`). Click **Save**, then **Deploy**.
-5. **Test** tab → set "Skill testing is enabled in" to **Development**. Type
-   `ask shop tickets to create a work order for test from the computer`. You
-   should hear "Done" and see the ticket on the Tickets page.
+## 2a. Siri Shortcut (works on iPhone, iPad, HomePod; works with Alexa+)
 
-The skill stays in Development and is never published: it works on every Echo
-signed in to that Amazon account and nobody else's. No certification needed.
+In the **Shortcuts** app, tap **+**, name it **Work order**, and add:
 
-### 3. Optional: a shorter phrase
+1. **Text** (leave empty) → **Set Variable** `Said`
+2. **Text** (leave empty) → **Set Variable** `State`
+3. **Repeat** 5 times, and inside it:
+   1. **Get Contents of URL**:
+      `https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order`
+      → Show More → Method **POST**; Headers: `x-alexa-secret` = your password;
+      Request Body **JSON**: `text` = `Said`, `state` = `State`,
+      `location` = `Valley` (or `South Side`)
+   2. **Get Dictionary Value** `say` in *Contents of URL* → **Set Variable** `Say`
+   3. **Get Dictionary Value** `state` in *Contents of URL* → **Set Variable** `State`
+   4. **If** `State` *has any value*:
+      - **Ask for Input** (Text), prompt = `Say` → **Set Variable** `Said` = *Provided Input*
+   5. **Otherwise**:
+      - **Speak Text** `Say`
+      - **Stop This Shortcut**
+   6. **End If**
+4. (after the Repeat) **Speak Text** `Say`
 
-In the Alexa phone app: **More → Routines → +**. Set "When this happens" to
-**Voice** with `new work order`, add the action **Skills → Your Skills → Shop
-Tickets**, and save. Then "Alexa, new work order" opens the skill and she asks
-what it's for.
+"Hey Siri, work order" runs it. On a HomePod, turn on Personal Requests.
+If something's wrong, run it by tapping it: the reply from step 3.1 shows the
+error (for example `Wrong password (got 18 characters, expected 20)`).
 
-## If it doesn't work
+## 2b. Alexa skill (Echo on the original Alexa only)
 
-- Alexa says "Sorry, I couldn't add that work order": the password doesn't
-  match, or JWT verification is still on. The skill's **Code → CloudWatch
-  Logs** shows the exact reply from Supabase.
-- Alexa says she doesn't know that skill: check the Echo uses the same Amazon
-  account as the developer console, and the Test tab says Development.
+Alexa+ does not run unpublished skills (Amazon limits Alexa+ add-ons to select
+partners), so this route needs an Echo that isn't on Alexa+.
 
-## Let Claude write the ticket (optional)
+> "Alexa, ask Shop Tickets to create a work order for Doug Smith to plug his 14 pound ball."
+> "Alexa, ask Shop Tickets to create a work order for Doug Smith." → "What are we doing for Doug Smith?"
 
-With an Anthropic API key, the function hands what you said to Claude, which
-writes a proper ticket instead of copying the sentence:
+1. <https://developer.amazon.com/alexa/console/ask>, signed in with the Echo's
+   Amazon account. **Create Skill**: name `Shop Tickets`, English (US),
+   **Custom**, **Alexa-hosted (Node.js)**, **Start from Scratch**.
+2. **Build → Interaction Model → JSON Editor**: paste
+   `alexa/interaction-model.json`, **Save**, **Build skill**.
+3. **Code** → `lambda/index.js`: paste `alexa/skill.js`, fill in
+   `SHARED_SECRET` and `DEFAULT_LOCATION` (`"Valley"` or `"South Side"`),
+   **Save**, **Deploy**.
+4. **Test** tab → **Development**. The **Manual JSON** tab can call the skill
+   directly when typed requests don't reach it.
 
-> "bob smith needs his ball plugged and redrilled by friday, it's at south side,
-> his number is 555 1234"
-
-becomes title *Plug and redrill Bob Smith's ball*, category Customer, priority
-High, location South Side, due Friday's date, and details starting
-`Customer: Bob Smith / Phone: 555-1234` (the same format the ticket page uses,
-so his number shows up in customer suggestions). The exact words spoken are kept
-at the bottom of the details as `Said: "..."`.
-
-1. Sign in at <https://console.anthropic.com>, add a few dollars of credit under
-   **Billing**, and create a key under **API Keys**. Each ticket costs well under
-   a cent.
-2. In Supabase, **Edge Functions → Secrets**: add `ANTHROPIC_API_KEY` with that key.
-3. Deploy the latest `supabase/functions/alexa-work-order/index.ts` again
-   (Code tab → paste → **Deploy**). A redeploy is also what makes a changed
-   secret take effect.
-
-If Claude is slow (over 5 seconds) or unavailable, the ticket is still created
-the old way, with the sentence as the title.
-
-## Siri instead (works with Alexa+)
-
-Amazon only lets select partners add their own commands to Alexa+, so on an
-Alexa+ Echo the skill above is never called. The Supabase function doesn't
-care who calls it, so an iPhone or iPad Shortcut can do the same job:
-
-> "Hey Siri, work order" → "What's the work order for?" → "the ball return on
-> lane 3 is jammed" → "Done. Work order added: The ball return on lane 3 is jammed."
-
-In the **Shortcuts** app, tap **+** and add these actions in order:
-
-1. **Dictate Text**. Tap "Show More" and set *Stop Listening* to **After Pause**.
-   Optional: set the prompt to `What's the work order for?`
-2. **Get Contents of URL**. URL:
-   `https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order`
-   Tap "Show More":
-   - Method: **POST**
-   - Headers: add `x-alexa-secret` = the same password as `ALEXA_SHARED_SECRET`
-   - Request Body: **JSON**, add field `text` = the **Dictated Text** variable,
-     and field `location` = `Valley` (or `South Side`)
-3. **Get Dictionary Value**: get the value for `title` from **Contents of URL**.
-4. **Speak Text**: `Done. Work order added:` followed by the **Dictionary Value** variable.
-
-Name the shortcut **Work order**. "Hey Siri, work order" then runs it. That
-works from the phone, an iPad left in the shop, or a HomePod with Personal
-Requests turned on.
-
-If Siri says nothing useful, run the shortcut by tapping it: a wrong password
-shows `{"error":"Wrong password ..."}` as the result of step 2.
+When Alexa asks a follow-up, start the answer with "for" or "it's", e.g.
+"for Doug Smith" or "it's plug his ball".
