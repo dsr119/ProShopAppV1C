@@ -6,7 +6,15 @@
         {
           "name": "CreateWorkOrderIntent",
           "slots": [
-            { "name": "request", "type": "AMAZON.SearchQuery", "samples": ["it's for {request}", "for {request}", "the {request}"] }
+            {
+              "name": "request",
+              "type": "AMAZON.SearchQuery",
+              "samples": [
+                "it's for {request}",
+                "for {request}",
+                "the {request}"
+              ]
+            }
           ],
           "samples": [
             "create a work order for {request}",
@@ -19,14 +27,32 @@
             "open a work order for {request}",
             "work order for {request}",
             "create a ticket for {request}",
-            "new ticket for {request}"
+            "new ticket for {request}",
+            "it's for {request}",
+            "it is for {request}",
+            "for {request}"
           ]
         },
-        { "name": "AMAZON.CancelIntent", "samples": [] },
-        { "name": "AMAZON.HelpIntent", "samples": [] },
-        { "name": "AMAZON.StopIntent", "samples": [] },
-        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
-        { "name": "AMAZON.FallbackIntent", "samples": [] }
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
       ],
       "types": []
     },
@@ -43,7 +69,9 @@
               "type": "AMAZON.SearchQuery",
               "confirmationRequired": false,
               "elicitationRequired": true,
-              "prompts": { "elicitation": "Elicit.Slot.request" }
+              "prompts": {
+                "elicitation": "Elicit.Slot.request"
+              }
             }
           ]
         }
@@ -53,7 +81,12 @@
     "prompts": [
       {
         "id": "Elicit.Slot.request",
-        "variations": [{ "type": "PlainText", "value": "What's the work order for?" }]
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "What's the work order for?"
+          }
+        ]
       }
     ]
   }

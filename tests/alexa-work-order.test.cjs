@@ -79,12 +79,17 @@ test('skill: a full sentence creates the work order and reads it back', async ()
   assert.equal(out.response.shouldEndSession, true);
 });
 
-test('skill: opening it, or no request, asks what the work order is for', async () => {
-  for (const ev of [{ request: { type: 'LaunchRequest' } }, intent(undefined)]) {
-    const out = await skill.handle(ev, async () => assert.fail('should not post'));
-    assert.equal(out.response.directives[0].type, 'Dialog.ElicitSlot');
-    assert.equal(out.response.directives[0].slotToElicit, 'request');
-  }
+test('skill: opening it asks a plain question and keeps listening', async () => {
+  const out = await skill.handle({ request: { type: 'LaunchRequest' } }, async () => assert.fail('should not post'));
+  assert.match(out.response.outputSpeech.text, /What's the work order for\?/);
+  assert.equal(out.response.shouldEndSession, false);
+  assert.equal(out.response.directives, undefined);
+});
+
+test('skill: a work order with nothing in it asks for the request', async () => {
+  const out = await skill.handle(intent(undefined), async () => assert.fail('should not post'));
+  assert.equal(out.response.directives[0].type, 'Dialog.ElicitSlot');
+  assert.equal(out.response.directives[0].slotToElicit, 'request');
 });
 
 test('skill: a failed save tells the person to use the app', async () => {

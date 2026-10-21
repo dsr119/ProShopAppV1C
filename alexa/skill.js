@@ -78,8 +78,14 @@ const defaultFetch = typeof fetch === "function" ? fetch : httpsFetch;
 async function handle(event, fetchFn = defaultFetch) {
   const req = event.request || {};
 
-  if (req.type === "LaunchRequest") return askForRequest(ASK);
-  if (req.type !== "IntentRequest") return speak("", { endSession: true });
+  // A plain question, not a dialog directive: Alexa refuses those in reply to
+  // "open pro shop" ("not supported on this device"). The answer "it's for
+  // ..." matches the intent's own sample utterances.
+  if (req.type === "LaunchRequest") {
+    return speak(ASK + " Start with: it's for.", { endSession: false, reprompt: ASK });
+  }
+  // SessionEndedRequest and the like take no speech.
+  if (req.type !== "IntentRequest") return { version: "1.0", response: {} };
 
   const name = req.intent && req.intent.name;
 
@@ -96,10 +102,11 @@ async function handle(event, fetchFn = defaultFetch) {
     }
   }
   if (name === "AMAZON.HelpIntent") {
-    return askForRequest("Tell me the problem, like: the ball return on lane 3 is jammed. " + ASK);
+    return speak("Say: it's for, then the problem. Like: it's for the ball return on lane 3 is jammed.",
+      { endSession: false, reprompt: ASK });
   }
   if (name === "AMAZON.FallbackIntent") {
-    return askForRequest("Sorry, I didn't catch that. " + ASK);
+    return speak("Sorry, I didn't catch that. Say: it's for, then the problem.", { endSession: false, reprompt: ASK });
   }
   // Stop, Cancel, and anything else.
   return speak("Okay.");
