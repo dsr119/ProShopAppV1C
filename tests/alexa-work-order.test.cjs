@@ -8,7 +8,7 @@ const path = require('node:path');
 function edgeFunction() {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'supabase', 'functions', 'alexa-work-order', 'index.ts'), 'utf8');
-  const ctx = vm.createContext({ Response, Error, Date, JSON, String });
+  const ctx = vm.createContext({ Response, Error, Date, JSON, String, console });
   vm.runInContext(src, ctx);
   return ctx;
 }
@@ -109,4 +109,66 @@ test('password match ignores pasted spaces and quotes', async () => {
   const res = await handle(post({ text: 'x' }, ' s3cret '), { ...env, ALEXA_SHARED_SECRET: '"s3cret"' },
     async () => new Response('[{"id":"a"}]', { status: 201 }));
   assert.equal(res.status, 200);
+});
+
+function fakeClaude(reply, seen = {}) {
+  return { beta: { messages: { create: async (params) => {
+    seen.params = params;
+    if (reply instanceof Error) throw reply;
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(reply) }] };
+  } } } };
+}
+
+function insertSpy(seen) {
+  return async (url, init) => {
+    seen.row = JSON.parse(init.body);
+    return new Response(JSON.stringify([{ id: 'abc' }]), { status: 201 });
+  };
+}
+
+test('AI: Claude fills in title, details, category, priority, due date and customer', async () => {
+  const { handle } = edgeFunction();
+  const seen = {};
+  const claude = fakeClaude({
+    title: 'Plug and redrill Bob Smith\'s ball', details: 'Customer wants it before league.',
+    category: 'Customer', priority: 'high', location: 'South Side', due_date: '2026-10-23',
+    customer_name: 'Bob Smith', customer_phone: '555-1234',
+  }, seen);
+  const res = await handle(post({ text: 'bob smith needs his ball plugged and redrilled by friday at south side 555 1234' }),
+    env, insertSpy(seen), claude);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).ai, true);
+  assert.equal(seen.row.title, "Plug and redrill Bob Smith's ball");
+  assert.equal(seen.row.category, 'Customer');
+  assert.equal(seen.row.priority, 'high');
+  assert.equal(seen.row.location, 'South Side');
+  assert.equal(seen.row.due_date, '2026-10-23');
+  assert.equal(seen.row.status, 'new');
+  assert.equal(seen.row.submitted_by, 'Alexa');
+  assert.match(seen.row.details, /^Customer: Bob Smith\nPhone: 555-1234\n\nCustomer wants it/);
+  assert.match(seen.row.details, /Said: "bob smith needs/);
+  assert.equal(seen.params.model, 'claude-opus-5-5');
+  assert.equal(seen.params.output_config.format.type, 'json_schema');
+});
+
+test('AI: values the tickets table would reject fall back to the plain ticket', async () => {
+  const { handle } = edgeFunction();
+  const seen = {};
+  const claude = fakeClaude({ title: '', details: '', category: 'Lanes', priority: 'asap',
+    location: 'Not said', due_date: 'friday', customer_name: '', customer_phone: '' });
+  await handle(post({ text: 'fix the drill press', location: 'Valley' }), env, insertSpy(seen), claude);
+  assert.equal(seen.row.title, 'Fix the drill press');
+  assert.equal(seen.row.category, null);
+  assert.equal(seen.row.priority, 'normal');
+  assert.equal(seen.row.location, 'Valley');
+  assert.equal(seen.row.due_date, null);
+});
+
+test('AI: if Claude fails or is slow, the plain ticket is still created', async () => {
+  const { handle } = edgeFunction();
+  const seen = {};
+  const res = await handle(post({ text: 'order more tape' }), env, insertSpy(seen), fakeClaude(new Error('timeout')));
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).ai, false);
+  assert.equal(seen.row.title, 'Order more tape');
 });

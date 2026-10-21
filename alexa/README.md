@@ -75,6 +75,31 @@ what it's for.
 - Alexa says she doesn't know that skill: check the Echo uses the same Amazon
   account as the developer console, and the Test tab says Development.
 
+## Let Claude write the ticket (optional)
+
+With an Anthropic API key, the function hands what you said to Claude, which
+writes a proper ticket instead of copying the sentence:
+
+> "bob smith needs his ball plugged and redrilled by friday, it's at south side,
+> his number is 555 1234"
+
+becomes title *Plug and redrill Bob Smith's ball*, category Customer, priority
+High, location South Side, due Friday's date, and details starting
+`Customer: Bob Smith / Phone: 555-1234` (the same format the ticket page uses,
+so his number shows up in customer suggestions). The exact words spoken are kept
+at the bottom of the details as `Said: "..."`.
+
+1. Sign in at <https://console.anthropic.com>, add a few dollars of credit under
+   **Billing**, and create a key under **API Keys**. Each ticket costs well under
+   a cent.
+2. In Supabase, **Edge Functions → Secrets**: add `ANTHROPIC_API_KEY` with that key.
+3. Deploy the latest `supabase/functions/alexa-work-order/index.ts` again
+   (Code tab → paste → **Deploy**). A redeploy is also what makes a changed
+   secret take effect.
+
+If Claude is slow (over 5 seconds) or unavailable, the ticket is still created
+the old way, with the sentence as the title.
+
 ## Siri instead (works with Alexa+)
 
 Amazon only lets select partners add their own commands to Alexa+, so on an
