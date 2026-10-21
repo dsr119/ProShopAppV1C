@@ -52,7 +52,29 @@ async function createWorkOrder(text, fetchFn) {
   return res.json();
 }
 
-async function handle(event, fetchFn = fetch) {
+// Alexa-hosted skills may run a Node version without a built-in fetch, so
+// fall back to a tiny one on the https module.
+function httpsFetch(url, { method, headers, body }) {
+  const https = require("https");
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method, headers }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => resolve({
+        ok: res.statusCode >= 200 && res.statusCode < 300,
+        status: res.statusCode,
+        text: async () => data,
+        json: async () => JSON.parse(data),
+      }));
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+const defaultFetch = typeof globalThis.fetch === "function" ? globalThis.fetch : httpsFetch;
+
+async function handle(event, fetchFn = defaultFetch) {
   const req = event.request || {};
 
   if (req.type === "LaunchRequest") return askForRequest(ASK);

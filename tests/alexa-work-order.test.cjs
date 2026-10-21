@@ -91,3 +91,10 @@ test('skill: a failed save tells the person to use the app', async () => {
   const out = await skill.handle(intent('x'), async () => new Response('nope', { status: 500 }));
   assert.match(out.response.outputSpeech.text, /couldn't add/);
 });
+
+test('skill: works where Node has no built-in fetch', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'alexa', 'skill.js'), 'utf8');
+  const mod = { exports: {} };
+  vm.runInContext(src, vm.createContext({ module: mod, exports: mod.exports, require, globalThis: {} }));
+  assert.equal(typeof mod.exports.handler, 'function');
+});
