@@ -1,0 +1,12 @@
+{
+  "_help": "Copy this file to config.json and fill in the password. See README.md.",
+  "function_url": "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order",
+  "password": "",
+  "location": "Valley",
+  "wake_word": "hey_jarvis",
+  "wake_threshold": 0.5,
+  "whisper_model": "base.en",
+  "mic": null,
+  "silence_seconds": 1.0,
+  "max_seconds": 20
+}

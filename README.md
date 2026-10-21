@@ -18,6 +18,7 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 | `website/` | The pages embedded in the public Google Sites site |
 | `apps-script/` | Google Form → Supabase trigger (the Drive backup script is retired) |
 | `alexa/`, `supabase/functions/` | Voice work orders ("Hey Siri, work order", or Alexa on a classic Echo) — see [alexa/README.md](alexa/README.md) |
+| `voice/` | Shop laptop voice bot ("Hey Jarvis", then just talk) — see [voice/README.md](voice/README.md) |
 | `scraper/` | Daily ball catalog scraper and weekly backup, run by GitHub Actions — see [scraper/README.md](scraper/README.md) |
 
 Start with [migration/README.md](migration/README.md).

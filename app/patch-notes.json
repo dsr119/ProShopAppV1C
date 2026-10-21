@@ -3,7 +3,8 @@
     "version": "1.5",
     "date": "2026-10-21",
     "notes": [
-      "New: voice work orders. Say \"Alexa, ask shop tickets to create a work order\", then who it's for and what we're doing (or both at once). The customer's phone number is filled in from the customer list, and the ticket lands in To review."
+      "New: voice work orders. Say \"Alexa, create a work order\", then who it's for and what we're doing (or both at once). The customer's phone number is filled in from the customer list, and the ticket lands in To review.",
+      "New: a shop laptop can take work orders too. Say \"Hey Jarvis\" and just talk, no skill name needed."
     ]
   },
   {
