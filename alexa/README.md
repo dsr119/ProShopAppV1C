@@ -50,7 +50,7 @@ callers only know a password, and pass back a `state` value between turns.
    - `ALEXA_SHARED_SECRET`: a password, letters and numbers only.
    - `ANTHROPIC_API_KEY` (optional): from <https://console.anthropic.com>
      (**API Keys**; add a few dollars under **Billing**). Each work order
-     costs well under a cent.
+     costs about 1 to 3 cents.
 5. **Deploy again** after adding or changing a secret, so the running function
    picks it up.
 
