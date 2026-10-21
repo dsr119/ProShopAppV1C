@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.5",
+    "date": "2026-10-21",
+    "notes": [
+      "New: say \"Alexa, tell Pro Shop to create a work order for ...\" to the shop Echo and it adds a ticket for Keith to review."
+    ]
+  },
+  {
     "version": "1.4",
     "date": "2026-10-08",
     "notes": [
