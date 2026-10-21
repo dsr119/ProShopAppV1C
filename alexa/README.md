@@ -74,3 +74,33 @@ what it's for.
   Logs** shows the exact reply from Supabase.
 - Alexa says she doesn't know that skill: check the Echo uses the same Amazon
   account as the developer console, and the Test tab says Development.
+
+## Siri instead (works with Alexa+)
+
+Amazon only lets select partners add their own commands to Alexa+, so on an
+Alexa+ Echo the skill above is never called. The Supabase function doesn't
+care who calls it, so an iPhone or iPad Shortcut can do the same job:
+
+> "Hey Siri, work order" → "What's the work order for?" → "the ball return on
+> lane 3 is jammed" → "Done. Work order added: The ball return on lane 3 is jammed."
+
+In the **Shortcuts** app, tap **+** and add these actions in order:
+
+1. **Dictate Text**. Tap "Show More" and set *Stop Listening* to **After Pause**.
+   Optional: set the prompt to `What's the work order for?`
+2. **Get Contents of URL**. URL:
+   `https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order`
+   Tap "Show More":
+   - Method: **POST**
+   - Headers: add `x-alexa-secret` = the same password as `ALEXA_SHARED_SECRET`
+   - Request Body: **JSON**, add field `text` = the **Dictated Text** variable,
+     and field `location` = `Valley` (or `South Side`)
+3. **Get Dictionary Value**: get the value for `title` from **Contents of URL**.
+4. **Speak Text**: `Done. Work order added:` followed by the **Dictionary Value** variable.
+
+Name the shortcut **Work order**. "Hey Siri, work order" then runs it. That
+works from the phone, an iPad left in the shop, or a HomePod with Personal
+Requests turned on.
+
+If Siri says nothing useful, run the shortcut by tapping it: a wrong password
+shows `{"error":"Wrong password ..."}` as the result of step 2.
