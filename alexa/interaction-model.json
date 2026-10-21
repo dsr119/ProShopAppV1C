@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "pro shop",
+      "invocationName": "shop tickets",
       "intents": [
         {
           "name": "CreateWorkOrderIntent",

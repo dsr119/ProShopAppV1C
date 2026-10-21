@@ -2,22 +2,22 @@
 
 Say this to the shop Echo:
 
-> "Alexa, tell Pro Shop to create a work order for the ball return on lane 3 is jammed."
+> "Alexa, ask Shop Tickets to create a work order for the ball return on lane 3 is jammed."
 
 and a ticket appears in the **To review** tab of `tickets.html`, submitted by
 **Alexa**, status New, priority Normal. Alexa reads back what she heard, so a
 mishearing can be fixed on the Tickets page. Saying "Valley" or "South Side"
 in the sentence sets the location.
 
-Amazon only runs a custom skill when you say its name, so the "tell Pro Shop
-to" part can't be dropped. If you open it without a request ("Alexa, open Pro
-Shop"), she asks "What's the work order for?" Answer starting with "it's
+Amazon only runs a custom skill when you say its name, so the "ask Shop Tickets
+to" part can't be dropped. If you open it without a request ("Alexa, open Shop
+Tickets"), she asks "What's the work order for?" Answer starting with "it's
 for...", e.g. "it's for the drill press needs a new bit".
 
 ## How it fits together
 
 ```
-Echo  ->  Pro Shop skill (alexa/skill.js, hosted free by Amazon)
+Echo  ->  Shop Tickets skill (alexa/skill.js, hosted free by Amazon)
       ->  alexa-work-order function (supabase/functions/alexa-work-order, on Supabase)
       ->  tickets table
 ```
@@ -44,7 +44,7 @@ only part that holds a database key, and all it can do is add a ticket.
 1. Go to <https://developer.amazon.com/alexa/console/ask> and sign in with the
    **same Amazon account the shop Echo is registered to**. Accept the free
    developer agreement if asked.
-2. **Create Skill**: name `Pro Shop`, language English (US), type **Custom**
+2. **Create Skill**: name `Shop Tickets`, language English (US), type **Custom**
    (sometimes shown as "Other" → Custom), hosting **Alexa-hosted (Node.js)**,
    template **Start from Scratch**. It takes a minute to set up.
 3. **Build** tab → **Interaction Model → JSON Editor**. Replace everything with
@@ -54,7 +54,7 @@ only part that holds a database key, and all it can do is add a ticket.
    `SHARED_SECRET`, and set `DEFAULT_LOCATION` to the Echo's building
    (`"Valley"` or `"South Side"`). Click **Save**, then **Deploy**.
 5. **Test** tab → set "Skill testing is enabled in" to **Development**. Type
-   `tell pro shop to create a work order for test from the computer`. You
+   `ask shop tickets to create a work order for test from the computer`. You
    should hear "Done" and see the ticket on the Tickets page.
 
 The skill stays in Development and is never published: it works on every Echo
@@ -63,8 +63,8 @@ signed in to that Amazon account and nobody else's. No certification needed.
 ### 3. Optional: a shorter phrase
 
 In the Alexa phone app: **More → Routines → +**. Set "When this happens" to
-**Voice** with `new work order`, add the action **Skills → Your Skills → Pro
-Shop**, and save. Then "Alexa, new work order" opens the skill and she asks
+**Voice** with `new work order`, add the action **Skills → Your Skills → Shop
+Tickets**, and save. Then "Alexa, new work order" opens the skill and she asks
 what it's for.
 
 ## If it doesn't work

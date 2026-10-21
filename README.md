@@ -17,7 +17,7 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 | `app/` | The site itself |
 | `website/` | The pages embedded in the public Google Sites site |
 | `apps-script/` | Google Form → Supabase trigger (the Drive backup script is retired) |
-| `alexa/`, `supabase/functions/` | "Alexa, tell Pro Shop to create a work order for ..." adds a ticket — see [alexa/README.md](alexa/README.md) |
+| `alexa/`, `supabase/functions/` | "Alexa, ask Shop Tickets to create a work order for ..." adds a ticket — see [alexa/README.md](alexa/README.md) |
 | `scraper/` | Daily ball catalog scraper and weekly backup, run by GitHub Actions — see [scraper/README.md](scraper/README.md) |
 
 Start with [migration/README.md](migration/README.md).

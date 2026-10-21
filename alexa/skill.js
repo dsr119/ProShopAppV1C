@@ -1,4 +1,4 @@
-// The "Pro Shop" Alexa skill. Paste this whole file over lambda/index.js in
+// The "Shop Tickets" Alexa skill. Paste this whole file over lambda/index.js in
 // the Alexa developer console (Code tab), fill in the three settings below,
 // then Save and Deploy. No other packages are needed.
 //
@@ -79,7 +79,7 @@ async function handle(event, fetchFn = defaultFetch) {
   const req = event.request || {};
 
   // A plain question, not a dialog directive: Alexa refuses those in reply to
-  // "open pro shop" ("not supported on this device"). The answer "it's for
+  // "open shop tickets" ("not supported on this device"). The answer "it's for
   // ..." matches the intent's own sample utterances.
   if (req.type === "LaunchRequest") {
     return speak(ASK + " Start with: it's for.", { endSession: false, reprompt: ASK });
