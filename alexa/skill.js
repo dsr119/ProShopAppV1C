@@ -98,7 +98,9 @@ async function handle(event, fetchFn = defaultFetch) {
       return speak(`Done. Work order added: ${made.title}.`);
     } catch (err) {
       console.log("work order failed", err);
-      return speak("Sorry, I couldn't add that work order. Please put it in the app instead.");
+      // Say why, briefly: it's the only clue anyone at the Echo gets.
+      const why = String(err.message || err).slice(0, 120);
+      return speak(`Sorry, I couldn't add that work order. Please put it in the app instead. ${why}`);
     }
   }
   if (name === "AMAZON.HelpIntent") {
