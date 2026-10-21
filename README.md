@@ -17,6 +17,7 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 | `app/` | The site itself |
 | `website/` | The pages embedded in the public Google Sites site |
 | `apps-script/` | Google Form → Supabase trigger (the Drive backup script is retired) |
+| `alexa/`, `supabase/functions/` | Voice work orders ("Hey Siri, work order", or Alexa on a classic Echo) — see [alexa/README.md](alexa/README.md) |
 | `scraper/` | Daily ball catalog scraper and weekly backup, run by GitHub Actions — see [scraper/README.md](scraper/README.md) |
 
 Start with [migration/README.md](migration/README.md).
@@ -54,6 +55,10 @@ Names are matched as text rather than by a foreign key, on purpose:
 `orders.staff_member` came out of the workbook as free text, and a foreign key
 would have rejected ten years of history. The roster supplies the spelling; it
 does not police what is already recorded.
+
+Tickets can also be added by voice (Siri, or a classic-Alexa Echo): who it's
+for, what we're doing, with the customer's phone looked up. They arrive in
+*To review* submitted by **Alexa**. Setup is in [alexa/README.md](alexa/README.md).
 
 ## The day board
 
