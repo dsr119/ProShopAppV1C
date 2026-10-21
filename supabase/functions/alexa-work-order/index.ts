@@ -56,9 +56,14 @@ async function handle(req, env, fetchFn) {
     new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
 
   if (req.method !== "POST") return reply(405, { error: "POST only" });
-  if (!env.ALEXA_SHARED_SECRET) return reply(500, { error: "ALEXA_SHARED_SECRET is not set" });
-  if (!sameSecret(req.headers.get("x-alexa-secret") || "", env.ALEXA_SHARED_SECRET)) {
-    return reply(401, { error: "Wrong password" });
+  // Trimmed, and stray quotes dropped: both get pasted by hand into web forms.
+  const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "");
+  const expected = clean(env.ALEXA_SHARED_SECRET);
+  const given = clean(req.headers.get("x-alexa-secret"));
+  if (!expected) return reply(500, { error: "ALEXA_SHARED_SECRET is not set" });
+  if (!sameSecret(given, expected)) {
+    // Lengths only, never the values: enough to spot a paste slip.
+    return reply(401, { error: `Wrong password (got ${given.length} characters, expected ${expected.length})` });
   }
 
   let row;

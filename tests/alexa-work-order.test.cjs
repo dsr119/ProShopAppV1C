@@ -103,3 +103,10 @@ test('skill: works where Node has no built-in fetch', () => {
   vm.runInContext(src, vm.createContext({ module: mod, exports: mod.exports, require }));
   assert.equal(typeof mod.exports.handler, 'function');
 });
+
+test('password match ignores pasted spaces and quotes', async () => {
+  const { handle } = edgeFunction();
+  const res = await handle(post({ text: 'x' }, ' s3cret '), { ...env, ALEXA_SHARED_SECRET: '"s3cret"' },
+    async () => new Response('[{"id":"a"}]', { status: 201 }));
+  assert.equal(res.status, 200);
+});
