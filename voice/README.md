@@ -56,7 +56,9 @@ To set it up again or change it:
 
 1. Install Python **3.12** (the speech parts don't support newer versions
    yet): <https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe>.
-   On the first installer screen, tick **Add python.exe to PATH**.
+   On the first installer screen, tick **Add python.exe to PATH**. Also install
+   Microsoft's Visual C++ Redistributable (<https://aka.ms/vs/17/release/vc_redist.x64.exe>);
+   without it the program stops with "DLL load failed".
 2. Download this repo (green **Code** button → **Download ZIP**) and unzip it,
    for example to `Documents\ProShopAppV1C`.
 3. In the `voice` folder, copy `config.example.json` to `config.json` and open
