@@ -22,9 +22,35 @@ laptop mic → wake word + speech-to-text (on the laptop)
 
 Listening never leaves the laptop: the wake word ([openWakeWord](https://github.com/dscripka/openWakeWord))
 and speech-to-text ([faster-whisper](https://github.com/SYSTRAN/faster-whisper))
-run on it. Only the typed-out words of a work order go to the same function the
-Alexa skill uses, so the phone lookup, Claude and the ticket come out the same.
-The laptop holds only the work order password, not a database key.
+run on it. Only the typed-out words of a work order go to the Supabase
+function, which runs the conversation and is the only part that holds a
+database key: it reads customer names and phones and adds tickets, nothing
+else. The laptop holds only the work order password.
+
+The function is still called `alexa-work-order` and its password
+`ALEXA_SHARED_SECRET` (it first served an Alexa skill); renaming them would
+mean redeploying it and changing the laptop's settings for no gain.
+
+**Phone lookup:** the name is searched in the customer directory, orders and
+appointments. "Doug" finds "Douglas Smith". If two different numbers match,
+the phone is left blank and you're told to add it in the app.
+
+**Claude:** with an Anthropic API key, Claude reads each answer, so "for doug
+smith to plug his fourteen pound ball before thursday league" becomes title
+*Plug 14 lb ball*, priority High, due Thursday's date. Without a key, or if
+Claude takes over 5 seconds, simple rules do it and the words become the title.
+Each work order costs about 1 to 3 cents.
+
+## The Supabase function (already set up)
+
+To set it up again or change it:
+
+1. Supabase dashboard → **Edge Functions** → `alexa-work-order` → **Code**:
+   paste the whole of `supabase/functions/alexa-work-order/index.ts`, **Deploy**.
+2. Function **Settings**: "Enforce JWT verification" stays **off**.
+3. **Edge Functions → Secrets**: `ALEXA_SHARED_SECRET` (the password, letters
+   and numbers only) and `ANTHROPIC_API_KEY` (from <https://console.anthropic.com>).
+4. **Deploy again** after changing a secret, so the function picks it up.
 
 ## Setup (Windows)
 

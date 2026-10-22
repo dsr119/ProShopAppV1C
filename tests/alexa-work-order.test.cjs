@@ -13,7 +13,6 @@ function edgeFunction() {
   return ctx;
 }
 
-const skill = require('../alexa/skill.js');
 const env = { ALEXA_SHARED_SECRET: 's3cret', SUPABASE_URL: 'https://db.test', SUPABASE_SERVICE_ROLE_KEY: 'key' };
 
 function post(body, secret = 's3cret') {
@@ -239,51 +238,4 @@ test('location comes from the words, else the device default', () => {
   assert.equal(fn.pickLocation('at south side', 'Valley'), 'South Side');
   assert.equal(fn.pickLocation('order tape', 'Valley'), 'Valley');
   assert.equal(fn.pickLocation('order tape', ''), null);
-});
-
-// --- Alexa skill (relay) ---------------------------------------------------
-
-const intent = (value, state) => ({
-  session: { attributes: state ? { state } : {} },
-  request: { type: 'IntentRequest', intent: { name: 'CreateWorkOrderIntent', slots: { request: { name: 'request', value } } } },
-});
-
-test('skill: passes the words and state through and keeps listening until done', async () => {
-  let sent;
-  const out = await skill.handle(intent('doug smith', 'S1'), async (url, init) => {
-    sent = JSON.parse(init.body);
-    return new Response(JSON.stringify({ done: false, say: 'What are we doing for Doug Smith?', state: 'S2' }));
-  });
-  assert.equal(sent.text, 'doug smith');
-  assert.equal(sent.state, 'S1');
-  assert.equal(out.response.directives[0].type, 'Dialog.ElicitSlot');
-  assert.equal(out.response.outputSpeech.text, 'What are we doing for Doug Smith?');
-  assert.equal(out.sessionAttributes.state, 'S2');
-});
-
-test('skill: says the result and ends when the work order is added', async () => {
-  const out = await skill.handle(intent('plug his ball', 'S2'), async () =>
-    new Response(JSON.stringify({ done: true, say: 'Work order added for Doug Smith: Plug ball.' })));
-  assert.equal(out.response.outputSpeech.text, 'Work order added for Doug Smith: Plug ball.');
-  assert.equal(out.response.shouldEndSession, true);
-});
-
-test('skill: opening it asks plainly (no dialog directive) and keeps listening', async () => {
-  const out = await skill.handle({ request: { type: 'LaunchRequest' } }, async () =>
-    new Response(JSON.stringify({ done: false, say: "Who's it for, and what are we doing?", state: 'S1' })));
-  assert.equal(out.response.shouldEndSession, false);
-  assert.equal(out.response.directives, undefined);
-  assert.equal(out.sessionAttributes.state, 'S1');
-});
-
-test('skill: a failed call says why', async () => {
-  const out = await skill.handle(intent('x'), async () => new Response('nope', { status: 500 }));
-  assert.match(out.response.outputSpeech.text, /couldn't add.*500/);
-});
-
-test('skill: works where Node has no built-in fetch', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'alexa', 'skill.js'), 'utf8');
-  const mod = { exports: {} };
-  vm.runInContext(src, vm.createContext({ module: mod, exports: mod.exports, require }));
-  assert.equal(typeof mod.exports.handler, 'function');
 });

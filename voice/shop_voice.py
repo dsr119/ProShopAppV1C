@@ -1,9 +1,9 @@
 """Shop voice bot: say "Hey Jarvis", then the work order.
 
 Runs on a spare laptop. The wake word and speech-to-text run on the laptop;
-the words go to the alexa-work-order Supabase function (the same one the Alexa
-skill uses), which asks follow-up questions, looks up the customer's phone and
-adds the ticket. The laptop speaks the answer.
+the words go to the alexa-work-order Supabase function (named for the Alexa
+skill it first served), which asks follow-up questions, looks up the
+customer's phone and adds the ticket. The laptop speaks the answer.
 
 Setup and settings: voice/README.md and voice/config.json.
 """
