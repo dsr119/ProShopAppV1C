@@ -39,7 +39,7 @@ the phone is left blank and you're told to add it in the app.
 smith to plug his fourteen pound ball before thursday league" becomes title
 *Plug 14 lb ball*, priority High, due Thursday's date. Without a key, or if
 Claude takes over 5 seconds, simple rules do it and the words become the title.
-Each work order costs about 1 to 3 cents.
+Claude Haiku costs well under a tenth of a cent per work order.
 
 ## The Supabase function (already set up)
 
