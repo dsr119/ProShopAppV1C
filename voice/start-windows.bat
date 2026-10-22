@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-py shop_voice.py
+py -3.12 shop_voice.py
 pause

@@ -54,8 +54,9 @@ To set it up again or change it:
 
 ## Setup (Windows)
 
-1. Install Python 3.12 from <https://www.python.org/downloads/>. On the first
-   installer screen, tick **Add python.exe to PATH**.
+1. Install Python **3.12** (the speech parts don't support newer versions
+   yet): <https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe>.
+   On the first installer screen, tick **Add python.exe to PATH**.
 2. Download this repo (green **Code** button → **Download ZIP**) and unzip it,
    for example to `Documents\ProShopAppV1C`.
 3. In the `voice` folder, copy `config.example.json` to `config.json` and open
@@ -64,8 +65,8 @@ To set it up again or change it:
 4. Open **Command Prompt** in the `voice` folder (in File Explorer, type `cmd`
    in the address bar and press Enter) and run:
    ```
-   py -m pip install -r requirements.txt
-   py shop_voice.py --test
+   py -3.12 -m pip install -r requirements.txt
+   py -3.12 shop_voice.py --test
    ```
    `--test` should print **Connected.** It doesn't add a ticket.
 5. Double-click `start-windows.bat`. The first start downloads the speech
@@ -88,7 +89,7 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 | `wake_word` | `hey_jarvis` (default), `hey_mycroft` or `hey_rhasspy`. A custom one like "Hey Pro Shop" can be trained later. |
 | `wake_threshold` | 0 to 1. Raise it (0.6, 0.7) if it wakes up on its own; lower it (0.4) if it misses you. |
 | `whisper_model` | `base.en` (default). `small.en` hears better but is slower; `tiny.en` for a very old laptop. |
-| `mic` | Leave `null` for the default mic. `py shop_voice.py --list-mics` lists them; put the number here. |
+| `mic` | Leave `null` for the default mic. `py -3.12 shop_voice.py --list-mics` lists them; put the number here. |
 | `silence_seconds` | How long a pause ends your sentence. Raise to 1.5 if it cuts you off. |
 | `max_seconds` | Longest single answer. |
 
