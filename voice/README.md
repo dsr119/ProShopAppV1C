@@ -81,6 +81,8 @@ microphone the first time).
 **Keep it running:** set the laptop to never sleep when plugged in (Windows:
 Settings → System → Power). To start it with Windows, press Win+R, type
 `shell:startup`, and put a shortcut to `start-windows.bat` in that folder.
+To run it with the lid closed (with an external mic), set Start → "Change
+what closing the lid does" → Plugged in → **Do nothing**.
 
 ## Settings (`config.json`)
 
