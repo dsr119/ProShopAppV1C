@@ -122,13 +122,13 @@ The text is a speech transcript: fix obvious mishearings (bowling terms like plu
 async function aiTurn(state, text, now, claude) {
   const said = [...state.heard, text].map((t, i) => `${i + 1}. ${t}`).join("\n");
   const asked = state.asked === "name" ? "Who's it for?" : state.asked === "work" ? "What are we doing?" : "(nothing yet)";
-  const response = await claude.beta.messages.create({
-    model: "claude-opus-5-5",
+  // Haiku: fast and cheap, and picking a name and a job out of a sentence is
+  // well within it. A decline (Haiku has no server-side fallback) throws, and
+  // the simple rules make the ticket instead.
+  const response = await claude.messages.create({
+    model: "claude-haiku-5-5",
     max_tokens: 2000,
     output_config: { effort: "low", format: { type: "json_schema", schema: TURN_SCHEMA } },
-    // On a safety decline, rerun on Anthropic's recommended fallback model.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
     system: turnPrompt(now),
     messages: [{ role: "user", content: `Last question asked: ${asked}\n\nSaid so far:\n${said}` }],
   });

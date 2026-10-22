@@ -6,3 +6,7 @@ __pycache__/
 # customer names and phone numbers, so they never go in this public repo.
 migration/output/
 migration/source.xlsx
+
+# Holds the work order password.
+voice/config.json
+voice/voices/
