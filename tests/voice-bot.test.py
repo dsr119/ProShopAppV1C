@@ -86,8 +86,8 @@ class EndpointerTests(unittest.TestCase):
         self.assertEqual(steps + 1, ep.wait_frames)
 
     def test_threshold_rises_with_shop_noise(self):
-        self.assertEqual(voice.Endpointer(noise=0).threshold, 250)
-        self.assertEqual(voice.Endpointer(noise=1000).threshold, 2500)
+        self.assertEqual(voice.Endpointer(noise=0).threshold, 120)
+        self.assertEqual(voice.Endpointer(noise=1000).threshold, 2000)
         # A lathe at 1000 doesn't count as talking.
         ep = voice.Endpointer(noise=1000)
         ep.add(frame(1000))
@@ -145,6 +145,10 @@ class MiscTests(unittest.TestCase):
             self.assertTrue(voice.CANCEL.match(said), said)
         for said in ['for Doug Smith', 'stopper for the ball return']:
             self.assertFalse(voice.CANCEL.match(said), said)
+
+    def test_wake_word_is_trimmed_from_what_was_heard(self):
+        for said in ['Hey Jarvis, work order for Doug', 'Jarvis. work order for Doug', 'work order for Doug']:
+            self.assertEqual(voice.WAKE_WORDS.sub('', said).strip(), 'work order for Doug')
 
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')

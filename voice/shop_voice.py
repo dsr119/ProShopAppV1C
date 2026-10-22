@@ -42,6 +42,8 @@ VOCAB = ("Work order for the bowling pro shop. Plug and redrill, resurface, "
          "thumb slug, finger inserts, 14 pound ball, Storm, Hammer, Roto Grip, "
          "Valley, South Side, league.")
 
+# The tail of the wake word can end up in the recording.
+WAKE_WORDS = re.compile(r"^\W*((hey|hi|a)\W+)?(jarvis|mycroft|rhasspy)\b\W*", re.I)
 CANCEL = re.compile(r"^\s*(never ?mind|cancel|stop|forget it|nothing)\b", re.I)
 
 
@@ -99,18 +101,21 @@ class Endpointer:
     """
 
     def __init__(self, noise, silence_seconds=1.0, max_seconds=20, wait_seconds=6):
-        self.threshold = max(noise * 2.5, 250.0)
+        self.threshold = max(noise * 2.0, 120.0)
         self.quiet_frames = int(silence_seconds * RATE / FRAME)
         self.max_frames = int(max_seconds * RATE / FRAME)
         self.wait_frames = int(wait_seconds * RATE / FRAME)
         self.frames = []
         self.spoke = False
         self.quiet = 0
+        self.loudest = 0.0
 
     def add(self, frame):
         """Returns True once the recording is finished."""
         self.frames.append(frame)
-        if rms(frame) >= self.threshold:
+        level = rms(frame)
+        self.loudest = max(self.loudest, level)
+        if level >= self.threshold:
             self.spoke = True
             self.quiet = 0
         else:
@@ -140,9 +145,9 @@ def speak(text):
         pass
 
 
-def beep(sd, freq=880, seconds=0.12):
+def beep(sd, freq=880, seconds=0.25):
     t = np.arange(int(RATE * seconds)) / RATE
-    sd.play((0.3 * np.sin(2 * np.pi * freq * t)).astype(np.float32), RATE, blocking=True)
+    sd.play((0.6 * np.sin(2 * np.pi * freq * t)).astype(np.float32), RATE, blocking=True)
 
 
 class Shop:
@@ -172,23 +177,49 @@ class Shop:
         self.wake.reset()
 
     def wait_for_wake(self):
+        heard = 0
         while True:
             frame = self.frames.get()
             self.noise = (self.noise + [rms(frame)])[-100:]
+            heard += 1
+            if heard == 50 and max(self.noise) < 1:
+                print("The mic is sending silence. Windows: Settings > Privacy > Microphone, "
+                      "turn on 'Let desktop apps access your microphone'. Or pick another mic in config.json.")
             scores = self.wake.predict(frame)
             if max(scores.values()) >= self.cfg["wake_threshold"]:
                 return
 
+    def mic_check(self, seconds=20):
+        """Prints the mic level and wake word score, to see what it hears."""
+        name = self.cfg["wake_word"].replace("_", " ").title()
+        print(f'Mic check for {seconds} seconds. Talk, and say "{name}" a few times.')
+        with self.stream:
+            levels, best = [], 0.0
+            for i in range(int(seconds * RATE / FRAME)):
+                frame = self.frames.get()
+                levels.append(rms(frame))
+                best = max(best, max(self.wake.predict(frame).values()))
+                if len(levels) == 6:
+                    level = max(levels)
+                    print(f"level {level:6.0f} {'#' * min(60, int(level / 50))}"
+                          f"{'   <- Hey Jarvis heard' if best >= self.cfg['wake_threshold'] else ''}"
+                          f"   (wake score {best:.2f})")
+                    levels, best = [], 0.0
+        print("Speech should reach at least 120. Below that, the mic is too quiet: turn up its "
+              "volume in Windows Sound settings > Input, or use a USB mic.")
+
     def listen(self):
         noise = float(np.median(self.noise)) if self.noise else 0.0
         ep = Endpointer(noise, self.cfg["silence_seconds"], self.cfg["max_seconds"])
+        print("Listening...")
         while not ep.add(self.frames.get()):
             pass
         if not ep.spoke:
+            print(f"Heard nothing loud enough (loudest {ep.loudest:.0f}, needed {ep.threshold:.0f}).")
             return ""
         segments, _ = self.whisper.transcribe(ep.audio(), language="en", beam_size=1,
                                               initial_prompt=VOCAB)
-        text = " ".join(s.text.strip() for s in segments).strip()
+        text = WAKE_WORDS.sub("", " ".join(s.text.strip() for s in segments)).strip()
         print("Heard:", text or "(nothing)")
         return text
 
@@ -215,11 +246,15 @@ class Shop:
     def run(self):
         name = self.cfg["wake_word"].replace("_", " ").title()
         with self.stream:
+            print("Mic:", self.sd.query_devices(self.cfg["mic"], "input")["name"])
             print(f'Ready. Say "{name}", then the work order. Ctrl+C to quit.')
             while True:
                 self.wait_for_wake()
+                print("Woke up.")
                 beep(self.sd)
-                self.flush()
+                # No flush here: words said right after the wake word, without
+                # waiting for the beep, are kept.
+                self.wake.reset()
                 self.conversation()
                 self.flush()
 
@@ -238,6 +273,9 @@ def main():
         print("Connected." if reply.get("state") else "Not working:", reply.get("say") or reply.get("error"))
         return
     try:
+        if "--mic-check" in sys.argv:
+            Shop(cfg).mic_check()
+            return
         Shop(cfg).run()
     except KeyboardInterrupt:
         print("Bye.")

@@ -95,6 +95,9 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 | `silence_seconds` | How long a pause ends your sentence. Raise to 1.5 if it cuts you off. |
 | `max_seconds` | Longest single answer. |
 
+`py -3.12 shop_voice.py --mic-check` shows the mic level and the wake word
+score for 20 seconds; speech should reach at least 120.
+
 The window prints what it heard (`Heard: ...`) and what it said, which is the
 first place to look when a ticket comes out wrong.
 
