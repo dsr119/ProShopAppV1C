@@ -2,3 +2,4 @@ openwakeword==0.6.0
 faster-whisper>=1.1
 sounddevice>=0.5
 numpy
+piper-tts>=1.3

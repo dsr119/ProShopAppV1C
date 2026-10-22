@@ -150,6 +150,18 @@ class MiscTests(unittest.TestCase):
         for said in ['Hey Jarvis, work order for Doug', 'Jarvis. work order for Doug', 'work order for Doug']:
             self.assertEqual(voice.WAKE_WORDS.sub('', said).strip(), 'work order for Doug')
 
+    def test_piper_voice_plays_every_sentence(self):
+        class Chunk:
+            def __init__(self, n):
+                self.audio_int16_array, self.sample_rate = np.ones(n, np.int16), 22050
+
+        played = []
+        speaker = voice.PiperSpeaker.__new__(voice.PiperSpeaker)
+        speaker.voice = type('V', (), {'synthesize': lambda self, text: [Chunk(3), Chunk(2)]})()
+        speaker.sd = type('SD', (), {'play': lambda self, audio, rate, blocking: played.append((len(audio), rate))})()
+        speaker('Work order added. Thanks.')
+        self.assertEqual(played, [(5, 22050)])
+
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')
         path.write_text(json.dumps({'_help': 'x', 'password': 'abc', 'location': 'South Side'}))

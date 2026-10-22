@@ -9,3 +9,4 @@ migration/source.xlsx
 
 # Holds the work order password.
 voice/config.json
+voice/voices/

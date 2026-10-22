@@ -8,5 +8,6 @@
   "whisper_model": "base.en",
   "mic": null,
   "silence_seconds": 1.0,
-  "max_seconds": 20
+  "max_seconds": 20,
+  "voice": "en_US-lessac-medium"
 }

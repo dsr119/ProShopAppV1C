@@ -35,6 +35,7 @@ DEFAULTS = {
     "mic": None,
     "silence_seconds": 1.0,
     "max_seconds": 20,
+    "voice": "en_US-lessac-medium",
 }
 
 # Biases speech-to-text toward the words the shop actually says.
@@ -43,7 +44,7 @@ VOCAB = ("Work order for the bowling pro shop. Plug and redrill, resurface, "
          "Valley, South Side, league.")
 
 # The tail of the wake word can end up in the recording.
-WAKE_WORDS = re.compile(r"^\W*((hey|hi|a)\W+)?(jarvis|mycroft|rhasspy)\b\W*", re.I)
+WAKE_WORDS = re.compile(r"^\W*((hey|hi|a)\W+)?(jarvis|mycroft|rhasspy|alexa)\b\W*", re.I)
 CANCEL = re.compile(r"^\s*(never ?mind|cancel|stop|forget it|nothing)\b", re.I)
 
 
@@ -128,7 +129,30 @@ class Endpointer:
         return np.concatenate(self.frames).astype(np.float32) / 32768.0 if self.frames else np.zeros(0, np.float32)
 
 
+class PiperSpeaker:
+    """A natural-sounding voice (Piper) that runs on the laptop and stays loaded."""
+
+    def __init__(self, sd, name):
+        from pathlib import Path
+        from piper import PiperVoice
+        from piper.download_voices import download_voice
+
+        folder = Path(HERE) / "voices"
+        folder.mkdir(exist_ok=True)
+        if not (folder / f"{name}.onnx").exists():
+            download_voice(name, folder)
+        self.sd = sd
+        self.voice = PiperVoice.load(folder / f"{name}.onnx")
+
+    def __call__(self, text):
+        print("Says:", text)
+        chunks = list(self.voice.synthesize(text))
+        audio = np.concatenate([c.audio_int16_array for c in chunks])
+        self.sd.play(audio, chunks[0].sample_rate, blocking=True)
+
+
 def speak(text):
+    """The computer's built-in voice: robotic, but always there."""
     print("Says:", text)
     try:
         if sys.platform == "win32":
@@ -159,6 +183,12 @@ class Shop:
 
         self.cfg, self.sd = cfg, sd
         print("Loading models (the first run downloads them)...")
+        self.speak = speak
+        if cfg["voice"]:
+            try:
+                self.speak = PiperSpeaker(sd, cfg["voice"])
+            except Exception as err:
+                print("Using the built-in voice; Piper didn't load:", err)
         download_models([cfg["wake_word"]])
         self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx")
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
@@ -217,14 +247,19 @@ class Shop:
         if not ep.spoke:
             print(f"Heard nothing loud enough (loudest {ep.loudest:.0f}, needed {ep.threshold:.0f}).")
             return ""
+        started = time.time()
         segments, _ = self.whisper.transcribe(ep.audio(), language="en", beam_size=1,
                                               initial_prompt=VOCAB)
         text = WAKE_WORDS.sub("", " ".join(s.text.strip() for s in segments)).strip()
-        print("Heard:", text or "(nothing)")
+        print(f"Heard ({time.time() - started:.1f}s):", text or "(nothing)")
         return text
 
     def say(self, text):
-        speak(text)
+        try:
+            self.speak(text)
+        except Exception as err:
+            print("Voice problem:", err)
+            speak(text)
         self.flush()
 
     def conversation(self):
@@ -234,7 +269,9 @@ class Shop:
             if not text or CANCEL.match(text):
                 self.say("Okay, never mind." if text else "I didn't hear anything.")
                 return
+            started = time.time()
             reply = post_turn(self.cfg, text, state)
+            print(f"Server answered in {time.time() - started:.1f}s")
             if reply.get("done") or not reply.get("state"):
                 self.say(reply.get("say") or "Done.")
                 return

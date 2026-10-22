@@ -140,12 +140,12 @@ test('lookup: two different numbers for the name leaves the phone off and says s
 // --- with Claude -------------------------------------------------------------
 
 function fakeClaude(replies, seen = []) {
-  return { beta: { messages: { create: async (params) => {
+  return { messages: { create: async (params) => {
     seen.push(params);
     const r = replies.shift();
     if (r instanceof Error) throw r;
     return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(r) }] };
-  } } } };
+  } } };
 }
 const blank = { customer_name: '', customer_phone: '', for_shop: false, work: '', title: '', details: '',
   category: 'Other', priority: 'normal', due_date: '' };
@@ -163,7 +163,7 @@ test('AI: one breath becomes a tidy ticket with title, priority and due date', a
   assert.equal(row.priority, 'high');
   assert.equal(row.due_date, '2026-10-23');
   assert.match(row.details, /^Customer: Doug Smith\nPhone: 555-123-4567\n\nNeeds it for Thursday league\.\n\nSaid: "/);
-  assert.equal(seen[0].model, 'claude-opus-5-5');
+  assert.equal(seen[0].model, 'claude-haiku-5-5');
   assert.equal(seen[0].output_config.format.type, 'json_schema');
 });
 

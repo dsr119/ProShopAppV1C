@@ -88,7 +88,8 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 |---|---|
 | `password` | The `ALEXA_SHARED_SECRET` from Supabase. |
 | `location` | `Valley` or `South Side`; used unless the other one is said. |
-| `wake_word` | `hey_jarvis` (default), `hey_mycroft` or `hey_rhasspy`. A custom one like "Hey Pro Shop" can be trained later. |
+| `wake_word` | `hey_jarvis` (default), `alexa`, `hey_mycroft` or `hey_rhasspy`. A custom one like "Hey Pro Shop" can be trained later. |
+| `voice` | The spoken voice: `en_US-lessac-medium` (default), `en_US-ryan-medium` (male), `en_US-amy-medium`; downloaded on first use. Add `-low` instead of `-medium` for a faster, rougher voice; `""` uses the computer's built-in voice. |
 | `wake_threshold` | 0 to 1. Raise it (0.6, 0.7) if it wakes up on its own; lower it (0.4) if it misses you. |
 | `whisper_model` | `base.en` (default). `small.en` hears better but is slower; `tiny.en` for a very old laptop. |
 | `mic` | Leave `null` for the default mic. `py -3.12 shop_voice.py --list-mics` lists them; put the number here. |
