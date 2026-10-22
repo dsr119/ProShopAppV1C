@@ -48,7 +48,7 @@ CANCEL = re.compile(r"^\s*(never ?mind|cancel|stop|forget it|nothing)\b", re.I)
 def load_config(path=os.path.join(HERE, "config.json")):
     cfg = dict(DEFAULTS)
     if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
+        with open(path, encoding="utf-8-sig") as f:  # Notepad may add a BOM
             cfg.update({k: v for k, v in json.load(f).items() if not k.startswith("_")})
     return cfg
 
