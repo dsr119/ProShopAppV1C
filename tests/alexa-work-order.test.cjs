@@ -30,6 +30,10 @@ function fakeDb(customers = []) {
       db.speccy = (db.speccy || 0) + 1;
       return new Response(JSON.stringify(db.speccyRows || []), { status: 200 });
     }
+    if (url.endsWith('/rest/v1/voice_review')) {
+      (db.reviews = db.reviews || []).push(JSON.parse(init.body));
+      return new Response('', { status: 201 });
+    }
     if (url.endsWith('/rest/v1/tickets')) {
       db.inserted.push(JSON.parse(init.body));
       return new Response('[{"id":"t1"}]', { status: 201 });
@@ -130,15 +134,31 @@ test('lookup: an exact name beats a close one; the same number twice is one matc
   assert.equal(m.phone, '555-123-4567');
 });
 
-test('lookup: two different numbers for the name leaves the phone off and says so', async () => {
+const twoDougs = () => fakeDb([
+  { customer_name: 'Doug Smith', phone: '555-123-4567' },
+  { customer_name: 'Doug Smith', phone: '555-765-4321', table: 'appointments' },
+]);
+
+test('lookup: two different numbers for the name asks for the last four digits', async () => {
   const fn = edgeFunction();
-  const db = fakeDb([
-    { customer_name: 'Doug Smith', phone: '555-123-4567' },
-    { customer_name: 'Doug Smith', phone: '555-765-4321', table: 'appointments' },
-  ]);
-  const out = await say(fn, db, 'for doug smith to resurface his ball');
+  const db = twoDougs();
+  let out = await say(fn, db, 'for doug smith to resurface his ball');
+  assert.equal(out.done, false);
+  assert.equal(out.say, 'I found 2 customers named Doug Smith. What are the last four digits of their phone number?');
+  out = await say(fn, db, 'four three two one', out.state);
+  assert.equal(out.say, 'Work order added for Doug Smith: Resurface his ball.');
+  assert.match(db.inserted[0].details, /^Customer: Doug Smith\nPhone: 555-765-4321\n/);
+});
+
+test('lookup: last four that match nobody asks again; "don\'t know" goes on without the phone', async () => {
+  const fn = edgeFunction();
+  const db = twoDougs();
+  let out = await say(fn, db, 'for doug smith to resurface his ball');
+  out = await say(fn, db, '9999', out.state);
+  assert.equal(out.say, 'None of them end in 9 9 9 9. What are the last four digits of the phone number?');
+  out = await say(fn, db, "I don't know", out.state);
   assert.equal(out.done, true);
-  assert.match(out.say, /more than one Doug Smith/);
+  assert.match(out.say, /more than one Doug Smith, so add the phone number in the app/);
   assert.match(db.inserted[0].details, /^Customer: Doug Smith\nPhone: \n/);
 });
 
@@ -250,13 +270,14 @@ test('location comes from the words, else the device default', () => {
 
 // A fake Square plus Supabase: records every Square call.
 function fakeShop({ squareCustomers = [], catalog = [], aliases = [], speccy = [], directory = [] } = {}) {
-  const shop = { calls: [], inserted: [] };
+  const shop = { calls: [], inserted: [], reviews: [] };
   const json = (v, status = 200) => new Response(JSON.stringify(v), { status });
   shop.fetch = async (url, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
     if (url.startsWith('https://speccy.test/')) return json(speccy);
     if (url.startsWith('https://db.test/rest/v1/voice_aliases')) return json(aliases);
     if (url.startsWith('https://db.test/rest/v1/customer_directory')) return json(directory);
+    if (url.startsWith('https://db.test/rest/v1/voice_review')) { shop.reviews.push(body); return json([], 201); }
     if (url.startsWith('https://db.test/')) return json([]);
     const path = url.replace('https://connect.squareup.com/v2', '');
     shop.calls.push({ path, body, headers: init.headers });
@@ -351,7 +372,9 @@ test('new customer: details from the spec sheets, added to Square, then invoiced
   const shop = fakeShop({ catalog: CATALOG, speccy: [{ name: 'William Jones', phone: '(555) 444-9999' }] });
   const claude = fakeClaude([{ ...blank, intent: 'new_customer', customer_name: 'Bill Jones',
     items: [{ spoken: '15 pound motiv tag', quantity: 1 }] }]);
-  const out = await sayShop(fn, shop, 'create bill jones as a new customer and an invoice for a 15 pound motiv tag', '', claude);
+  let out = await sayShop(fn, shop, 'create bill jones as a new customer and an invoice for a 15 pound motiv tag', '', claude);
+  assert.equal(out.say, "I couldn't find Bill Jones in the app or Speccy. What's their phone number?");
+  out = await sayShop(fn, shop, "don't know", out.state, claude);
   // "Bill" isn't "William": no spec sheet match, so he's added as said, without a phone.
   assert.match(out.say, /I added Bill Jones to Square without a phone number\.$/);
   const created = shop.calls.find((c) => c.path === '/customers').body;
@@ -383,7 +406,7 @@ test('invoice: nothing found in Square means no invoice', async () => {
 
 test('invoice: without the AI step, or without Square, it says so', async () => {
   const fn = edgeFunction();
-  const shop = fakeShop();
+  const shop = fakeShop({ directory: [{ customer_name: 'Ann Lee', phone: '555-000-1111' }] });
   let out = await sayShop(fn, shop, 'create an invoice for ann lee for a motiv tag', '', null);
   assert.match(out.say, /only make invoices when the AI step is working/);
   const claude = fakeClaude([{ ...blank, intent: 'invoice', customer_name: 'Ann Lee', items: [{ spoken: 'tag', quantity: 1 }] }]);
@@ -401,4 +424,82 @@ test('invoice: a Square error is spoken, not swallowed', async () => {
   const claude = fakeClaude([{ ...blank, intent: 'invoice', customer_name: 'Ann Lee', items: [{ spoken: 'tag', quantity: 1 }] }]);
   const out = await sayShop(fn, shop, 'invoice ann lee tag', '', claude);
   assert.equal(out.say, "Sorry, Square had a problem, so there's no invoice. Square said 401: Bad token");
+});
+
+test('invoice: a name in neither the app nor Speccy asks for the phone number', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ catalog: CATALOG, squareCustomers: [{ id: 'C3', family_name: 'Ray' }] });
+  const claude = fakeClaude([{ ...blank, intent: 'invoice', customer_name: 'Sam Ray', items: [{ spoken: '14 lb motiv tag', quantity: 1 }] }]);
+  let out = await sayShop(fn, shop, 'invoice sam ray 14 pound motiv tag', '', claude);
+  assert.equal(out.say, "I couldn't find Sam Ray in the app or Speccy. What's their phone number?");
+  out = await sayShop(fn, shop, '570 555 1212', out.state, claude);
+  assert.match(out.say, /^Draft invoice in Square for Sam Ray: Motiv Tag 14 lb/);
+  assert.deepEqual(shop.calls.find((c) => c.path === '/customers/search').body.query.filter.phone_number, { fuzzy: '5705551212' });
+});
+
+test('invoice: several customers by the name are told apart by the last four', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ catalog: CATALOG, squareCustomers: [{ id: 'C1', family_name: 'Smith' }],
+    directory: [{ customer_name: 'Doug Smith', phone: '555-123-4567' }],
+    speccy: [{ name: 'Doug Smith', phone: '570-222-9876' }] });
+  const claude = fakeClaude([{ ...blank, intent: 'invoice', customer_name: 'Doug Smith', items: [{ spoken: '14 lb motiv tag', quantity: 1 }] }]);
+  let out = await sayShop(fn, shop, 'invoice doug smith 14 pound motiv tag', '', claude);
+  assert.match(out.say, /^I found 2 customers named Doug Smith/);
+  out = await sayShop(fn, shop, 'its 9876', out.state, claude);
+  assert.match(out.say, /^Draft invoice in Square for Doug Smith/);
+  assert.deepEqual(shop.calls.find((c) => c.path === '/customers/search').body.query.filter.phone_number, { fuzzy: '5702229876' });
+});
+
+const PEARL = [
+  item('iamx', 'Storm I Am X Pearl', [['iamx14', '14 lb'], ['iamx15', '15 lb']]),
+  item('phaze', 'Storm Phaze Pearl', [['phaze14', '14 lb']]),
+  item('grips', 'Drilling - Standard w/ Grips', [['grips1', 'Regular']]),
+  item('drill', 'Drilling - Standard', [['drill1', 'Regular']]),
+];
+
+test('invoice: Claude picks the closest Square item for loosely said names, noted for review', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ catalog: PEARL, squareCustomers: [{ id: 'C1', family_name: 'Smith' }],
+    directory: [{ customer_name: 'Doug Smith', phone: '555-123-4567' }] });
+  const seen = [];
+  const claude = fakeClaude([
+    { ...blank, intent: 'invoice', customer_name: 'Doug Smith',
+      items: [{ spoken: '15 lb IAMX Pearl', quantity: 1 }, { spoken: 'standard drilling with grips', quantity: 1 }] },
+    { picks: [{ line: 1, item_id: 'iamx', sure: false }, { line: 2, item_id: 'grips', sure: true }] },
+  ], seen);
+  const out = await sayShop(fn, shop, 'create an invoice for doug smith for a 15 pound IAMX pearl and a standard drilling with grips', '', claude);
+  assert.equal(out.say, 'Draft invoice in Square for Doug Smith: Storm I Am X Pearl 15 lb, Drilling - Standard w/ Grips, $289.95.' +
+     ' I used Storm I Am X Pearl for "IAMX Pearl", so check it in Square.');
+  assert.deepEqual(shop.calls.find((c) => c.path === '/orders').body.order.line_items.map((l) => l.catalog_object_id), ['iamx15', 'grips1']);
+  assert.match(seen[1].messages[0].content, /1\. Said: "15 lb IAMX Pearl"\n   - id iamx: Storm I Am X Pearl/);
+  assert.equal(shop.reviews.length, 1);
+  assert.match(shop.reviews[0].problem, /Closest match: "15 lb IAMX Pearl" -> Storm I Am X Pearl/);
+  assert.match(shop.reviews[0].heard, /IAMX pearl/);
+});
+
+test('invoice: if Claude cannot pick, the closest name by spelling is used', () => {
+  const fn = edgeFunction();
+  assert.equal(fn.pickItem(PEARL, 'IAMX Pearl', '14').id, 'iamx14');
+  assert.equal(fn.pickItem(CATALOG, 'motive tagg', '15').id, 'tag15');
+  assert.equal(fn.pickItem(CATALOG, 'wrist brace', ''), null);
+});
+
+test('review: what it could not understand is noted for review', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ catalog: CATALOG, directory: [{ customer_name: 'Ann Lee', phone: '555-000-1111' }],
+    squareCustomers: [{ id: 'C2' }] });
+  const claude = fakeClaude([{ ...blank, intent: 'invoice', customer_name: 'Ann Lee', items: [{ spoken: 'wrist brace', quantity: 1 }] }]);
+  await sayShop(fn, shop, 'invoice ann lee wrist brace', '', claude);
+  assert.deepEqual(shop.reviews, [{ problem: 'Not found in Square: "wrist brace"', heard: 'invoice ann lee wrist brace',
+    reply: "I couldn't find wrist brace in Square, so I didn't make the invoice.", location: 'Valley' }]);
+
+  // A conversation that never got there is noted too.
+  const db = fakeDb();
+  const mumbles = fakeClaude([blank, blank, blank, blank, blank]);
+  let out = await say(fn, db, '');
+  for (let i = 0; i < 4 && !out.done; i++) out = await say(fn, db, 'um', out.state, mumbles);
+  assert.equal(out.done, true);
+  assert.equal(db.reviews.length, 1);
+  assert.match(db.reviews[0].problem, /Didn't get the work order/);
+  assert.equal(db.reviews[0].heard, 'um / um / um / um');
 });

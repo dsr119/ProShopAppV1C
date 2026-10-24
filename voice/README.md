@@ -31,9 +31,11 @@ The function is still called `alexa-work-order` and its password
 `ALEXA_SHARED_SECRET` (it first served an Alexa skill); renaming them would
 mean redeploying it and changing the laptop's settings for no gain.
 
-**Phone lookup:** the name is searched in the customer directory, orders and
-appointments. "Doug" finds "Douglas Smith". If two different numbers match,
-the phone is left blank and you're told to add it in the app.
+**Phone lookup:** the name is searched in the customer directory, orders,
+appointments and Speccy's spec sheets. "Doug" finds "Douglas Smith". If
+customers with different numbers match, it asks for the last four digits of
+the phone number ("I don't know" carries on without it; an invoice then
+stops). For an invoice, a name found nowhere gets "What's their phone number?"
 
 **Claude:** with an Anthropic API key, Claude reads each answer, so "for doug
 smith to plug his fourteen pound ball before thursday league" becomes title
@@ -55,9 +57,11 @@ Claude Haiku costs well under a tenth of a cent per work order.
 - The customer is found in Square by phone number (looked up from the customer
   list and Speccy). Someone not in Square isn't invoiced unless you say "new
   customer".
-- Items are matched to the Square item library by name; a ball's weight picks
-  the variation. If no weight is said, or that weight doesn't exist, it says
-  which one it picked.
+- Items are matched to the Square item library by the closest name: Square is
+  searched for each word, and Claude picks the closest item ("IAMX Pearl" →
+  *Storm I Am X Pearl*). When it's a best guess it says "I used ... for ...".
+  A ball's weight picks the variation. If no weight is said, or that weight
+  doesn't exist, it says which one it picked.
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
   name in Square, e.g. `standard drill` → `Drilling - Standard`. Run
   `migration/add_voice_aliases.sql` once in the SQL Editor, then add or edit
@@ -75,6 +79,15 @@ Claude Haiku costs well under a tenth of a cent per work order.
    access to the Square account, so put it only into Supabase.
 3. Supabase → **Edge Functions → Secrets**: add `SQUARE_ACCESS_TOKEN` with that
    token. Then open `alexa-work-order` and **Deploy** again.
+
+## Review list
+
+Anything it didn't understand or had to guess is saved in **Table Editor →
+voice_review**: an item not found in Square or matched loosely, a customer it
+couldn't pin down, a conversation that went nowhere, a Square error. Each row
+has what was heard and what it answered; tick `reviewed` when done. Recurring
+item mix-ups are best fixed with a `voice_aliases` row. Run
+`migration/add_voice_review.sql` once to create the table.
 
 ## The Supabase function (already set up)
 

@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.7",
+    "date": "2026-10-24",
+    "notes": [
+      "Changed: voice invoices find the closest item in Square when the name isn't exact, and say which item they used.",
+      "Changed: when more than one customer has the name, the laptop asks for the last four digits of their phone number.",
+      "New: anything the laptop didn't understand or had to guess is saved for review."
+    ]
+  },
+  {
     "version": "1.6",
     "date": "2026-10-23",
     "notes": [
