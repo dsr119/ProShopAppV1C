@@ -15,9 +15,13 @@
 //   "create Bill Jones as a new customer and an invoice for a Motiv Tag"
 //      -> Bill is looked up in the Speccy spec sheets, added to Square, invoiced.
 //
-// Spoken item names are matched to the Square item library by name, after the
-// voice_aliases table (migration/add_voice_aliases.sql) turns shop words like
-// "standard drill" into the item's real name. Invoices are only ever drafts:
+// Spoken item names are matched to the closest item in the Square library
+// (Claude picks among the items Square's search finds for each word), after
+// the voice_aliases table (migration/add_voice_aliases.sql) turns shop words
+// like "standard drill" into the item's real name. Several customers by the
+// same name are told apart by the last four digits of their phone. Anything
+// not understood or guessed is noted in voice_review
+// (migration/add_voice_review.sql) for review. Invoices are only ever drafts:
 // staff check and send them from Square, so a mishearing never reaches a
 // customer.
 //
@@ -79,7 +83,7 @@ function pickLocation(text, fallback) {
 
 function blankState() {
   return { intent: "work_order", name: "", spokenName: "", phone: "", lookedUp: false, shop: false, work: "",
-    items: [], heard: [], asked: "", turns: 0, ai: null };
+    items: [], heard: [], asked: "", turns: 0, ai: null, options: [], review: [] };
 }
 
 function readState(raw) {
@@ -214,12 +218,23 @@ function matchCustomer(spoken, rows) {
     if (s > best) { best = s; byPhone.clear(); }
     if (s === best && !byPhone.has(phone)) byPhone.set(phone, row);
   }
-  if (byPhone.size === 1) {
-    const [row] = byPhone.values();
-    return { found: 1, name: squash(row.customer_name), phone: formatPhone(row.phone) };
-  }
-  return { found: byPhone.size };
+  const options = [...byPhone.values()].map((row) => ({ name: squash(row.customer_name), phone: formatPhone(row.phone) }));
+  if (options.length === 1) return { found: 1, ...options[0] };
+  return { found: options.length, options: options.slice(0, 10) };
 }
+
+// Spoken digits: "4521", "45-21", or the odd spelled-out "four five two one"
+// (Whisper usually writes numbers as digits).
+const DIGIT_WORDS = { zero: 0, oh: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9 };
+function spokenDigits(text) {
+  const d = digits(text);
+  if (d) return d;
+  const ws = String(text || "").toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const nums = ws.map((w) => DIGIT_WORDS[w]).filter((n) => n !== undefined);
+  return nums.length >= 4 ? nums.join("") : "";
+}
+
+const DONT_KNOW = /\b(don'?t know|do not know|no idea|not sure|skip( it)?|none|no phone)\b/i;
 
 async function lookupCustomer(name, env, fetchFn) {
   const words = nameKey(name).split(" ").filter((w) => w.length > 1);
@@ -338,31 +353,159 @@ function itemQuery(spoken, aliases) {
   return { query, weight: w ? w[1] : "" };
 }
 
-// Best item for the query by shared words, then the variation for the weight.
-function pickItem(items, query, weight) {
-  const want = words(query);
-  let best = null, bestScore = 0;
-  for (const item of items || []) {
-    const have = words(item.item_data && item.item_data.name);
-    const shared = want.filter((w) => have.includes(w)).length;
-    const score = shared / Math.max(want.length, 1) + (have.join(" ") === want.join(" ") ? 1 : 0);
-    if (shared && score > bestScore) { best = item; bestScore = score; }
+// How alike two words are, 0 to 1 (edit distance), so "tagg" ~ "tag".
+function wordLike(a, b) {
+  if (a === b) return 1;
+  if (a.length < 3 || b.length < 3) return 0;
+  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const up = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = up;
+    }
   }
-  if (!best) return null;
-  const variations = best.item_data.variations || [];
+  return 1 - prev[b.length] / Math.max(a.length, b.length);
+}
+
+// How well an item name fits what was said, 0 to 2: the share of spoken words
+// found (closely) in the name, plus 1 for the exact name. Run-together words
+// count too: "iamx pearl" fits "I Am X Pearl".
+function itemScore(query, name) {
+  const want = words(query), have = words(name);
+  if (!want.length || !have.length) return 0;
+  const glued = have.join("");
+  let total = 0;
+  for (const w of want) {
+    const best = Math.max(...have.map((h) => wordLike(w, h)));
+    total += best >= 0.75 ? best : w.length >= 3 && glued.includes(w) ? 0.9 : 0;
+  }
+  return total / want.length + (have.join(" ") === want.join(" ") ? 1 : 0);
+}
+
+// The variation for a said weight ("14"), else the first. guessed: there was
+// a choice and the weight didn't settle it.
+function pickVariation(item, weight) {
+  const variations = item.item_data.variations || [];
   const byWeight = weight && variations.find((v) => new RegExp(`(^|\\D)${weight}(\\D|$)`).test((v.item_variation_data || {}).name || ""));
   const variation = byWeight || variations[0];
   if (!variation) return null;
   const vName = (variation.item_variation_data || {}).name || "";
-  const label = vName && vName.toLowerCase() !== "regular" ? `${best.item_data.name} ${vName}` : best.item_data.name;
-  return { id: variation.id, label, item: best.item_data.name, variation: vName, guessed: !byWeight && variations.length > 1 };
+  const label = vName && vName.toLowerCase() !== "regular" ? `${item.item_data.name} ${vName}` : item.item_data.name;
+  return { id: variation.id, label, item: item.item_data.name, variation: vName, guessed: !byWeight && variations.length > 1 };
 }
 
-async function makeInvoice(state, place, env, fetchFn) {
-  if (!env.SQUARE_ACCESS_TOKEN) return "Square isn't connected yet, so I couldn't make that invoice.";
+// Closest item by name; null when nothing is close enough.
+function pickItem(items, query, weight) {
+  let best = null, bestScore = 0.5;
+  for (const item of items || []) {
+    const score = itemScore(query, item.item_data && item.item_data.name);
+    if (score > bestScore) { best = item; bestScore = score; }
+  }
+  return best && pickVariation(best, weight);
+}
+
+const FILLER = new Set(["and", "with", "the", "for", "a", "an", "of", "one", "lb", "lbs", "pound", "pounds", "ball", "new"]);
+
+// Square's search only finds names containing the words searched for, so a
+// misheard or loosely said name finds nothing. Search for the whole name and
+// each word of it, and keep the closest few dozen items as candidates.
+async function candidateItems(env, fetchFn, query, spoken) {
+  const ws = [...new Set([...words(query), ...words(spoken)])].filter((w) => w.length >= 3 && !FILLER.has(w) && !/^\d+$/.test(w));
+  const searches = [...new Set([query, ...ws].filter(Boolean))].slice(0, 6);
+  const found = await Promise.all(searches.map((q) =>
+    square(env, fetchFn, "POST", "/catalog/search-catalog-items", { text_filter: q, limit: 100 }).then((r) => r.items || [])));
+  const byId = new Map();
+  for (const item of found.flat()) if (item && item.item_data && !byId.has(item.id)) byId.set(item.id, item);
+  return [...byId.values()]
+    .map((item) => ({ item, score: Math.max(itemScore(query, item.item_data.name), itemScore(spoken, item.item_data.name)) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 30)
+    .map((c) => c.item);
+}
+
+const PICK_SCHEMA = {
+  type: "object",
+  properties: {
+    picks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          line: { type: "integer", description: "The said item's number." },
+          item_id: { type: "string", description: "The id of the closest Square item, or empty if none is plausibly what was meant." },
+          sure: { type: "boolean", description: "True if the item is clearly what was said; false if it is a best guess." },
+        },
+        required: ["line", "item_id", "sure"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["picks"],
+  additionalProperties: false,
+};
+
+// Claude picks the closest Square item for each said item, from the
+// candidates found for it. Returns Map(line -> { item, sure }).
+async function aiPickItems(claude, said, candidates) {
+  const listing = said.map((s, i) => `${i + 1}. Said: "${s}"\n` + (candidates[i].length
+    ? candidates[i].map((it) => `   - id ${it.id}: ${it.item_data.name}`).join("\n") : "   (no candidates)")).join("\n\n");
+  const response = await claude.messages.create({
+    model: "claude-haiku-5-5",
+    max_tokens: 2000,
+    output_config: { effort: "low", format: { type: "json_schema", schema: PICK_SCHEMA } },
+    system: "A bowling pro shop is making an invoice by voice. For each item said, pick the Square item that is closest to what was meant, from that item's candidates. The words are a speech transcript, so expect mishearings and loose names (\"IAMX Pearl\" can be \"I Am X Pearl\", \"standard drilling with grips\" can be \"Drilling - Standard w/ Grips\"). Ignore the ball weight; it picks the variation later. Leave item_id empty if no candidate is plausibly what was meant.",
+    messages: [{ role: "user", content: listing }],
+  });
+  if (response.stop_reason === "refusal") throw new Error("Claude declined");
+  const block = response.content.find((b) => b.type === "text");
+  const picks = new Map();
+  for (const p of (block ? JSON.parse(block.text).picks : []) || []) {
+    const item = (candidates[p.line - 1] || []).find((it) => it.id === p.item_id);
+    if (item) picks.set(p.line - 1, { item, sure: p.sure === true });
+  }
+  return picks;
+}
+
+// Each said item -> { spoken, pick, close } where close means the name was
+// a near match rather than the item's own name.
+async function matchItems(state, env, fetchFn, claude) {
+  const aliases = await loadAliases(env, fetchFn);
+  const said = state.items.map((it) => ({ ...it, ...itemQuery(it.spoken, aliases) }));
+  const candidates = await Promise.all(said.map((s) => (s.query ? candidateItems(env, fetchFn, s.query, s.spoken) : [])));
+  let picks = null;
+  if (claude && candidates.some((c) => c.length)) {
+    try {
+      picks = await aiPickItems(claude, said.map((s) => s.spoken), candidates);
+    } catch (err) {
+      console.log("AI item pick skipped:", err && err.message);
+    }
+  }
+  return said.map((s, i) => {
+    let pick = null, close = false;
+    if (picks) {
+      const p = picks.get(i);
+      if (p) {
+        pick = pickVariation(p.item, s.weight);
+        close = !p.sure;
+      }
+    } else {
+      pick = pickItem(candidates[i], s.query, s.weight);
+      close = pick && itemScore(s.query, pick.item) < 1;
+    }
+    return { ...s, pick, close: Boolean(pick && close) };
+  });
+}
+
+// Returns { say, review }: what to speak, and anything worth Doug's review.
+async function makeInvoice(state, place, env, fetchFn, claude) {
+  const review = [];
+  if (!env.SQUARE_ACCESS_TOKEN) return { say: "Square isn't connected yet, so I couldn't make that invoice.", review: ["Square isn't connected"] };
   const { locations } = await square(env, fetchFn, "GET", "/locations");
   const location = pickSquareLocation(locations, place);
-  if (!location) return "I couldn't find a Square location for the invoice.";
+  if (!location) return { say: "I couldn't find a Square location for the invoice.", review: ["No Square location"] };
 
   let customer = await findSquareCustomer(env, fetchFn, state.name, state.phone);
   let added = "";
@@ -370,27 +513,30 @@ async function makeInvoice(state, place, env, fetchFn) {
     customer = await createSquareCustomer(env, fetchFn, state.name, state.phone);
     added = ` I added ${state.name} to Square${state.phone ? "" : " without a phone number"}.`;
   } else if (!customer) {
-    return state.phone
+    review.push(state.phone ? `${state.name} (${state.phone}) isn't in Square` : `No phone number for ${state.name}`);
+    return { review, say: state.phone
       ? `${state.name} isn't in Square yet. Say "create ${state.name} as a new customer" with the invoice to add them.`
-      : `I couldn't find a phone number for ${state.name}, so I couldn't find them in Square.`;
+      : `I couldn't find a phone number for ${state.name}, so I couldn't find them in Square.` };
   } else if (state.intent === "new_customer") {
     added = ` ${state.name} was already in Square, so I used that customer.`;
   }
 
-  const aliases = await loadAliases(env, fetchFn);
+  const matched = await matchItems(state, env, fetchFn, claude);
   const lines = [], missing = [], notes = [];
-  for (const it of state.items) {
-    const { query, weight } = itemQuery(it.spoken, aliases);
-    const found = query ? await square(env, fetchFn, "POST", "/catalog/search-catalog-items", { text_filter: query, limit: 20 }) : {};
-    const pick = pickItem(found.items, query, weight);
-    if (!pick) { missing.push(it.spoken); continue; }
-    lines.push({ catalog_object_id: pick.id, quantity: String(Math.max(1, it.quantity || 1)), label: pick.label });
+  for (const m of matched) {
+    const pick = m.pick;
+    if (!pick) { missing.push(m.spoken); review.push(`Not found in Square: "${m.spoken}"`); continue; }
+    lines.push({ catalog_object_id: pick.id, quantity: String(Math.max(1, m.quantity || 1)), label: pick.label });
+    if (m.close) {
+      notes.push(`I used ${pick.item} for "${squash(m.spoken.replace(/\b\d{1,2}\s*(?:lb|lbs|pound|pounds|pounder)\b/gi, ""))}"`);
+      review.push(`Closest match: "${m.spoken}" -> ${pick.item}`);
+    }
     if (pick.guessed) {
-      notes.push(weight ? `there's no ${weight} pound ${pick.item}, so I picked ${pick.variation}`
+      notes.push(m.weight ? `there's no ${m.weight} pound ${pick.item}, so I picked ${pick.variation}`
         : `I picked ${pick.variation} for the ${pick.item}`);
     }
   }
-  if (!lines.length) return `I couldn't find ${missing.join(" or ")} in Square, so I didn't make the invoice.${added}`;
+  if (!lines.length) return { review, say: `I couldn't find ${missing.join(" or ")} in Square, so I didn't make the invoice.${added}` };
 
   const { order } = await square(env, fetchFn, "POST", "/orders", {
     idempotency_key: idem(),
@@ -412,9 +558,25 @@ async function makeInvoice(state, place, env, fetchFn) {
     },
   });
   const total = money(order.total_money);
-  return `Draft invoice in Square for ${state.name}: ${lines.map((l) => l.label).join(", ")}${total ? `, ${total}` : ""}.` +
+  return { review, say: `Draft invoice in Square for ${state.name}: ${lines.map((l) => l.label).join(", ")}${total ? `, ${total}` : ""}.` +
     (missing.length ? ` I couldn't find ${missing.join(" or ")} in Square.` : "") +
-    (notes.length ? ` ${capital(notes.join("; "))}, so check it in Square.` : "") + added;
+    (notes.length ? ` ${capital(notes.join("; "))}, so check it in Square.` : "") + added };
+}
+
+// Things the assistant didn't understand or had to guess, kept in the
+// voice_review table (migration/add_voice_review.sql) for Doug to look over.
+async function logReview(env, fetchFn, problems, heard, said, location) {
+  if (!problems.length) return;
+  try {
+    await fetchFn(`${env.SUPABASE_URL}/rest/v1/voice_review`, {
+      method: "POST",
+      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ problem: problems.join("; "), heard: heard.join(" / "), reply: said, location: location || null }),
+    });
+  } catch (err) {
+    console.log("Review note not saved:", err && err.message);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -441,13 +603,45 @@ function ticketRow(state, location, now) {
   };
 }
 
+// "I found 3 Doug Smiths" -> the last four digits of the phone pick one.
+// Returns true if this answer was about the phone, so nothing else is read from it.
+function answerLastFour(state, text) {
+  const d = spokenDigits(text);
+  if (d.length >= 4) {
+    const hits = state.options.filter((o) => digits(o.phone).endsWith(d.slice(-4)));
+    if (hits.length === 1) {
+      state.name = hits[0].name;
+      state.phone = hits[0].phone;
+      state.options = [];
+    } else {
+      state.lastFourMiss = d.slice(-4);
+    }
+    return true;
+  }
+  if (DONT_KNOW.test(text)) {
+    state.review.push(`More than one ${state.name}; phone not known`);
+    state.options = [];
+    return true;
+  }
+  return false; // a new name, or something else: read it as usual
+}
+
 async function converse(body, env, fetchFn, claude, now) {
   const text = squash(body.text);
   const state = readState(body.state);
   state.turns += 1;
   if (text) state.heard.push(text);
+  delete state.lastFourMiss;
 
-  if (text) {
+  let answered = false;
+  if (text && state.asked === "last4") answered = answerLastFour(state, text);
+  if (text && state.asked === "phone") {
+    const d = spokenDigits(text);
+    if (d.length >= 10) { state.phone = formatPhone(d); answered = true; }
+    else if (DONT_KNOW.test(text)) { state.phoneUnknown = true; answered = true; }
+  }
+
+  if (text && !answered) {
     let parsed = null;
     if (claude) {
       try {
@@ -457,6 +651,7 @@ async function converse(body, env, fetchFn, claude, now) {
         state.ai = ai;
       } catch (err) {
         console.log("AI step skipped:", err && err.message);
+        if (!state.review.includes("AI step failed")) state.review.push("AI step failed");
       }
     }
     if (!parsed) parsed = { ...ruleParse(text, state.asked), phone: "", shop: false };
@@ -465,8 +660,9 @@ async function converse(body, env, fetchFn, claude, now) {
       state.name = state.spokenName = titleCase(parsed.name);
       state.phone = "";
       state.lookedUp = false;
+      state.options = [];
     }
-    if (parsed.phone.length >= 7) { state.phone = formatPhone(parsed.phone); state.lookedUp = true; }
+    if (parsed.phone.length >= 7) { state.phone = formatPhone(parsed.phone); state.lookedUp = true; state.options = []; }
     if (parsed.work) state.work = parsed.work;
     if (parsed.shop) state.shop = true;
     // Once an invoice, always an invoice; "new customer" can come later.
@@ -476,37 +672,56 @@ async function converse(body, env, fetchFn, claude, now) {
     }
   }
 
-  let note = "";
   if (state.name && !state.lookedUp) {
     const match = await lookupCustomer(state.name, env, fetchFn);
     state.lookedUp = true;
     if (match.found === 1) { state.name = match.name; state.phone = match.phone; }
-    else if (match.found > 1) note = ` I found more than one ${state.name}, so add the phone number in the app.`;
+    else if (match.found > 1) state.options = match.options;
   }
 
   const giveUp = state.turns >= MAX_TURNS;
-  if (state.intent !== "work_order") {
-    if (!claude || !state.ai) return { done: true, say: "Sorry, I can only make invoices when the AI step is working. Please make it in Square." };
-    if (!state.name || !state.items.length) {
-      if (giveUp) return { done: true, say: "Sorry, I didn't get the invoice. Please make it in Square." };
-      state.asked = !state.name ? "invoice_name" : "items";
-      const say = state.asked === "invoice_name" ? "Who's the invoice for?" : `What's on the invoice for ${state.name}?`;
-      return { done: false, say: say + note, state: JSON.stringify(state) };
+  const ask = (asked, say) => {
+    state.asked = asked;
+    return { done: false, say, state: JSON.stringify(state) };
+  };
+  const stop = (say, problem) => ({ done: true, say, review: [...state.review, problem] });
+  const invoice = state.intent !== "work_order";
+
+  // Several customers by that name: the last four of the phone tells them apart.
+  if (state.options.length > 1) {
+    if (giveUp) {
+      if (invoice) return stop("Sorry, I couldn't tell which customer it is. Please make the invoice in Square.", `More than one ${state.name}`);
+      state.review.push(`More than one ${state.name}`);
+      state.options = [];
+    } else {
+      return ask("last4", state.lastFourMiss
+        ? `None of them end in ${state.lastFourMiss.split("").join(" ")}. What are the last four digits of the phone number?`
+        : `I found ${state.options.length} customers named ${state.spokenName || state.name}. What are the last four digits of their phone number?`);
     }
-    return { done: true, invoice: state, place: pickLocation(state.heard.join(" "), body.location) };
+  }
+
+  if (invoice) {
+    if (!claude || !state.ai) return stop("Sorry, I can only make invoices when the AI step is working. Please make it in Square.", "Invoice without the AI step");
+    if (state.name && !state.phone && !state.phoneUnknown && !giveUp) {
+      return ask("phone", `I couldn't find ${state.name} in the app or Speccy. What's their phone number?`);
+    }
+    if (!state.name || !state.items.length) {
+      if (giveUp) return stop("Sorry, I didn't get the invoice. Please make it in Square.", "Didn't get who or what the invoice is for");
+      return !state.name ? ask("invoice_name", "Who's the invoice for?") : ask("items", `What's on the invoice for ${state.name}?`);
+    }
+    return { done: true, invoice: state, place: pickLocation(state.heard.join(" "), body.location), review: state.review };
   }
   const needName = !state.name && !state.shop;
   if (!state.work || (needName && !giveUp)) {
-    if (giveUp) return { done: true, say: "Sorry, I didn't get what the work order is for. Please add it in the app." };
-    state.asked = !state.work && needName ? "both" : needName ? "name" : "work";
-    const say = state.asked === "both" ? "Who's it for, and what are we doing?"
-      : state.asked === "name" ? "Who's it for?"
-      : state.name ? `What are we doing for ${state.name}?` : "What are we doing?";
-    return { done: false, say: say + note, state: JSON.stringify(state) };
+    if (giveUp) return stop("Sorry, I didn't get what the work order is for. Please add it in the app.", "Didn't get the work order");
+    if (!state.work && needName) return ask("both", "Who's it for, and what are we doing?");
+    if (needName) return ask("name", "Who's it for?");
+    return ask("work", state.name ? `What are we doing for ${state.name}?` : "What are we doing?");
   }
 
   const location = pickLocation(state.heard.join(" "), body.location);
-  return { done: true, row: ticketRow(state, location, now), note };
+  const note = state.review.some((r) => r.startsWith("More than one")) ? ` I found more than one ${state.name}, so add the phone number in the app.` : "";
+  return { done: true, row: ticketRow(state, location, now), note, review: state.review };
 }
 
 // ---------------------------------------------------------------------------
@@ -543,15 +758,22 @@ async function handle(req, env, fetchFn, claude) {
   }
 
   const turn = await converse(body || {}, env, fetchFn, claude, new Date());
+  const heard = turn.invoice ? turn.invoice.heard : readState(body && body.state).heard.concat(squash(body && body.text) || []);
   if (turn.invoice) {
+    let out;
     try {
-      return reply(200, { done: true, say: await makeInvoice(turn.invoice, turn.place, env, fetchFn) });
+      out = await makeInvoice(turn.invoice, turn.place, env, fetchFn, claude);
     } catch (err) {
       console.log("Invoice failed:", err && err.message);
-      return reply(200, { done: true, say: `Sorry, Square had a problem, so there's no invoice. ${err && err.message}` });
+      out = { say: `Sorry, Square had a problem, so there's no invoice. ${err && err.message}`, review: [`Square error: ${err && err.message}`] };
     }
+    await logReview(env, fetchFn, [...turn.review, ...out.review], heard, out.say, turn.place);
+    return reply(200, { done: true, say: out.say });
   }
-  if (!turn.row) return reply(200, turn);
+  if (!turn.row) {
+    if (turn.done && turn.review) await logReview(env, fetchFn, turn.review, heard, turn.say, body && body.location);
+    return reply(200, { done: turn.done, say: turn.say, state: turn.state });
+  }
 
   const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/tickets`, {
     method: "POST",
@@ -566,6 +788,7 @@ async function handle(req, env, fetchFn, claude) {
   if (!res.ok) return reply(502, { error: `Database said ${res.status}: ${await res.text()}` });
 
   const [created] = await res.json();
+  await logReview(env, fetchFn, turn.review, heard, turn.row.title, turn.row.location);
   const who = turn.row.details.startsWith("Customer: ") ? ` for ${turn.row.details.slice(10).split("\n")[0]}` : "";
   return reply(200, {
     done: true,
