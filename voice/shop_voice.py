@@ -1,4 +1,4 @@
-"""Shop voice bot: say "Hey Jarvis", then the work order.
+"""Shop voice bot: say "Hey Jarvis", then a work order or an invoice.
 
 Runs on a spare laptop. The wake word and speech-to-text run on the laptop;
 the words go to the alexa-work-order Supabase function (named for the Alexa
@@ -23,7 +23,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 RATE = 16000
 FRAME = 1280  # 80 ms, the frame size the wake word model expects
-MAX_TURNS = 5
+MAX_TURNS = 8
 
 DEFAULTS = {
     "function_url": "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order",
@@ -73,7 +73,7 @@ def post_turn(cfg, text, state, opener=urllib.request.urlopen):
         method="POST",
     )
     try:
-        with opener(req, timeout=20) as res:
+        with opener(req, timeout=40) as res:  # a turn can take a few AI steps
             return json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         try:
@@ -285,7 +285,7 @@ class Shop:
         name = self.cfg["wake_word"].replace("_", " ").title()
         with self.stream:
             print("Mic:", self.sd.query_devices(self.cfg["mic"], "input")["name"])
-            print(f'Ready. Say "{name}", then the work order. Ctrl+C to quit.')
+            print(f'Ready. Say "{name}", then what you need. Ctrl+C to quit.')
             while True:
                 self.wait_for_wake()
                 print("Woke up.")
