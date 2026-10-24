@@ -39,9 +39,10 @@ DEFAULTS = {
 }
 
 # Biases speech-to-text toward the words the shop actually says.
-VOCAB = ("Work order for the bowling pro shop. Plug and redrill, resurface, "
-         "thumb slug, finger inserts, 14 pound ball, Storm, Hammer, Roto Grip, "
-         "Valley, South Side, league.")
+VOCAB = ("Work order or invoice for the bowling pro shop. Plug and redrill, resurface, "
+         "standard drill, thumb slug, slug combo, finger inserts, 14 pound ball, Storm, "
+         "Motiv, Hammer, Roto Grip, Brunswick, DV8, Radical, Ebonite, Track, Columbia 300, "
+         "900 Global, Valley, South Side, league, new customer.")
 
 # The tail of the wake word can end up in the recording.
 WAKE_WORDS = re.compile(r"^\W*((hey|hi|a)\W+)?(jarvis|mycroft|rhasspy|alexa)\b\W*", re.I)

@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.6",
+    "date": "2026-10-23",
+    "notes": [
+      "New: the shop laptop can make draft invoices in Square. Say \"Hey Jarvis, create an invoice for\" the customer and what they're buying. It can also add a new customer to Square from their spec sheet."
+    ]
+  },
+  {
     "version": "1.5",
     "date": "2026-10-21",
     "notes": [

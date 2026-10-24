@@ -41,6 +41,41 @@ smith to plug his fourteen pound ball before thursday league" becomes title
 Claude takes over 5 seconds, simple rules do it and the words become the title.
 Claude Haiku costs well under a tenth of a cent per work order.
 
+## Square invoices
+
+> "Hey Jarvis, create an invoice for Doug Smith for a 14 pound Motiv Tag, a
+> standard drill and a slug combo" → "Draft invoice in Square for Doug Smith:
+> Motiv Tag 14 lb, Standard Drill, Slug Combo, $289.95."
+
+> "Hey Jarvis, create Bill Jones as a new customer and an invoice for a Motiv
+> Tag" → Bill's name and phone come from his latest Speccy spec sheet, he's
+> added to Square, and the invoice is made.
+
+- Invoices are always **drafts**: check and send them from Square (Invoices).
+- The customer is found in Square by phone number (looked up from the customer
+  list and Speccy). Someone not in Square isn't invoiced unless you say "new
+  customer".
+- Items are matched to the Square item library by name; a ball's weight picks
+  the variation. If no weight is said, or that weight doesn't exist, it says
+  which one it picked.
+- **Shop words:** the `voice_aliases` table maps what you say to the item's real
+  name in Square, e.g. `standard drill` → `Drilling - Standard`. Run
+  `migration/add_voice_aliases.sql` once in the SQL Editor, then add or edit
+  rows in **Table Editor → voice_aliases**.
+- Speccy is read with its public key, which works while Speccy is in open-link
+  mode. If Speccy is locked to signed-in staff, add secrets `SPECCY_URL` and
+  `SPECCY_KEY` (Speccy's secret key) to this function.
+
+### Connecting Square
+
+1. Go to <https://developer.squareup.com/apps>, sign in with the shop's Square
+   account, and click **Create an app** (name it "Shop voice").
+2. Open the app, switch the toggle at the top to **Production**, go to
+   **Credentials**, and copy the **Production Access token**. It gives full
+   access to the Square account, so put it only into Supabase.
+3. Supabase → **Edge Functions → Secrets**: add `SQUARE_ACCESS_TOKEN` with that
+   token. Then open `alexa-work-order` and **Deploy** again.
+
 ## The Supabase function (already set up)
 
 To set it up again or change it:

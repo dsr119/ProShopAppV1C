@@ -8,7 +8,20 @@
 // phone number is looked up in the customer list (directory, orders,
 // appointments) so nobody has to say it.
 //
-// Callers (alexa/skill.js, the Siri Shortcut in alexa/README.md) post
+// It also makes draft invoices in Square (needs SQUARE_ACCESS_TOKEN):
+//
+//   "create an invoice for Doug Smith for a 14 pound Motiv Tag, a standard
+//    drill and a slug combo"  -> "Draft invoice in Square for Doug Smith: ..."
+//   "create Bill Jones as a new customer and an invoice for a Motiv Tag"
+//      -> Bill is looked up in the Speccy spec sheets, added to Square, invoiced.
+//
+// Spoken item names are matched to the Square item library by name, after the
+// voice_aliases table (migration/add_voice_aliases.sql) turns shop words like
+// "standard drill" into the item's real name. Invoices are only ever drafts:
+// staff check and send them from Square, so a mishearing never reaches a
+// customer.
+//
+// The caller (voice/shop_voice.py on the shop laptop) posts
 // { text, state?, location? } with a shared password in the x-alexa-secret
 // header, speak back `say`, and if `done` is false listen again and post the
 // answer with the `state` they were given. This function is the only thing
@@ -20,9 +33,10 @@
 // fails, simple rules take over: "for NAME to WORK", or the answer to the
 // question just asked -- a work order is never lost to the AI step.
 //
-// Deploy with "Enforce JWT verification" OFF: Alexa has no Supabase login,
-// the password is the check. Secrets: ALEXA_SHARED_SECRET (set by hand),
-// ANTHROPIC_API_KEY (optional, set by hand); SUPABASE_URL and
+// Deploy with "Enforce JWT verification" OFF: the laptop has no Supabase
+// login, the password is the check. Secrets: ALEXA_SHARED_SECRET (set by hand),
+// ANTHROPIC_API_KEY (optional, set by hand), SQUARE_ACCESS_TOKEN (for
+// invoices), SPECCY_URL / SPECCY_KEY (optional overrides); SUPABASE_URL and
 // SUPABASE_SERVICE_ROLE_KEY are provided by Supabase. After changing a
 // secret, deploy again so the running function picks it up.
 //
@@ -30,6 +44,13 @@
 // and the tests can load it under Node.
 
 const MAX_TITLE = 200;
+const SQUARE_URL = "https://connect.squareup.com/v2";
+const SQUARE_VERSION = "2026-09-16";
+// Speccy (the spec sheet app) is a separate Supabase project. Its URL and
+// publishable key are public (they ship in its web page); SPECCY_URL and
+// SPECCY_KEY override them.
+const SPECCY_URL = "https://bkvijjqhyiyfkuavmerh.supabase.co";
+const SPECCY_KEY = "sb_publishable_Vba54XSri6vewRcBO8qDXQ_uinwbMOy";
 const MAX_TURNS = 5;
 
 const CATEGORIES = ["Equipment", "Building", "Supplies", "Customer", "Computer", "Other"];
@@ -57,7 +78,8 @@ function pickLocation(text, fallback) {
 // ---------------------------------------------------------------------------
 
 function blankState() {
-  return { name: "", spokenName: "", phone: "", lookedUp: false, shop: false, work: "", heard: [], asked: "", turns: 0, ai: null };
+  return { intent: "work_order", name: "", spokenName: "", phone: "", lookedUp: false, shop: false, work: "",
+    items: [], heard: [], asked: "", turns: 0, ai: null };
 }
 
 function readState(raw) {
@@ -71,6 +93,7 @@ function readState(raw) {
 // Without Claude: "for Doug Smith to plug his ball", "for Doug Smith", or a
 // plain answer to whatever was just asked.
 function ruleParse(text, asked) {
+  if (/\binvoice\b/i.test(text)) return { intent: /\bnew customer\b/i.test(text) ? "new_customer" : "invoice", name: "", work: "" };
   const t = text.replace(/^(please\s+)?(create|make|start|add|open)?\s*(a\s+)?(new\s+)?(work\s*order|ticket)\s*/i, "");
   const m = /^for\s+(.+?)(?:\s+(?:to|that|who|because)\s+(.+))?$/i.exec(t);
   if (m) return { name: m[1], work: m[2] || "" };
@@ -89,6 +112,18 @@ function ruleParse(text, asked) {
 const TURN_SCHEMA = {
   type: "object",
   properties: {
+    intent: { type: "string", enum: ["work_order", "invoice", "new_customer"],
+      description: "work_order unless an invoice was asked for; new_customer if the customer is to be added as new (with an invoice)." },
+    items: {
+      type: "array",
+      description: "Invoice only: each thing to bill, as said (with weight), e.g. '14 lb Motiv Tag', 'standard drill'. Empty for work orders.",
+      items: {
+        type: "object",
+        properties: { spoken: { type: "string" }, quantity: { type: "integer" } },
+        required: ["spoken", "quantity"],
+        additionalProperties: false,
+      },
+    },
     customer_name: { type: "string", description: "Customer's full name as said, title case, or empty." },
     customer_phone: { type: "string", description: "Phone number if one was said, digits only, or empty." },
     for_shop: { type: "boolean", description: "True if the job is for the shop itself, not a customer." },
@@ -99,14 +134,18 @@ const TURN_SCHEMA = {
     priority: { type: "string", enum: PRIORITIES },
     due_date: { type: "string", description: "YYYY-MM-DD if a date or deadline was said, else empty." },
   },
-  required: ["customer_name", "customer_phone", "for_shop", "work", "title", "details", "category", "priority", "due_date"],
+  required: ["intent", "items", "customer_name", "customer_phone", "for_shop", "work", "title", "details", "category", "priority", "due_date"],
   additionalProperties: false,
 };
 
 function turnPrompt(now) {
   const today = now.toISOString().slice(0, 10);
   const weekday = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-  return `You read a work order being spoken to a bowling pro shop's voice assistant and fill in a staff ticket. A work order has three parts: who it's for (a customer's name), an optional phone number, and what we're doing. The words may arrive in pieces across a short conversation; you get everything said so far and what was asked last, and you return the whole ticket as it now stands.
+  return `You read what is spoken to a bowling pro shop's voice assistant. It is either a work order (a staff ticket) or an invoice (a bill in Square, possibly for a new customer).
+
+Invoices: intent "invoice" (or "new_customer" when they say to create or add the person as a new customer). customer_name is who it's for; items lists each thing to bill as said, keeping the weight with a ball ("14 lb Motiv Tag"), quantity 1 unless a number is said. Ball names are brands and models (Storm, Motiv, Roto Grip, Hammer, Brunswick, DV8, Radical, Track, Ebonite, Columbia 300, 900 Global): fix mishearings of those. Leave the work-order fields empty for an invoice. An answer to "What's on the invoice?" is items; to "Who's the invoice for?" is the name.
+
+Work orders: you fill in a staff ticket. A work order has three parts: who it's for (a customer's name), an optional phone number, and what we're doing. The words may arrive in pieces across a short conversation; you get everything said so far and what was asked last, and you return the whole ticket as it now stands.
 
 The text is a speech transcript: fix obvious mishearings (bowling terms like plug, redrill, grips, inserts, thumb slug, resurface, oil, pound ball) but never invent facts.
 
@@ -121,7 +160,8 @@ The text is a speech transcript: fix obvious mishearings (bowling terms like plu
 
 async function aiTurn(state, text, now, claude) {
   const said = [...state.heard, text].map((t, i) => `${i + 1}. ${t}`).join("\n");
-  const asked = state.asked === "name" ? "Who's it for?" : state.asked === "work" ? "What are we doing?" : "(nothing yet)";
+  const asked = { name: "Who's it for?", work: "What are we doing?", both: "Who's it for, and what are we doing?",
+    invoice_name: "Who's the invoice for?", items: "What's on the invoice?" }[state.asked] || "(nothing yet)";
   // Haiku: fast and cheap, and picking a name and a job out of a sentence is
   // well within it. A decline (Haiku has no server-side fallback) throws, and
   // the simple rules make the ticket instead.
@@ -187,6 +227,7 @@ async function lookupCustomer(name, env, fetchFn) {
   const last = encodeURIComponent(`*${words[words.length - 1]}*`);
   const headers = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` };
   const tables = ["customer_directory", "orders", "appointments"];
+  const fromSpeccy = speccyCustomers(words[words.length - 1], env, fetchFn);
   const lists = await Promise.all(tables.map(async (table) => {
     try {
       const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${table}?select=customer_name,phone` +
@@ -196,7 +237,184 @@ async function lookupCustomer(name, env, fetchFn) {
       return [];
     }
   }));
-  return matchCustomer(name, lists.flat());
+  return matchCustomer(name, [...lists.flat(), ...await fromSpeccy]);
+}
+
+// Customers from Speccy's spec sheets, most recently measured first.
+async function speccyCustomers(lastName, env, fetchFn) {
+  const key = env.SPECCY_KEY || SPECCY_KEY;
+  try {
+    const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone` +
+      `&name=ilike.${encodeURIComponent(`*${lastName}*`)}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=50`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    const rows = res.ok ? await res.json() : [];
+    return rows.map((r) => ({ customer_name: r.name, phone: r.phone }));
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Square: customers, the item library, draft invoices
+// ---------------------------------------------------------------------------
+
+async function square(env, fetchFn, method, path, body) {
+  const res = await fetchFn(`${SQUARE_URL}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${env.SQUARE_ACCESS_TOKEN}`,
+      "Square-Version": SQUARE_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const e = data.errors && data.errors[0];
+    throw new Error(`Square said ${res.status}${e ? `: ${e.detail || e.code}` : ""}`);
+  }
+  return data;
+}
+
+const idem = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+const e164 = (phone) => { const d = digits(phone).replace(/^1(?=\d{10}$)/, ""); return d.length === 10 ? `+1${d}` : ""; };
+const money = (m) => (m && typeof m.amount === "number" ? `$${(m.amount / 100).toFixed(2)}` : "");
+
+// The Square location for the shop the laptop sits in (by name), else the first active one.
+function pickSquareLocation(locations, place) {
+  const active = (locations || []).filter((l) => l.status !== "INACTIVE");
+  const want = (place || "").toLowerCase();
+  return (want && active.find((l) => (l.name || "").toLowerCase().includes(want))) || active[0] || null;
+}
+
+async function findSquareCustomer(env, fetchFn, name, phone) {
+  const d = digits(phone).replace(/^1(?=\d{10}$)/, "");
+  if (d.length < 10) return null;
+  const data = await square(env, fetchFn, "POST", "/customers/search",
+    { query: { filter: { phone_number: { fuzzy: d } } }, limit: 10 });
+  const list = data.customers || [];
+  const last = nameKey(name).split(" ").pop();
+  return list.find((c) => nameKey(c.family_name || "") === last) || list[0] || null;
+}
+
+async function createSquareCustomer(env, fetchFn, name, phone) {
+  const parts = squash(name).split(" ");
+  const data = await square(env, fetchFn, "POST", "/customers", {
+    idempotency_key: idem(),
+    given_name: parts[0],
+    family_name: parts.slice(1).join(" ") || undefined,
+    phone_number: e164(phone) || undefined,
+    note: "Added by the shop voice assistant",
+  });
+  return data.customer;
+}
+
+// Shop words -> Square item names, from the voice_aliases table. The longest
+// alias found in what was said wins ("standard drill" over "drill").
+async function loadAliases(env, fetchFn) {
+  try {
+    const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/voice_aliases?select=spoken,square_item`, {
+      headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+    });
+    return res.ok ? await res.json() : [];
+  } catch {
+    return [];
+  }
+}
+
+const words = (v) => nameKey(v).replace(/[^a-z0-9 ]/g, " ").split(" ").filter(Boolean);
+
+// What to search Square for: the alias's item name, or the spoken words
+// without the weight and filler. Returns { query, weight }.
+function itemQuery(spoken, aliases) {
+  const said = ` ${words(spoken).join(" ")} `;
+  const alias = (aliases || [])
+    .filter((a) => a.spoken && said.includes(` ${words(a.spoken).join(" ")} `))
+    .sort((a, b) => b.spoken.length - a.spoken.length)[0];
+  const w = /\b(\d{1,2})\s*(?:lb|lbs|pound|pounds|pounder)\b/i.exec(spoken);
+  const query = alias ? squash(alias.square_item) : squash(spoken
+    .replace(/\b\d{1,2}\s*(?:lb|lbs|pound|pounds|pounder)\b/gi, " ")
+    .replace(/^\s*(?:an?|the|one|two|three)\s+/i, " "));
+  return { query, weight: w ? w[1] : "" };
+}
+
+// Best item for the query by shared words, then the variation for the weight.
+function pickItem(items, query, weight) {
+  const want = words(query);
+  let best = null, bestScore = 0;
+  for (const item of items || []) {
+    const have = words(item.item_data && item.item_data.name);
+    const shared = want.filter((w) => have.includes(w)).length;
+    const score = shared / Math.max(want.length, 1) + (have.join(" ") === want.join(" ") ? 1 : 0);
+    if (shared && score > bestScore) { best = item; bestScore = score; }
+  }
+  if (!best) return null;
+  const variations = best.item_data.variations || [];
+  const byWeight = weight && variations.find((v) => new RegExp(`(^|\\D)${weight}(\\D|$)`).test((v.item_variation_data || {}).name || ""));
+  const variation = byWeight || variations[0];
+  if (!variation) return null;
+  const vName = (variation.item_variation_data || {}).name || "";
+  const label = vName && vName.toLowerCase() !== "regular" ? `${best.item_data.name} ${vName}` : best.item_data.name;
+  return { id: variation.id, label, item: best.item_data.name, variation: vName, guessed: !byWeight && variations.length > 1 };
+}
+
+async function makeInvoice(state, place, env, fetchFn) {
+  if (!env.SQUARE_ACCESS_TOKEN) return "Square isn't connected yet, so I couldn't make that invoice.";
+  const { locations } = await square(env, fetchFn, "GET", "/locations");
+  const location = pickSquareLocation(locations, place);
+  if (!location) return "I couldn't find a Square location for the invoice.";
+
+  let customer = await findSquareCustomer(env, fetchFn, state.name, state.phone);
+  let added = "";
+  if (!customer && state.intent === "new_customer") {
+    customer = await createSquareCustomer(env, fetchFn, state.name, state.phone);
+    added = ` I added ${state.name} to Square${state.phone ? "" : " without a phone number"}.`;
+  } else if (!customer) {
+    return state.phone
+      ? `${state.name} isn't in Square yet. Say "create ${state.name} as a new customer" with the invoice to add them.`
+      : `I couldn't find a phone number for ${state.name}, so I couldn't find them in Square.`;
+  } else if (state.intent === "new_customer") {
+    added = ` ${state.name} was already in Square, so I used that customer.`;
+  }
+
+  const aliases = await loadAliases(env, fetchFn);
+  const lines = [], missing = [], notes = [];
+  for (const it of state.items) {
+    const { query, weight } = itemQuery(it.spoken, aliases);
+    const found = query ? await square(env, fetchFn, "POST", "/catalog/search-catalog-items", { text_filter: query, limit: 20 }) : {};
+    const pick = pickItem(found.items, query, weight);
+    if (!pick) { missing.push(it.spoken); continue; }
+    lines.push({ catalog_object_id: pick.id, quantity: String(Math.max(1, it.quantity || 1)), label: pick.label });
+    if (pick.guessed) {
+      notes.push(weight ? `there's no ${weight} pound ${pick.item}, so I picked ${pick.variation}`
+        : `I picked ${pick.variation} for the ${pick.item}`);
+    }
+  }
+  if (!lines.length) return `I couldn't find ${missing.join(" or ")} in Square, so I didn't make the invoice.${added}`;
+
+  const { order } = await square(env, fetchFn, "POST", "/orders", {
+    idempotency_key: idem(),
+    order: {
+      location_id: location.id,
+      customer_id: customer.id,
+      line_items: lines.map(({ catalog_object_id, quantity }) => ({ catalog_object_id, quantity })),
+    },
+  });
+  await square(env, fetchFn, "POST", "/invoices", {
+    idempotency_key: idem(),
+    invoice: {
+      location_id: location.id,
+      order_id: order.id,
+      primary_recipient: { customer_id: customer.id },
+      payment_requests: [{ request_type: "BALANCE", due_date: new Date().toISOString().slice(0, 10) }],
+      delivery_method: "SHARE_MANUALLY",
+      accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false, buy_now_pay_later: false, cash_app_pay: false },
+    },
+  });
+  const total = money(order.total_money);
+  return `Draft invoice in Square for ${state.name}: ${lines.map((l) => l.label).join(", ")}${total ? `, ${total}` : ""}.` +
+    (missing.length ? ` I couldn't find ${missing.join(" or ")} in Square.` : "") +
+    (notes.length ? ` ${capital(notes.join("; "))}, so check it in Square.` : "") + added;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +452,8 @@ async function converse(body, env, fetchFn, claude, now) {
     if (claude) {
       try {
         const ai = await aiTurn({ ...state, heard: state.heard.slice(0, -1) }, text, now, claude);
-        parsed = { name: squash(ai.customer_name), phone: digits(ai.customer_phone), work: squash(ai.work), shop: ai.for_shop === true };
+        parsed = { intent: ai.intent, items: Array.isArray(ai.items) ? ai.items : [], name: squash(ai.customer_name),
+          phone: digits(ai.customer_phone), work: squash(ai.work), shop: ai.for_shop === true };
         state.ai = ai;
       } catch (err) {
         console.log("AI step skipped:", err && err.message);
@@ -250,6 +469,11 @@ async function converse(body, env, fetchFn, claude, now) {
     if (parsed.phone.length >= 7) { state.phone = formatPhone(parsed.phone); state.lookedUp = true; }
     if (parsed.work) state.work = parsed.work;
     if (parsed.shop) state.shop = true;
+    // Once an invoice, always an invoice; "new customer" can come later.
+    if (parsed.intent === "new_customer" || (parsed.intent === "invoice" && state.intent !== "new_customer")) state.intent = parsed.intent;
+    if (parsed.items && parsed.items.length) {
+      state.items = parsed.items.filter((i) => i && squash(i.spoken)).map((i) => ({ spoken: squash(i.spoken), quantity: i.quantity || 1 }));
+    }
   }
 
   let note = "";
@@ -261,6 +485,16 @@ async function converse(body, env, fetchFn, claude, now) {
   }
 
   const giveUp = state.turns >= MAX_TURNS;
+  if (state.intent !== "work_order") {
+    if (!claude || !state.ai) return { done: true, say: "Sorry, I can only make invoices when the AI step is working. Please make it in Square." };
+    if (!state.name || !state.items.length) {
+      if (giveUp) return { done: true, say: "Sorry, I didn't get the invoice. Please make it in Square." };
+      state.asked = !state.name ? "invoice_name" : "items";
+      const say = state.asked === "invoice_name" ? "Who's the invoice for?" : `What's on the invoice for ${state.name}?`;
+      return { done: false, say: say + note, state: JSON.stringify(state) };
+    }
+    return { done: true, invoice: state, place: pickLocation(state.heard.join(" "), body.location) };
+  }
   const needName = !state.name && !state.shop;
   if (!state.work || (needName && !giveUp)) {
     if (giveUp) return { done: true, say: "Sorry, I didn't get what the work order is for. Please add it in the app." };
@@ -309,6 +543,14 @@ async function handle(req, env, fetchFn, claude) {
   }
 
   const turn = await converse(body || {}, env, fetchFn, claude, new Date());
+  if (turn.invoice) {
+    try {
+      return reply(200, { done: true, say: await makeInvoice(turn.invoice, turn.place, env, fetchFn) });
+    } catch (err) {
+      console.log("Invoice failed:", err && err.message);
+      return reply(200, { done: true, say: `Sorry, Square had a problem, so there's no invoice. ${err && err.message}` });
+    }
+  }
   if (!turn.row) return reply(200, turn);
 
   const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/tickets`, {
