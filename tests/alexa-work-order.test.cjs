@@ -535,3 +535,65 @@ test('editing: a new customer name also replaces the name at the start of the ti
   assert.deepEqual(JSON.parse(JSON.stringify(shop.patches[0].body)),
     { details: 'Customer: Gary Latimer', title: 'Gary Latimer - Bake and resurface Special Effect' });
 });
+
+// --- ball catalog ------------------------------------------------------------
+
+const BALLS = [
+  { brand: 'Storm', name: 'Phaze 6', release_month: '2026-09-01', discontinued: 'No', is_recent_release: true },
+  { brand: 'Storm', name: 'Nu Blue', release_month: '2025-03-01', discontinued: 'No', is_recent_release: false },
+  { brand: 'Storm', name: 'Identity', release_month: '2024-06-01', discontinued: 'No', is_recent_release: false },
+  { brand: 'Hammer', name: 'Black Widow Ghost', release_month: '2025-01-01', discontinued: 'No', is_recent_release: false },
+  { brand: 'Hammer', name: 'Special Effect', release_month: '2025-05-01', discontinued: 'No', is_recent_release: false },
+  { brand: 'Roto Grip', name: 'Exponent Solid', release_month: '2024-01-01', discontinued: 'No', is_recent_release: false },
+  { brand: 'Ebonite', name: 'Game Breaker 5 Solid', release_month: '2023-01-01', discontinued: 'Yes', is_recent_release: false },
+];
+function ballShop(extra = {}) {
+  const shop = fakeShop(extra);
+  const inner = shop.fetch;
+  shop.ballCalls = 0;
+  shop.fetch = async (url, init) => {
+    if (url.startsWith('https://db.test/rest/v1/balls?')) { shop.ballCalls += 1; return new Response(JSON.stringify(url.includes('offset=0') ? BALLS : []), { status: 200 }); }
+    return inner(url, init);
+  };
+  return shop;
+}
+
+test('balls: misheard ball names find the real ones in the catalog', async () => {
+  const fn = edgeFunction();
+  const shop = ballShop();
+  const top = async (said) => (await fn.findBalls(env, shop.fetch, said)).map((b) => b.ball)[0];
+  assert.equal(await top('NU blue'), 'Storm Nu Blue');
+  assert.equal(await top('fays 6'), 'Storm Phaze 6');
+  assert.equal(await top('15 pound phaze'), 'Storm Phaze 6');
+  assert.equal(await top('black widow ghost'), 'Hammer Black Widow Ghost');
+  assert.equal(await top('Exponent solid'), 'Roto Grip Exponent Solid');
+  assert.equal(await top('hammer special effect'), 'Hammer Special Effect');
+  assert.equal((await fn.findBalls(env, shop.fetch, 'wrist brace')).length, 0);
+  assert.equal(shop.ballCalls, 1); // loaded once, then cached
+});
+
+test('balls: Claude checks the ball, and an unknown one is noted for review', async () => {
+  const fn = edgeFunction();
+  const shop = ballShop();
+  const seen = [];
+  const claude = fakeClaude([
+    [use('find_ball', { said: 'nu blue' }), use('find_ball', { said: 'zork ultra' })],
+    [speak('Which ball was the second one?', true)],
+  ], seen);
+  await say(fn, shop, 'work order to plug a nu blue and a zork ultra', undefined, claude);
+  const [a, b] = results(seen[1]);
+  assert.equal(a.balls[0].ball, 'Storm Nu Blue');
+  assert.deepEqual(b.balls, []);
+  assert.match(shop.reviews[0].problem, /Ball not in the catalog: "zork ultra"/);
+  assert.match(seen[0].system, /find_ball/);
+});
+
+test('balls: the laptop gets the newest ball names as listening hints', async () => {
+  const fn = edgeFunction();
+  const res = await fn.handle(post({ hints: true }), env, ballShop().fetch);
+  const { balls } = await res.json();
+  assert.equal(balls[0], 'Storm Phaze 6');
+  assert.ok(!balls.includes('Ebonite Game Breaker 5 Solid')); // discontinued
+  const bad = await fn.handle(post({ hints: true }, 'nope'), env, ballShop().fetch);
+  assert.equal(bad.status, 401);
+});

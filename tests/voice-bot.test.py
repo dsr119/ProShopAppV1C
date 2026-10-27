@@ -70,6 +70,31 @@ class PostTurnTests(unittest.TestCase):
         self.assertIn('add it in the app', reply['say'])
 
 
+class HintTests(unittest.TestCase):
+    def test_ball_names_come_from_the_function(self):
+        sent = {}
+
+        def opener(req, timeout):
+            sent.update(body=json.loads(req.data), secret=req.get_header('X-alexa-secret'))
+            return FakeResponse(b'{"balls": ["Storm Phaze 6", "Storm Nu Blue", 7]}')
+
+        self.assertEqual(voice.fetch_hints(CFG, opener), ['Storm Phaze 6', 'Storm Nu Blue'])
+        self.assertEqual(sent, {'body': {'hints': True}, 'secret': 'pw'})
+
+    def test_no_hints_when_offline(self):
+        def opener(req, timeout):
+            raise urllib.error.URLError('offline')
+
+        self.assertEqual(voice.fetch_hints(CFG, opener), [])
+
+    def test_prompt_keeps_the_shop_words_last(self):
+        prompt = voice.listening_prompt(['Storm Phaze 6', 'Storm Nu Blue'])
+        self.assertTrue(prompt.startswith('Balls: Storm Phaze 6, Storm Nu Blue. '))
+        self.assertTrue(prompt.endswith(voice.VOCAB))
+        self.assertEqual(voice.listening_prompt([]), voice.VOCAB)
+        self.assertEqual(voice.listening_prompt([f'Ball {i}' for i in range(100)]).count('Ball '), voice.MAX_HINT_BALLS)
+
+
 class EndpointerTests(unittest.TestCase):
     def test_stops_after_a_pause_following_speech(self):
         ep = voice.Endpointer(noise=100, silence_seconds=0.4)
