@@ -44,7 +44,12 @@
 // and the tests can load it under Node.
 
 const MAX_TITLE = 200;
-const MODEL = "claude-haiku-5-5";
+// The laptop's config.json "model" (or the VOICE_MODEL secret) picks one; Haiku is quickest.
+const MODELS = { haiku: "claude-haiku-5-5", sonnet: "claude-sonnet-5-5", opus: "claude-opus-5-5" };
+function pickModel(body, env) {
+  const name = String(body.model || env.VOICE_MODEL || "haiku").trim().toLowerCase();
+  return MODELS[name] ? name : "haiku";
+}
 const SQUARE_URL = "https://connect.squareup.com/v2";
 const SQUARE_VERSION = "2026-09-16";
 // Speccy (the spec sheet app) is a separate Supabase project. Its URL and
@@ -954,15 +959,16 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
 
   const place = pickLocation(state.heard.join(" "), body.location);
   const ctx = { env, fetchFn, state, now, place };
+  const model = pickModel(body, env);
   for (let step = 0; step < MAX_STEPS; step++) {
     const response = await claude.messages.create({
-      model: MODEL,
+      model: MODELS[model],
       max_tokens: 1024,
       system: systemPrompt(now, body.location),
       tools: TOOLS,
       tool_choice: { type: "any" },
       messages: state.messages,
-    });
+    }, { timeout: model === "haiku" ? 8000 : 25000 });
     if (response.stop_reason === "refusal") throw new Error("Claude declined");
     const content = response.content.map(keepBlock).filter(Boolean);
     state.messages.push({ role: "assistant", content });
@@ -1160,7 +1166,7 @@ if (typeof Deno !== "undefined") {
       claude = null;
       if (env.ANTHROPIC_API_KEY) {
         const { default: Anthropic } = await import("npm:@anthropic-ai/sdk");
-        // Each Claude call has 8 seconds; a turn may take a few.
+        // Each Claude call has 8 seconds (25 for the bigger models); a turn may take a few.
         claude = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 8000, maxRetries: 0 });
       }
     }

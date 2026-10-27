@@ -9,5 +9,8 @@
   "mic": null,
   "silence_seconds": 1.0,
   "max_seconds": 20,
-  "voice": "en_US-lessac-medium"
+  "voice": "en_US-lessac-medium",
+  "voice_engine": "edge",
+  "edge_voice": "en-US-AndrewNeural",
+  "model": "haiku"
 }

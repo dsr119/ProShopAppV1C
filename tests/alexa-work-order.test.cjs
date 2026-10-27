@@ -80,8 +80,9 @@ let ids = 0;
 const use = (name, input) => ({ type: 'tool_use', id: `tu${++ids}`, name, input });
 const speak = (s, done = false) => use('speak', { say: s, done });
 function fakeClaude(script, seen = []) {
-  return { messages: { create: async (params) => {
+  return { messages: { create: async (params, opts) => {
     seen.push(JSON.parse(JSON.stringify(params)));
+    seen.timeouts = (seen.timeouts || []).concat(opts && opts.timeout);
     const next = script.shift();
     if (!next) throw new Error('script ran out');
     if (next instanceof Error) throw next;
@@ -705,4 +706,18 @@ test('the prompt knows today in New York and this week\'s dates', () => {
   const p = fn.systemPrompt(new Date('2026-10-28T02:00:00Z'), 'Valley'); // 10 PM Tuesday in New York
   assert.match(p, /Today is Tuesday 2026-10-27/);
   assert.match(p, /this week is Monday 2026-10-26 to Sunday 2026-11-01/);
+});
+
+test('model: Haiku by default; the laptop or the VOICE_MODEL secret can pick a bigger one', async () => {
+  const fn = edgeFunction();
+  const run = async (body, extraEnv = {}) => {
+    const seen = [];
+    const claude = fakeClaude([[speak('Hi.', false)]], seen);
+    await fn.handle(post({ text: 'hello', location: 'Valley', ...body }), { ...env, ...extraEnv }, fakeShop().fetch, claude);
+    return [seen[0].model, seen.timeouts[0]];
+  };
+  assert.deepEqual(await run({}), ['claude-haiku-5-5', 8000]);
+  assert.deepEqual(await run({ model: 'Sonnet' }), ['claude-sonnet-5-5', 25000]);
+  assert.deepEqual(await run({}, { VOICE_MODEL: 'opus' }), ['claude-opus-5-5', 25000]);
+  assert.deepEqual(await run({ model: 'gpt' }), ['claude-haiku-5-5', 8000]);
 });

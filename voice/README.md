@@ -179,7 +179,10 @@ what closing the lid does" → Plugged in → **Do nothing**.
 | `password` | The `ALEXA_SHARED_SECRET` from Supabase. |
 | `location` | `Valley` or `South Side`; used unless the other one is said. |
 | `wake_word` | `hey_jarvis` (default), `alexa`, `hey_mycroft` or `hey_rhasspy`. A custom one like "Hey Pro Shop" can be trained later. |
-| `voice` | The spoken voice: `en_US-lessac-medium` (default), `en_US-ryan-medium` (male), `en_US-amy-medium`; downloaded on first use. Add `-low` instead of `-medium` for a faster, rougher voice; `""` uses the computer's built-in voice. |
+| `model` | The AI: `haiku` (default, quickest), `sonnet` (smarter, a few seconds slower), `opus` (smartest, slowest, costs about 5x Haiku). |
+| `voice_engine` | `edge` (default): Microsoft's free online voices, the most human-sounding. `piper`: the voice below, which runs on the laptop with no internet. If the online voice fails, it falls back to Piper. |
+| `edge_voice` | `en-US-AndrewNeural` (default, male), `en-US-BrianNeural` (male), `en-US-AvaNeural` (female), `en-US-EmmaNeural` (female), `en-US-GuyNeural`, `en-US-JennyNeural`. |
+| `voice` | The Piper (backup) voice: `en_US-lessac-medium` (default), `en_US-ryan-medium` (male), `en_US-amy-medium`; downloaded on first use. Add `-low` instead of `-medium` for a faster, rougher voice; `""` uses the computer's built-in voice. |
 | `wake_threshold` | 0 to 1. Raise it (0.6, 0.7) if it wakes up on its own; lower it (0.4) if it misses you. |
 | `whisper_model` | `base.en` (default). `small.en` hears better but is slower; `tiny.en` for a very old laptop. |
 | `mic` | Leave `null` for the default mic. `py -3.12 shop_voice.py --list-mics` lists them; put the number here. |

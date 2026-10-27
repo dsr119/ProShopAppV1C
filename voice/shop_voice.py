@@ -37,6 +37,9 @@ DEFAULTS = {
     "silence_seconds": 1.0,
     "max_seconds": 20,
     "voice": "en_US-lessac-medium",
+    "voice_engine": "edge",
+    "edge_voice": "en-US-AndrewNeural",
+    "model": "haiku",
 }
 
 # Biases speech-to-text toward the words the shop actually says.
@@ -73,7 +76,7 @@ def load_config(path=os.path.join(HERE, "config.json")):
 
 def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
     """One turn of the conversation. Returns the function's reply as a dict."""
-    body = {"text": text, "location": cfg["location"]}
+    body = {"text": text, "location": cfg["location"], "model": cfg["model"]}
     if state:
         body["state"] = state
     if resume:
@@ -85,7 +88,8 @@ def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
         method="POST",
     )
     try:
-        with opener(req, timeout=40) as res:  # a turn can take a few AI steps
+        # A turn can take a few AI steps; the bigger models are slower.
+        with opener(req, timeout=40 if cfg["model"] == "haiku" else 120) as res:
             return json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         try:
@@ -180,6 +184,37 @@ class PiperSpeaker:
         self.sd.play(audio, chunks[0].sample_rate, blocking=True)
 
 
+class EdgeSpeaker:
+    """Microsoft's online voices (free, very natural). Needs the internet; falls back if it fails."""
+
+    def __init__(self, sd, name, fallback):
+        import edge_tts
+        import miniaudio
+
+        self.sd, self.name, self.fallback = sd, name, fallback
+        self.edge_tts, self.miniaudio = edge_tts, miniaudio
+
+    def mp3(self, text):
+        import asyncio
+
+        async def fetch():
+            out = bytearray()
+            async for chunk in self.edge_tts.Communicate(text, self.name).stream():
+                if chunk["type"] == "audio":
+                    out += chunk["data"]
+            return bytes(out)
+        return asyncio.run(fetch())
+
+    def __call__(self, text):
+        try:
+            sound = self.miniaudio.decode(self.mp3(text), output_format=self.miniaudio.SampleFormat.SIGNED16, nchannels=1)
+        except Exception as err:
+            print("Online voice failed, using the backup voice:", err)
+            return self.fallback(text)
+        print("Says:", text)
+        self.sd.play(np.asarray(sound.samples, dtype=np.int16), sound.sample_rate, blocking=True)
+
+
 def speak(text):
     """The computer's built-in voice: robotic, but always there."""
     print("Says:", text)
@@ -218,6 +253,11 @@ class Shop:
                 self.speak = PiperSpeaker(sd, cfg["voice"])
             except Exception as err:
                 print("Using the built-in voice; Piper didn't load:", err)
+        if cfg["voice_engine"] == "edge":
+            try:
+                self.speak = EdgeSpeaker(sd, cfg["edge_voice"], self.speak)
+            except Exception as err:
+                print("Online voice not installed (pip install -r requirements.txt):", err)
         download_models([cfg["wake_word"]])
         self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx")
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
