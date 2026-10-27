@@ -38,6 +38,8 @@ class PostTurnTests(unittest.TestCase):
         self.assertEqual(reply['say'], 'What are we doing?')
         self.assertEqual(sent['body'], {'text': 'for Doug Smith', 'location': 'South Side', 'state': 's1'})
         self.assertEqual(sent['secret'], 'pw')
+        voice.post_turn(CFG, 'change it', 's1', opener, resume=True)
+        self.assertEqual(sent['body']['resume'], True)
         self.assertEqual(sent['url'], CFG['function_url'])
 
     def test_first_turn_has_no_state(self):
@@ -110,7 +112,7 @@ class ConversationTests(unittest.TestCase):
         shop.say = said.append
         shop.flush = lambda: None
         original_post, original_beep = voice.post_turn, voice.beep
-        voice.post_turn = lambda cfg, text, state: posted.append((text, state)) or replies.pop(0)
+        voice.post_turn = lambda cfg, text, state, resume=False: posted.append((text, state)) or replies.pop(0)
         voice.beep = lambda sd: None
         try:
             shop.conversation()
@@ -132,6 +134,33 @@ class ConversationTests(unittest.TestCase):
             [{'done': False, 'say': "Who's it for, and what are we doing?", 'state': 's1'}])
         self.assertEqual(len(posted), 1)
         self.assertEqual(said[-1], 'Okay, never mind.')
+
+    def test_a_new_wake_word_soon_after_carries_the_state_on(self):
+        shop = voice.Shop.__new__(voice.Shop)
+        shop.cfg, shop.sd = CFG, None
+        shop.memory = ('old', voice.time.time() - 60)
+        heard, sent, said = ['change that one'], [], []
+        shop.listen = lambda: heard.pop(0)
+        shop.say = said.append
+        shop.flush = lambda: None
+        original = voice.post_turn
+        voice.post_turn = lambda cfg, text, state, resume=False: sent.append((text, state, resume)) or {'done': True, 'say': 'Changed.', 'state': 'new'}
+        try:
+            shop.conversation()
+        finally:
+            voice.post_turn = original
+        self.assertEqual(sent, [('change that one', 'old', True)])
+        self.assertEqual(shop.memory[0], 'new')
+
+        # After five minutes it starts fresh.
+        shop.memory = ('old', voice.time.time() - 600)
+        heard.append('work order')
+        voice.post_turn = lambda cfg, text, state, resume=False: sent.append((text, state, resume)) or {'done': True, 'say': 'Ok.'}
+        try:
+            shop.conversation()
+        finally:
+            voice.post_turn = original
+        self.assertEqual(sent[-1], ('work order', None, False))
 
     def test_silence_ends_it(self):
         said, posted = self.run_conversation([''], [])

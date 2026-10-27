@@ -15,6 +15,15 @@ coworker rather than a menu:
 
 Say "never mind" at any point to stop without adding anything.
 
+**Changing work orders:** "change Joe DeGrazia's to a bake and resurface",
+"mark the Special Effect done but not picked up", "put a note on John Doe's".
+It finds the work order by customer or ball and changes only what you said
+(title, customer and phone, status, due date, priority, a note). It can't
+delete; do that in the app.
+
+**Follow-ups:** saying the wake word again within 5 minutes carries on the
+same conversation, so "change that one" works right after adding it.
+
 ## How it works
 
 ```
@@ -46,11 +55,14 @@ thing said, simple rules take the work order instead. A conversation costs
 about a cent or less.
 
 **Phone lookup:** the name is searched in the customer directory, orders,
-appointments and Speccy's spec sheets. "Doug" finds "Douglas Smith". If
-several customers match, it asks for the last four digits of the phone (for a
-work order, "I don't know" or "either one" is fine). An invoice needs the
-phone to find the customer in Square, so a name found nowhere gets "What's
-their phone number?"
+appointments and Speccy's spec sheets, by pieces of the last name so a
+misheard spelling still finds it: "Doug" finds "Douglas Smith", "Joe De
+Grazia" finds "Joe DeGrazia", and "John Yablonsky" gets "Did you mean John
+Jablonski?" If several customers match, it asks for the last four digits of
+the phone. If nobody's close, a work order is made without a phone. An
+invoice needs the phone to find the customer in Square, so a name found
+nowhere gets "What's their phone number?" If Speccy can't be read (it has to
+be in open-link mode, or see below), that's noted in the review list.
 
 ## Square invoices
 
