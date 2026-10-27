@@ -1,14 +1,17 @@
 # Shop voice bot
 
-A spare laptop in the shop that takes work orders by voice, with no Amazon
-account, skill name or lead-in words:
+A spare laptop in the shop that takes work orders and makes draft Square
+invoices by voice. Claude runs the conversation, so you talk to it like a
+coworker rather than a menu:
 
 > "Hey Jarvis" *(beep)* "work order for Doug Smith to plug his 14 pound ball"
-> → "Work order added for Doug Smith: Plug 14 lb ball."
+> → "Work order added for Doug Smith: plug his 14 pound ball."
 
-> "Hey Jarvis" *(beep)* "create a work order" → "Who's it for, and what are we doing?"
-> *(beep)* "Doug Smith" → "What are we doing for Doug Smith?" *(beep)* "resurface his ball"
-> → "Work order added for Doug Smith: Resurface ball."
+> "Hey Jarvis, create an invoice for Doug Smith" → "I found two Doug Smiths.
+> What are the last four of the phone?" → "8 1 0" → "I only caught 8 1 0.
+> What are all four digits?" → "8210" → "Got it. What's on the invoice?" →
+> "an Exponent solid" → "I don't see an Exponent Solid. Did you mean the Game
+> Breaker 5 Solid?"
 
 Say "never mind" at any point to stop without adding anything.
 
@@ -22,26 +25,32 @@ laptop mic → wake word + speech-to-text (on the laptop)
 
 Listening never leaves the laptop: the wake word ([openWakeWord](https://github.com/dscripka/openWakeWord))
 and speech-to-text ([faster-whisper](https://github.com/SYSTRAN/faster-whisper))
-run on it. Only the typed-out words of a work order go to the Supabase
-function, which runs the conversation and is the only part that holds a
-database key: it reads customer names and phones and adds tickets, nothing
-else. The laptop holds only the work order password.
+run on it. Only the typed-out words go to the Supabase function, which runs
+the conversation and is the only part that holds the database and Square
+keys: it reads customer names and phones, adds tickets and review notes, and
+makes draft invoices, nothing else. The laptop holds only the work order
+password.
 
 The function is still called `alexa-work-order` and its password
 `ALEXA_SHARED_SECRET` (it first served an Alexa skill); renaming them would
 mean redeploying it and changing the laptop's settings for no gain.
 
+**Claude** (Haiku, for speed) decides what to say and what to ask. It acts
+only through a few tools the function gives it: look up a customer, search the
+Square item library, make a draft invoice, add a work order, and note
+something for review. It never makes up customers, phones, items or prices,
+and it can't send an invoice. "For doug smith to plug his fourteen pound ball
+before thursday league" becomes title *Plug 14 lb ball*, priority High, due
+Thursday's date. Without an Anthropic key, or if Claude fails on the first
+thing said, simple rules take the work order instead. A conversation costs
+about a cent or less.
+
 **Phone lookup:** the name is searched in the customer directory, orders,
 appointments and Speccy's spec sheets. "Doug" finds "Douglas Smith". If
-customers with different numbers match, it asks for the last four digits of
-the phone number ("I don't know" carries on without it; an invoice then
-stops). For an invoice, a name found nowhere gets "What's their phone number?"
-
-**Claude:** with an Anthropic API key, Claude reads each answer, so "for doug
-smith to plug his fourteen pound ball before thursday league" becomes title
-*Plug 14 lb ball*, priority High, due Thursday's date. Without a key, or if
-Claude takes over 5 seconds, simple rules do it and the words become the title.
-Claude Haiku costs well under a tenth of a cent per work order.
+several customers match, it asks for the last four digits of the phone (for a
+work order, "I don't know" or "either one" is fine). An invoice needs the
+phone to find the customer in Square, so a name found nowhere gets "What's
+their phone number?"
 
 ## Square invoices
 
@@ -55,13 +64,12 @@ Claude Haiku costs well under a tenth of a cent per work order.
 
 - Invoices are always **drafts**: check and send them from Square (Invoices).
 - The customer is found in Square by phone number (looked up from the customer
-  list and Speccy). Someone not in Square isn't invoiced unless you say "new
-  customer".
-- Items are matched to the Square item library by the closest name: Square is
-  searched for each word, and Claude picks the closest item ("IAMX Pearl" →
-  *Storm I Am X Pearl*). When it's a best guess it says "I used ... for ...".
-  A ball's weight picks the variation. If no weight is said, or that weight
-  doesn't exist, it says which one it picked.
+  list and Speccy). If they aren't in Square, it asks whether to add them as
+  a new customer.
+- Items: Square is searched for each word said, and Claude picks the item
+  that's clearly what you meant ("IAMX Pearl" → *Storm I Am X Pearl*). When
+  the closest one is something else it asks before using it. A ball's weight
+  picks the variation; if you didn't say one, it asks.
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
   name in Square, e.g. `standard drill` → `Drilling - Standard`. Run
   `migration/add_voice_aliases.sql` once in the SQL Editor, then add or edit
@@ -83,8 +91,8 @@ Claude Haiku costs well under a tenth of a cent per work order.
 ## Review list
 
 Anything it didn't understand or had to guess is saved in **Table Editor →
-voice_review**: an item not found in Square or matched loosely, a customer it
-couldn't pin down, a conversation that went nowhere, a Square error. Each row
+voice_review**: Claude notes what it couldn't make out or had to guess, and
+Square errors, AI failures and conversations that went nowhere are noted too. Each row
 has what was heard and what it answered; tick `reviewed` when done. Recurring
 item mix-ups are best fixed with a `voice_aliases` row. Run
 `migration/add_voice_review.sql` once to create the table.
