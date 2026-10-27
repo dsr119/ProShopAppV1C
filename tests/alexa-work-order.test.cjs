@@ -31,16 +31,20 @@ const CATALOG = [
 ];
 
 // A fake shop: Supabase tables, Speccy and Square. Records what was written.
-function fakeShop({ directory = [], orders = [], speccy = [], squareCustomers = [], catalog = CATALOG, aliases = [] } = {}) {
-  const shop = { tickets: [], reviews: [], calls: [], lookups: 0 };
+function fakeShop({ directory = [], orders = [], speccy = [], squareCustomers = [], catalog = CATALOG, aliases = [], existing = [], speccyStatus = 200 } = {}) {
+  const shop = { tickets: [], reviews: [], calls: [], lookups: 0, patches: [], existing, speccyUrls: [] };
   const json = (v, status = 200) => new Response(JSON.stringify(v), { status });
   shop.fetch = async (url, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
-    if (url.startsWith('https://speccy.test/')) { shop.lookups += 1; return json(speccy); }
+    if (url.startsWith('https://speccy.test/')) { shop.lookups += 1; shop.speccyUrls.push(url); return json(speccyStatus === 200 ? speccy : { message: 'denied' }, speccyStatus); }
     if (url.startsWith('https://db.test/')) {
       assert.equal(init.headers.apikey, 'key');
       const table = url.split('/rest/v1/')[1].split('?')[0];
-      if (table === 'tickets') { shop.tickets.push(body); return json([{ id: 't1' }], 201); }
+      if (table === 'tickets') {
+        if (init.method === 'PATCH') { shop.patches.push({ url, body }); return json([], 200); }
+        if (init.method !== 'POST') return json(shop.existing.filter((t) => !url.includes('id=eq.') || url.includes(`id=eq.${t.id}`)));
+        shop.tickets.push(body); return json([{ id: 't1' }], 201);
+      }
       if (table === 'voice_review') { shop.reviews.push(body); return json([], 201); }
       if (table === 'voice_aliases') return json(aliases);
       shop.lookups += 1;
@@ -134,7 +138,7 @@ test('invoice: Claude asks for the last four, copes with a partial answer, and m
   out = await say(fn, shop, '8210', out.state, claude);
   out = await say(fn, shop, 'a 15 pound Phaze', out.state, claude);
   assert.equal(out.done, true);
-  assert.equal(out.state, undefined);
+  assert.equal(JSON.parse(out.state).v, 2); // kept, for a follow-up wake word
   assert.match(out.say, /^Draft invoice in Square for Doug Smith/);
   const found = results(seen[5])[0].items;
   assert.equal(found[0].item, 'Storm Phaze 6');
@@ -218,12 +222,12 @@ test('work order: Claude looks up the phone and adds the ticket', async () => {
   assert.equal(out.done, true);
   assert.deepEqual(results(seen[1])[0].matches, [{ name: 'Douglas Smith', phone: '555-123-4567' }]);
   const row = shop.tickets[0];
-  assert.equal(row.title, 'Plug 14 lb ball');
+  assert.equal(row.title, 'Douglas Smith - Plug 14 lb ball');
   assert.equal(row.location, 'South Side');
   assert.equal(row.priority, 'high');
   assert.equal(row.due_date, '2026-10-29');
   assert.equal(row.status, 'new');
-  assert.match(row.details, /^Customer: Douglas Smith\nPhone: 555-123-4567\n\nNeeds it for Thursday league\.\n\nSaid: "work order for doug smith/);
+  assert.equal(row.details, 'Customer: Douglas Smith\nPhone: 555-123-4567\n\nNeeds it for Thursday league.');
   assert.deepEqual(results(seen[2])[0], { ok: true, ticket: 't1', location: 'South Side' });
 });
 
@@ -237,7 +241,8 @@ test('work order: values the tickets table would reject are dropped', async () =
   await say(fn, shop, 'ball return on lane 3 is jammed', undefined, claude);
   const row = shop.tickets[0];
   assert.deepEqual([row.category, row.priority, row.due_date], [null, 'normal', null]);
-  assert.match(row.details, /^Said: "/);
+  assert.equal(row.details, null);
+  assert.equal(row.title, 'Fix lane 3 ball return');
 });
 
 test('review: notes Claude makes are saved once, when the conversation ends', async () => {
@@ -286,7 +291,7 @@ test('AI: if Claude fails on the first turn, the simple rules still make the tic
   const shop = fakeShop();
   const out = await say(fn, shop, 'for doug smith to oil his ball', undefined, fakeClaude([new Error('timeout')]));
   assert.equal(out.done, true);
-  assert.equal(shop.tickets[0].title, 'Oil his ball');
+  assert.equal(shop.tickets[0].title, 'Doug Smith - Oil his ball');
   assert.match(shop.reviews[0].problem, /^AI step failed \(timeout\)/);
 });
 
@@ -320,7 +325,8 @@ test('rules: one breath, "for NAME to WORK", looks up the phone and adds the tic
   assert.equal(out.done, true);
   assert.equal(out.say, 'Work order added for Doug Smith: Plug his 14 pound ball.');
   const row = shop.tickets[0];
-  assert.match(row.details, /^Customer: Doug Smith\nPhone: 555-123-4567\n\nSaid: "/);
+  assert.equal(row.title, 'Doug Smith - Plug his 14 pound ball');
+  assert.equal(row.details, 'Customer: Doug Smith\nPhone: 555-123-4567');
   assert.equal(row.category, 'Customer');
   assert.equal(row.submitted_by, 'Alexa');
   assert.equal(shop.lookups, 4); // three tables and Speccy
@@ -357,7 +363,7 @@ test('rules: two different numbers for the name leaves the phone off and says so
     speccy: [{ name: 'Doug Smith', phone: '555-765-4321' }] });
   const out = await say(fn, shop, 'for doug smith to resurface his ball');
   assert.match(out.say, /more than one Doug Smith/);
-  assert.match(shop.tickets[0].details, /^Customer: Doug Smith\nPhone: \n/);
+  assert.equal(shop.tickets[0].details, 'Customer: Doug Smith'); // no empty phone line
 });
 
 test('rules: an invoice needs the AI, and says so', async () => {
@@ -412,4 +418,120 @@ test('location comes from the words, else the device default', () => {
   assert.equal(fn.pickLocation('at south side', 'Valley'), 'South Side');
   assert.equal(fn.pickLocation('order tape', 'Valley'), 'Valley');
   assert.equal(fn.pickLocation('order tape', ''), null);
+});
+
+// --- finding customers, changing work orders, carrying on --------------------
+
+test('lookup: misheard names find the close ones; De Grazia is DeGrazia; Sr. is ignored', () => {
+  const fn = edgeFunction();
+  const rows = [
+    { customer_name: 'John Jablonski', phone: '570-111-2222' },
+    { customer_name: 'Joe DeGrazia', phone: '' },
+    { customer_name: 'Joe DeGrazia', phone: '570-333-4444' },
+    { customer_name: 'Gary Latimer', phone: '570-555-6666' },
+    { customer_name: 'Mary Smith', phone: '570-777-8888' },
+  ];
+  const plain = (v) => JSON.parse(JSON.stringify(v));
+  assert.deepEqual(plain(fn.findCustomers('John Yablonsky', rows)), { matches: [], close: [{ name: 'John Jablonski', phone: '570-111-2222' }] });
+  assert.deepEqual(plain(fn.findCustomers('Joe De Grazia', rows)), { matches: [{ name: 'Joe DeGrazia', phone: '570-333-4444' }], close: [] });
+  assert.deepEqual(plain(fn.findCustomers('Gary Lattemirak, Sr.', rows).close), []);
+  assert.deepEqual(plain(fn.findCustomers('Gary Latimer Sr', rows).matches), [{ name: 'Gary Latimer', phone: '570-555-6666' }]);
+  assert.deepEqual([...fn.namePieces('John Yablonsky')], ['yab', 'abl', 'nsky']);
+});
+
+test('lookup: searches by pieces of the last name, and notes when Speccy cannot be read', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ speccyStatus: 401, directory: [{ customer_name: 'John Jablonski', phone: '570-111-2222' }] });
+  const seen = [];
+  const claude = fakeClaude([[use('find_customer', { name: 'John Yablonsky' })], [speak('Did you mean John Jablonski?')], [speak('Okay.', true)]], seen);
+  let out = await say(fn, shop, 'work order for john yablonsky', undefined, claude);
+  const r = results(seen[1])[0];
+  assert.deepEqual(r.close, [{ name: 'John Jablonski', phone: '570-111-2222' }]);
+  assert.equal(r.speccy, 'could not be read (error 401)');
+  assert.match(decodeURIComponent(shop.speccyUrls[0]), /or=\(name\.ilike\.\*yab\*,name\.ilike\.\*abl\*,name\.ilike\.\*nsky\*\)/);
+  out = await say(fn, shop, 'never mind', out.state, claude);
+  assert.match(shop.reviews[0].problem, /Speccy could not be read \(error 401\)/);
+});
+
+const TICKETS = [
+  { id: '11111111-1111-4111-8111-111111111111', title: 'Bake and resurface Hammer Special Effect', details: 'Customer: John Doe\nPhone: \n\nSaid: "x"', status: 'new', submitted_at: '2026-10-27T04:00:00Z' },
+  { id: '22222222-2222-4222-8222-222222222222', title: 'Beacon resurface Bionic', details: 'Customer: Joe DeGrazia\nPhone: \n\nSaid: "y"', status: 'new', submitted_at: '2026-10-27T04:05:00Z' },
+];
+
+test('editing: find a work order by customer or ball, then change only what was said', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ existing: TICKETS });
+  const seen = [];
+  const claude = fakeClaude([
+    [use('find_work_orders', { customer_name: 'Joe de Grazias' }), use('find_work_orders', { words: 'special effect' })],
+    [use('update_work_order', { id: TICKETS[1].id, title: 'Bake and resurface Bionic' }),
+     use('update_work_order', { id: TICKETS[0].id, status: 'done', done_note: 'Done, not picked up yet' })],
+    [speak('Done, both changed.', true)],
+  ], seen);
+  await say(fn, shop, 'change joe de grazias to a bake and resurface, and mark the special effect done but not picked up', undefined, claude);
+  const [byName, byBall] = results(seen[1]);
+  assert.deepEqual(byName.work_orders.map((t) => t.customer), ['Joe DeGrazia']);
+  assert.deepEqual(byBall.work_orders.map((t) => t.title), ['Bake and resurface Hammer Special Effect']);
+  assert.deepEqual(results(seen[2]).map((r) => r.changed), [['title'], ['status', 'resolution']]);
+  assert.match(shop.patches[0].url, /id=eq\.22222222-2222-4222-8222-222222222222&deleted_at=is\.null$/);
+  assert.deepEqual(shop.patches[0].body, { title: 'Bake and resurface Bionic' });
+  assert.equal(shop.patches[1].body.status, 'done');
+  assert.equal(shop.patches[1].body.resolution, 'Done, not picked up yet');
+  assert.ok(shop.patches[1].body.completed_at);
+});
+
+test('editing: the customer and phone are rewritten in the details; notes are added', async () => {
+  const fn = edgeFunction();
+  const out = await fn.updateTicket(env, fakeShop({ existing: TICKETS }).fetch,
+    { id: TICKETS[0].id, customer_name: 'Gary Latimer', phone: '5705556666', note: 'Customer called' }, new Date('2026-10-27T05:00:00Z'));
+  assert.deepEqual(JSON.parse(JSON.stringify(out)), { ok: true, changed: ['details'] });
+  const shop = fakeShop({ existing: TICKETS });
+  await fn.updateTicket(env, shop.fetch, { id: TICKETS[0].id, customer_name: 'Gary Latimer', phone: '5705556666', note: 'Customer called' }, new Date('2026-10-27T05:00:00Z'));
+  assert.equal(shop.patches[0].body.details, 'Customer: Gary Latimer\nPhone: 570-555-6666\n\nSaid: "x"\n\nVoice note 2026-10-27: Customer called');
+  assert.match((await fn.updateTicket(env, shop.fetch, { id: 'nope' }, new Date())).error, /id/);
+  assert.match((await fn.updateTicket(env, shop.fetch, { id: TICKETS[0].id }, new Date())).error, /Nothing to change/);
+});
+
+test('a new wake word carries on the last conversation, with a fresh count', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop();
+  const seen = [];
+  const claude = fakeClaude([
+    [use('create_work_order', { customer_name: 'Joe Sutton', title: 'Plug thumb on NU Blue', category: 'Customer', priority: 'normal' })],
+    [speak("Done: plug thumb on Joe Sutton's NU Blue.", true)],
+    [use('update_work_order', { id: '33333333-3333-4333-8333-333333333333', title: 'Plug thumb on NU Black' })],
+    [speak('Changed to NU Black.', true)],
+  ], seen);
+  let out = await say(fn, shop, 'work order for joe sutton, plug the thumb on his nu blue', undefined, claude);
+  assert.equal(out.done, true);
+  const res = await fn.handle(post({ text: 'change that one to the nu black', state: out.state, resume: true, location: 'Valley' }), env, shop.fetch, claude);
+  out = await res.json();
+  const st = JSON.parse(out.state);
+  assert.deepEqual(st.heard, ['change that one to the nu black']);
+  assert.equal(st.turns, 1);
+  // Claude saw the earlier work order.
+  assert.match(JSON.stringify(seen[2].messages), /Plug thumb on NU Blue/);
+});
+
+test('resuming keeps only recent messages, cut where a person spoke', () => {
+  const fn = edgeFunction();
+  const messages = [];
+  for (let i = 0; i < 20; i++) {
+    messages.push({ role: 'user', content: `said ${i}` });
+    messages.push({ role: 'assistant', content: [{ type: 'tool_use', id: `a${i}`, name: 'speak', input: {} }] });
+    messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: `a${i}`, content: 'said' }] });
+  }
+  const st = fn.resumeState({ v: 2, messages, heard: ['x'], turns: 5, done: ['k'], review: ['r'] });
+  assert.equal(typeof st.messages[0].content, 'string');
+  assert.ok(st.messages.length <= 30);
+  assert.deepEqual([st.turns, st.heard.length, st.done.length, st.review.length], [0, 0, 0, 0]);
+});
+
+test('editing: a new customer name also replaces the name at the start of the title', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ existing: [{ id: TICKETS[0].id, title: 'John Doe - Bake and resurface Special Effect',
+    details: 'Customer: John Doe', status: 'new' }] });
+  await fn.updateTicket(env, shop.fetch, { id: TICKETS[0].id, customer_name: 'Gary Latimer' }, new Date());
+  assert.deepEqual(JSON.parse(JSON.stringify(shop.patches[0].body)),
+    { details: 'Customer: Gary Latimer', title: 'Gary Latimer - Bake and resurface Special Effect' });
 });

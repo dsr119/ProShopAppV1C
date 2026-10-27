@@ -11,9 +11,9 @@
 //
 // Claude (Haiku, for speed) runs the conversation. It decides what to say
 // and what to ask, and acts only through the tools below: look up a customer
-// (customer list, orders, appointments and Speccy's spec sheets), search the
-// Square item library, make a DRAFT invoice, add a ticket, and note something
-// for review. Invoices are only ever drafts: staff check and send them from
+// (customer list, orders, appointments and Speccy's spec sheets, by close
+// spelling too), search the Square item library, make a DRAFT invoice, add,
+// find and change a ticket, and note something for review. Invoices are only ever drafts: staff check and send them from
 // Square, so a mishearing never reaches a customer. Things it didn't
 // understand or had to guess go to voice_review (migration/add_voice_review.sql).
 // The voice_aliases table (migration/add_voice_aliases.sql) maps shop words
@@ -26,9 +26,11 @@
 // The caller (voice/shop_voice.py on the shop laptop) posts
 // { text, state?, location? } with a shared password in the x-alexa-secret
 // header, speaks back `say`, and if `done` is false listens again and posts
-// the answer with the `state` it was given. This function is the only thing
-// that holds a database key; it reads customer names and phones, adds "new"
-// tickets and review notes. It never updates or deletes anything.
+// the answer with the `state` it was given. A new wake word within a few
+// minutes posts the last state with resume: true, so "change that one" still
+// works. This function is the only thing that holds a database key; it reads
+// customer names and phones, adds and changes tickets, and adds review notes.
+// It never deletes anything.
 //
 // Deploy with "Enforce JWT verification" OFF: the laptop has no Supabase
 // login, the password is the check. Secrets: ALEXA_SHARED_SECRET (set by hand;
@@ -121,37 +123,82 @@ function matchCustomer(spoken, rows) {
   return m.length === 1 ? { found: 1, ...m[0] } : { found: m.length };
 }
 
-// Everyone with that last name in the customer list, orders, appointments
-// and Speccy's spec sheets (most recently measured first).
+const SUFFIXES = new Set(["sr", "jr", "ii", "iii", "iv"]);
+const nameWords = (v) => nameKey(v).replace(/[^a-z ]/g, "").split(" ").filter((w) => w && !SUFFIXES.has(w));
+// Last name as one sound-ish string: "De Grazia" = "DeGrazia", "-sky" = "-ski".
+const lastKey = (ws) => ws.slice(ws.length > 1 ? 1 : 0).join("").replace(/sky\b/g, "ski").replace(/ph/g, "f");
+
+// Search pieces of the last name, so a misheard spelling still finds the
+// row: "Yablonsky" searches *yab*, *abl*, *nsky* (finds "Jablonski").
+function namePieces(name) {
+  const last = nameWords(name).slice(-1)[0] || "";
+  if (last.length < 3) return last ? [last] : [];
+  const pieces = [last.slice(0, 3), last.slice(1, 4), last.length >= 5 ? last.slice(-4) : ""];
+  return [...new Set(pieces.filter((p) => p.length >= 3))];
+}
+
+// Customers whose last name shares a piece with the spoken one, from the
+// customer list, orders, appointments and Speccy's spec sheets (most recently
+// measured first). speccy says whether Speccy could be read.
 async function customerRows(name, env, fetchFn) {
-  const words = nameKey(name).split(" ").filter((w) => w.length > 1);
-  if (words.length === 0) return [];
-  const lastName = words[words.length - 1];
-  const last = encodeURIComponent(`*${lastName}*`);
+  const pieces = namePieces(name);
+  if (!pieces.length) return { rows: [], speccy: "not searched" };
+  const or = (col) => `or=(${pieces.map((p) => `${col}.ilike.*${p}*`).join(",")})`;
   const tables = ["customer_directory", "orders", "appointments"];
-  const lists = await Promise.all([...tables.map(async (table) => {
+  const lists = await Promise.all(tables.map(async (table) => {
     try {
       const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${table}?select=customer_name,phone` +
-        `&customer_name=ilike.${last}&phone=not.is.null&deleted_at=is.null&limit=200`, { headers: dbHeaders(env) });
+        `&${or("customer_name")}&deleted_at=is.null&limit=300`, { headers: dbHeaders(env) });
       return res.ok ? await res.json() : [];
     } catch {
       return [];
     }
-  }), speccyCustomers(lastName, env, fetchFn)]);
-  return lists.flat();
-}
-
-async function speccyCustomers(lastName, env, fetchFn) {
+  }));
   const key = env.SPECCY_KEY || SPECCY_KEY;
+  let speccy = "read", fromSpeccy = [];
   try {
     const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone` +
-      `&name=ilike.${encodeURIComponent(`*${lastName}*`)}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=50`,
+      `&${or("name")}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    const rows = res.ok ? await res.json() : [];
-    return rows.map((r) => ({ customer_name: r.name, phone: r.phone }));
-  } catch {
-    return [];
+    if (res.ok) fromSpeccy = (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone }));
+    else speccy = `could not be read (error ${res.status})`;
+  } catch (err) {
+    speccy = `could not be read (${err && err.message})`;
   }
+  return { rows: [...lists.flat(), ...fromSpeccy], speccy };
+}
+
+// For Claude: who fits the spoken name (same name, or "Doug" for "Douglas"),
+// and failing that the closest-sounding names ("Yablonsky" -> "Jablonski").
+// One entry per name and phone; phone is "" when none is on file.
+function findCustomers(spoken, rows) {
+  const want = nameWords(spoken);
+  const matches = new Map(), close = new Map();
+  if (!want.length) return { matches: [], close: [] };
+  for (const row of rows) {
+    const name = squash(row.customer_name);
+    const have = nameWords(name);
+    if (!have.length) continue;
+    const phone = digits(row.phone).length >= 7 ? formatPhone(row.phone) : "";
+    const key = `${have.join(" ")}|${digits(phone)}`;
+    const firstFits = want.length < 2 || have[0].startsWith(want[0]) || want[0].startsWith(have[0]);
+    const sameLast = lastKey(have) === lastKey(want);
+    if (sameLast && firstFits) {
+      if (!matches.has(key)) matches.set(key, { name, phone });
+      continue;
+    }
+    const like = wordLike(lastKey(want), lastKey(have));
+    const score = like + (firstFits ? 0.15 : 0) + (sameLast ? 0.3 : 0);
+    if ((like >= 0.65 && firstFits) || like >= 0.85 || sameLast) {
+      if (!close.has(key) || close.get(key).score < score) close.set(key, { name, phone, score });
+    }
+  }
+  // A name with a phone beats the same name without one.
+  const keep = (list) => list.filter((c, _, all) => c.phone || !all.some((o) => o.phone && nameKey(o.name) === nameKey(c.name)));
+  return {
+    matches: keep([...matches.values()]).slice(0, 8),
+    close: matches.size ? [] : keep([...close.values()].sort((a, b) => b.score - a.score)).slice(0, 5).map(({ name, phone }) => ({ name, phone })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,18 +386,85 @@ async function insertTicket(env, fetchFn, row) {
   return created;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const customerOf = (details) => ((/^Customer: (.*)$/m.exec(details || "") || [])[1] || "").trim();
+
+// Recent work orders, newest first, narrowed by customer and/or title words.
+async function findTickets(env, fetchFn, { customer_name, words: said }) {
+  const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/tickets?select=id,title,details,status,due_date,submitted_at` +
+    `&deleted_at=is.null&order=submitted_at.desc&limit=200`, { headers: dbHeaders(env) });
+  if (!res.ok) throw new Error(`Database said ${res.status}`);
+  const want = nameWords(customer_name || "");
+  const ws = words(said || "").filter((w) => w.length >= 3);
+  return (await res.json())
+    .filter((t) => {
+      const who = nameWords(customerOf(t.details));
+      if (want.length && !(who.length && wordLike(lastKey(want), lastKey(who)) >= 0.65)) return false;
+      if (ws.length && !ws.some((w) => words(`${t.title} ${t.details}`).some((h) => wordLike(w, h) >= 0.75))) return false;
+      return true;
+    })
+    .slice(0, 6)
+    .map((t) => ({ id: t.id, title: t.title, customer: customerOf(t.details), status: t.status, due_date: t.due_date,
+      added: String(t.submitted_at || "").slice(0, 10) }));
+}
+
+// Changes only the fields given. The customer lines and notes live in details.
+async function updateTicket(env, fetchFn, input, now) {
+  if (!UUID.test(String(input.id || ""))) return { error: "Need the work order's id (from create_work_order or find_work_orders)." };
+  const url = `${env.SUPABASE_URL}/rest/v1/tickets?id=eq.${input.id}&deleted_at=is.null`;
+  const res = await fetchFn(`${url}&select=id,title,details,status,completed_at`, { headers: dbHeaders(env) });
+  const [t] = res.ok ? await res.json() : [];
+  if (!t) return { error: "No work order with that id." };
+  const changes = {};
+  const has = (k) => typeof input[k] === "string" && input[k].trim();
+  if (has("title")) changes.title = squash(input.title).slice(0, MAX_TITLE);
+  if (has("priority") && PRIORITIES.includes(input.priority)) changes.priority = input.priority;
+  if (has("location") && PLACES.includes(input.location)) changes.location = input.location;
+  if (has("due_date")) changes.due_date = /^\d{4}-\d{2}-\d{2}$/.test(input.due_date) ? input.due_date : null;
+  if (has("status") && ["new", "assigned", "in_progress", "blocked", "done"].includes(input.status)) {
+    changes.status = input.status;
+    changes.completed_at = input.status === "done" ? (t.completed_at || now.toISOString()) : null;
+  }
+  if (has("done_note")) changes.resolution = squash(input.done_note);
+  let details = t.details || "";
+  if (has("customer_name") || has("phone")) {
+    const name = has("customer_name") ? squash(input.customer_name) : customerOf(details);
+    const phone = has("phone") ? formatPhone(input.phone) : ((/^Phone: (.*)$/m.exec(details) || [])[1] || "").trim();
+    const contact = `Customer: ${name}${phone ? `\nPhone: ${phone}` : ""}`;
+    const lines = /^Customer: .*(\nPhone: .*)?$/m;
+    details = lines.test(details) ? details.replace(lines, contact) : `${contact}\n\n${details}`.trim();
+    // The title starts with the customer's name; keep it in step.
+    const old = customerOf(t.details);
+    const title = changes.title || t.title;
+    if (has("customer_name") && old && title.startsWith(`${old} - `)) changes.title = `${name} - ${title.slice(old.length + 3)}`;
+  }
+  if (has("note")) details = `${details}\n\nVoice note ${now.toISOString().slice(0, 10)}: ${squash(input.note)}`.trim();
+  if (details !== (t.details || "")) changes.details = details;
+  if (!Object.keys(changes).length) return { error: "Nothing to change." };
+  const upd = await fetchFn(url, {
+    method: "PATCH",
+    headers: { ...dbHeaders(env), "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(changes),
+  });
+  if (!upd.ok) throw new Error(`Database said ${upd.status}: ${await upd.text()}`);
+  return { ok: true, changed: Object.keys(changes).filter((k) => k !== "completed_at") };
+}
+
 // A ticket row from what we know; values the tickets table would reject are dropped.
-function ticketRow({ name, phone, work, title, details, category, priority, due_date, heard }, location, now) {
+// Kept short: "Joe Sutton - Plug thumb, NU Blue", then the customer (and
+// phone, if known) and only the details the title leaves out.
+function ticketRow({ name, phone, work, title, details, category, priority, due_date }, location, now) {
   const ok = (v, test) => (typeof v === "string" && test(v.trim()) ? v.trim() : null);
   let t = ok(title, Boolean) || capital(squash(work));
+  if (name && !t.toLowerCase().startsWith(name.toLowerCase())) t = `${name} - ${t}`;
   if (t.length > MAX_TITLE) t = t.slice(0, MAX_TITLE - 1) + "…";
-  const contact = name ? `Customer: ${name}\nPhone: ${phone || ""}` : "";
+  const contact = name ? `Customer: ${name}${phone ? `\nPhone: ${phone}` : ""}` : "";
   return {
     submitted_by: "Alexa",
     submitted_at: now.toISOString(),
     location,
     title: t,
-    details: [contact, ok(details, Boolean), `Said: "${heard.join(" / ")}"`].filter(Boolean).join("\n\n"),
+    details: [contact, ok(details, Boolean)].filter(Boolean).join("\n\n") || null,
     category: ok(category, (v) => CATEGORIES.includes(v)) || (name ? "Customer" : null),
     priority: ok(priority, (v) => PRIORITIES.includes(v)) || "normal",
     due_date: ok(due_date, (v) => /^\d{4}-\d{2}-\d{2}$/.test(v)),
@@ -380,7 +494,7 @@ async function logReview(env, fetchFn, problem, heard, said, location) {
 const TOOLS = [
   {
     name: "find_customer",
-    description: "Look up a customer by name in the shop's customer list, orders, appointments and Speccy spec sheets. Returns each matching customer with their phone number (one per number). 'Doug' matches 'Douglas'.",
+    description: "Look up a customer by name in the shop's customer list, orders, appointments and Speccy spec sheets. matches: customers with that name ('Doug' fits 'Douglas'), with phone ('' if none on file). close: when nothing matches, the closest-sounding names (the transcript often misspells names). speccy says whether the spec sheets could be read.",
     input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
   },
   {
@@ -410,14 +524,39 @@ const TOOLS = [
       properties: {
         customer_name: { type: "string" },
         phone: { type: "string", description: "From find_customer, or empty if not known." },
-        title: { type: "string", description: "Short and specific, e.g. 'Plug and redrill 14 lb ball'. No customer name." },
-        details: { type: "string", description: "Specifics the title leaves out, or empty." },
+        title: { type: "string", description: "The job in a few words, e.g. 'Plug thumb, NU Blue' or 'Bake and resurface Storm Identity'. No customer name (it's added in front)." },
+        details: { type: "string", description: "Usually empty. Only facts the title leaves out that matter for the job (weight, layout, deadline), in a few words. Never mention lookups, phone numbers, or that a customer is new or wasn't found." },
         category: { type: "string", enum: CATEGORIES },
         priority: { type: "string", enum: PRIORITIES },
         due_date: { type: "string", description: "YYYY-MM-DD, or empty." },
         location: { type: "string", enum: PLACES },
       },
       required: ["customer_name", "title", "category", "priority"],
+    },
+  },
+  {
+    name: "find_work_orders",
+    description: "Find recent work orders (newest first) to change one: by customer name and/or words in the title. Returns id, title, customer, status, due date and when it was added.",
+    input_schema: { type: "object", properties: { customer_name: { type: "string" }, words: { type: "string" } } },
+  },
+  {
+    name: "update_work_order",
+    description: "Change a work order by id (from create_work_order or find_work_orders). Only include what changes. status: new (to review), assigned, in_progress, blocked, done. note is added to the details; done_note is the resolution, e.g. 'Done, not picked up yet'.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        title: { type: "string", description: "The whole new title, starting with the customer's name as before." },
+        customer_name: { type: "string" },
+        phone: { type: "string" },
+        note: { type: "string" },
+        status: { type: "string", enum: ["new", "assigned", "in_progress", "blocked", "done"] },
+        done_note: { type: "string" },
+        priority: { type: "string", enum: PRIORITIES },
+        due_date: { type: "string", description: "YYYY-MM-DD, or 'none' to clear it." },
+        location: { type: "string", enum: PLACES },
+      },
+      required: ["id"],
     },
   },
   {
@@ -435,15 +574,19 @@ const TOOLS = [
 function systemPrompt(now, location) {
   const today = now.toISOString().slice(0, 10);
   const weekday = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-  return `You are the voice assistant at a bowling pro shop, on a laptop in the shop at ${location || "the shop"}. Staff talk to you to add work orders and make draft invoices in Square. What they say reaches you as a speech transcript, so expect mishearings (ball names, numbers) and fix the obvious ones; ask when you can't tell.
+  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard, so fix the obvious ones.
 
-Talk like a helpful coworker: short, natural, spoken sentences (usually under 20 words), no lists or symbols. Say "14 pound", not "14 lb". Don't read out whole phone numbers. Every turn ends with the speak tool.
+Be brief. Most replies are a few words, never more than one short sentence plus one question. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool.
 
-Work orders (staff tickets): who it's for and what we're doing. Find the customer's phone with find_customer. A shop job (lanes, machines, building, supplies) needs no customer. Phone is nice to have: if several customers match, ask for the last four digits; if they don't know or say any will do, go ahead. Category Customer for a customer's job. Priority urgent only for safety or something stopping business now, high if needed today or for tonight's league, low if it can wait, else normal. Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date.
+Customers: look them up with find_customer. If there's one match, use it without comment. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once: "Did you mean John Jablonski?" If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once.
 
-Invoices: who, and what's on it. The customer's 10-digit phone is needed to find them in Square: get it with find_customer; if several customers match, ask for the last four digits (if they only give some digits, say what you heard and ask for the rest; if they say either one or any will do, use the first match); if none match, ask for the phone number. Search each item with search_square_items. Only use an item that clearly is what was said; if the closest one is different, ask ("I don't see an Exponent Solid. Did you mean the Game Breaker 5 Solid?"). For a ball, pick the variation by weight; if no weight was said and there are several, ask the weight. Then create_draft_invoice, and say who it's for, what's on it and the total. It is a draft: never say it was sent. If the customer isn't in Square, ask whether to add them as a new customer.
+Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
 
-Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind or cancel, stop (done). Never invent customers, phone numbers, items or prices: only use what the tools return.`;
+Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
+
+Invoices: who and what. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search each item with search_square_items and use only an item that clearly is what was said; otherwise ask ("Did you mean the Game Breaker 5 Solid?"). For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
+
+Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return.`;
 }
 
 // Only what the API needs back: text and tool calls.
@@ -454,9 +597,12 @@ async function runTool(name, input, ctx) {
   const { env, fetchFn, state, now } = ctx;
   input = input || {};
   if (name === "find_customer") {
-    const matches = customerMatches(input.name, await customerRows(input.name, env, fetchFn)).slice(0, 8);
-    return { matches };
+    const { rows, speccy } = await customerRows(input.name, env, fetchFn);
+    if (speccy !== "read" && speccy !== "not searched" && !state.review.some((r) => r.startsWith("Speccy"))) state.review.push(`Speccy ${speccy}`);
+    return { ...findCustomers(input.name, rows), speccy };
   }
+  if (name === "find_work_orders") return { work_orders: await findTickets(env, fetchFn, input) };
+  if (name === "update_work_order") return await updateTicket(env, fetchFn, input, now);
   if (name === "search_square_items") {
     if (!env.SQUARE_ACCESS_TOKEN) return { error: "Square isn't connected (no SQUARE_ACCESS_TOKEN), so invoices can't be made." };
     return { items: await searchItems(env, fetchFn, squash(input.said)) };
@@ -474,7 +620,7 @@ async function runTool(name, input, ctx) {
     if (state.done.includes(key)) return { error: "That exact work order was already added in this conversation." };
     const place = PLACES.includes(input.location) ? input.location : ctx.place;
     const row = ticketRow({ ...input, name: squash(input.customer_name), phone: input.phone ? formatPhone(input.phone) : "",
-      work: input.title, heard: state.heard }, place, now);
+      work: input.title }, place, now);
     const created = await insertTicket(env, fetchFn, row);
     state.done.push(key);
     return { ok: true, ticket: created && created.id, location: place };
@@ -492,6 +638,23 @@ function readAgentState(raw) {
     if (s && s.v === 2) return s;
   } catch { /* first turn */ }
   return null;
+}
+
+// A new wake word within a few minutes carries the last conversation on (so
+// "change that one" works), with a fresh turn count. Only the most recent
+// messages are kept, cut where a person spoke so tool calls stay paired.
+function resumeState(state) {
+  state.turns = 0;
+  state.heard = [];
+  state.review = [];
+  state.done = [];
+  const KEEP = 30;
+  if (state.messages.length > KEEP) {
+    let i = state.messages.length - KEEP;
+    while (i < state.messages.length && typeof state.messages[i].content !== "string") i++;
+    state.messages = state.messages.slice(i);
+  }
+  return state;
 }
 
 // One thing said. Returns { done, say, state? }.
@@ -597,7 +760,7 @@ async function rulesTurn(body, env, fetchFn, now) {
 
   let note = "";
   if (state.name && !state.lookedUp) {
-    const match = matchCustomer(state.name, await customerRows(state.name, env, fetchFn));
+    const match = matchCustomer(state.name, (await customerRows(state.name, env, fetchFn)).rows);
     state.lookedUp = true;
     if (match.found === 1) { state.name = match.name; state.phone = match.phone; }
     else if (match.found > 1) note = ` I found more than one ${state.name}, so add the phone number in the app.`;
@@ -616,7 +779,7 @@ async function rulesTurn(body, env, fetchFn, now) {
   const location = pickLocation(state.heard.join(" "), body.location);
   const row = ticketRow({ ...state }, location, now);
   await insertTicket(env, fetchFn, row);
-  return { done: true, say: `Work order added${state.name ? ` for ${state.name}` : ""}: ${row.title}.${note}` };
+  return { done: true, say: `Work order added${state.name ? ` for ${state.name}` : ""}: ${capital(state.work)}.${note}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -662,7 +825,7 @@ async function handle(req, env, fetchFn, claude) {
   }
 
   if (claude && (existing || !body.state)) {
-    const state = existing || { v: 2, messages: [], heard: [], turns: 0, done: [], review: [] };
+    const state = existing ? (body.resume ? resumeState(existing) : existing) : { v: 2, messages: [], heard: [], turns: 0, done: [], review: [] };
     let turn;
     try {
       turn = await agentTurn(body, state, env, fetchFn, claude, now);
@@ -680,8 +843,12 @@ async function handle(req, env, fetchFn, claude) {
     const done = turn.done || state.turns >= MAX_TURNS;
     if (!turn.done && done) state.review.push("Conversation ran too long");
     // Review notes ride along in the state and are saved once, when the conversation ends.
-    if (done && state.review.length) await logReview(env, fetchFn, state.review.join("; "), state.heard, turn.say, pickLocation(state.heard.join(" "), body.location));
-    return reply(200, done ? { done: true, say: turn.say } : { done: false, say: turn.say, state: JSON.stringify(state) });
+    if (done && state.review.length) {
+      await logReview(env, fetchFn, state.review.join("; "), state.heard, turn.say, pickLocation(state.heard.join(" "), body.location));
+      state.review = [];
+    }
+    // The state comes back even when done, for the laptop to resume with.
+    return reply(200, { done, say: turn.say, state: JSON.stringify(state) });
   }
 
   try {

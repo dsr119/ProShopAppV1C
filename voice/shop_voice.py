@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RATE = 16000
 FRAME = 1280  # 80 ms, the frame size the wake word model expects
 MAX_TURNS = 8
+MEMORY_SECONDS = 300  # a new wake word this soon carries on ("change that one")
 
 DEFAULTS = {
     "function_url": "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order",
@@ -61,11 +62,13 @@ def load_config(path=os.path.join(HERE, "config.json")):
 # Talking to the work order function
 # ---------------------------------------------------------------------------
 
-def post_turn(cfg, text, state, opener=urllib.request.urlopen):
+def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
     """One turn of the conversation. Returns the function's reply as a dict."""
     body = {"text": text, "location": cfg["location"]}
     if state:
         body["state"] = state
+    if resume:
+        body["resume"] = True
     req = urllib.request.Request(
         cfg["function_url"],
         data=json.dumps(body).encode("utf-8"),
@@ -264,15 +267,21 @@ class Shop:
         self.flush()
 
     def conversation(self):
-        state = None
+        state, saved_at = getattr(self, "memory", (None, 0))
+        resume = bool(state) and time.time() - saved_at < MEMORY_SECONDS
+        if not resume:
+            state = None
         for _ in range(MAX_TURNS):
             text = self.listen()
             if not text or CANCEL.match(text):
                 self.say("Okay, never mind." if text else "I didn't hear anything.")
                 return
             started = time.time()
-            reply = post_turn(self.cfg, text, state)
+            reply = post_turn(self.cfg, text, state, resume=resume)
+            resume = False
             print(f"Server answered in {time.time() - started:.1f}s")
+            if reply.get("state"):
+                self.memory = (reply["state"], time.time())
             if reply.get("done") or not reply.get("state"):
                 self.say(reply.get("say") or "Done.")
                 return

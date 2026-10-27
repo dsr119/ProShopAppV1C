@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.8",
+    "date": "2026-10-27",
+    "notes": [
+      "New: the shop laptop can change work orders by voice, like \"make that a bake and resurface\" or \"mark the Special Effect done but not picked up\".",
+      "Changed: the laptop finds customers even when it mishears the name, and asks \"Did you mean...?\"",
+      "Changed: shorter answers, and it no longer asks for due dates.",
+      "Changed: say the wake word again within 5 minutes and it remembers what you were just doing.",
+      "Changed: voice work orders are short: \"Joe Sutton - Plug thumb, NU Blue\", the phone if known, and only details that matter."
+    ]
+  },
+  {
     "version": "1.7",
     "date": "2026-10-24",
     "notes": [
