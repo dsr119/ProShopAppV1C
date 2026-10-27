@@ -430,8 +430,13 @@ async function updateTicket(env, fetchFn, input, now) {
   if (has("customer_name") || has("phone")) {
     const name = has("customer_name") ? squash(input.customer_name) : customerOf(details);
     const phone = has("phone") ? formatPhone(input.phone) : ((/^Phone: (.*)$/m.exec(details) || [])[1] || "").trim();
-    const contact = `Customer: ${name}\nPhone: ${phone}`;
-    details = /^Customer: .*\nPhone: .*$/m.test(details) ? details.replace(/^Customer: .*\nPhone: .*$/m, contact) : `${contact}\n\n${details}`;
+    const contact = `Customer: ${name}${phone ? `\nPhone: ${phone}` : ""}`;
+    const lines = /^Customer: .*(\nPhone: .*)?$/m;
+    details = lines.test(details) ? details.replace(lines, contact) : `${contact}\n\n${details}`.trim();
+    // The title starts with the customer's name; keep it in step.
+    const old = customerOf(t.details);
+    const title = changes.title || t.title;
+    if (has("customer_name") && old && title.startsWith(`${old} - `)) changes.title = `${name} - ${title.slice(old.length + 3)}`;
   }
   if (has("note")) details = `${details}\n\nVoice note ${now.toISOString().slice(0, 10)}: ${squash(input.note)}`.trim();
   if (details !== (t.details || "")) changes.details = details;
@@ -446,17 +451,20 @@ async function updateTicket(env, fetchFn, input, now) {
 }
 
 // A ticket row from what we know; values the tickets table would reject are dropped.
-function ticketRow({ name, phone, work, title, details, category, priority, due_date, heard }, location, now) {
+// Kept short: "Joe Sutton - Plug thumb, NU Blue", then the customer (and
+// phone, if known) and only the details the title leaves out.
+function ticketRow({ name, phone, work, title, details, category, priority, due_date }, location, now) {
   const ok = (v, test) => (typeof v === "string" && test(v.trim()) ? v.trim() : null);
   let t = ok(title, Boolean) || capital(squash(work));
+  if (name && !t.toLowerCase().startsWith(name.toLowerCase())) t = `${name} - ${t}`;
   if (t.length > MAX_TITLE) t = t.slice(0, MAX_TITLE - 1) + "…";
-  const contact = name ? `Customer: ${name}\nPhone: ${phone || ""}` : "";
+  const contact = name ? `Customer: ${name}${phone ? `\nPhone: ${phone}` : ""}` : "";
   return {
     submitted_by: "Alexa",
     submitted_at: now.toISOString(),
     location,
     title: t,
-    details: [contact, ok(details, Boolean), `Said: "${heard.join(" / ")}"`].filter(Boolean).join("\n\n"),
+    details: [contact, ok(details, Boolean)].filter(Boolean).join("\n\n") || null,
     category: ok(category, (v) => CATEGORIES.includes(v)) || (name ? "Customer" : null),
     priority: ok(priority, (v) => PRIORITIES.includes(v)) || "normal",
     due_date: ok(due_date, (v) => /^\d{4}-\d{2}-\d{2}$/.test(v)),
@@ -516,8 +524,8 @@ const TOOLS = [
       properties: {
         customer_name: { type: "string" },
         phone: { type: "string", description: "From find_customer, or empty if not known." },
-        title: { type: "string", description: "Short and specific, e.g. 'Plug and redrill 14 lb ball'. No customer name." },
-        details: { type: "string", description: "Specifics the title leaves out, or empty." },
+        title: { type: "string", description: "The job in a few words, e.g. 'Plug thumb, NU Blue' or 'Bake and resurface Storm Identity'. No customer name (it's added in front)." },
+        details: { type: "string", description: "Usually empty. Only facts the title leaves out that matter for the job (weight, layout, deadline), in a few words. Never mention lookups, phone numbers, or that a customer is new or wasn't found." },
         category: { type: "string", enum: CATEGORIES },
         priority: { type: "string", enum: PRIORITIES },
         due_date: { type: "string", description: "YYYY-MM-DD, or empty." },
@@ -538,7 +546,7 @@ const TOOLS = [
       type: "object",
       properties: {
         id: { type: "string" },
-        title: { type: "string" },
+        title: { type: "string", description: "The whole new title, starting with the customer's name as before." },
         customer_name: { type: "string" },
         phone: { type: "string" },
         note: { type: "string" },
@@ -612,7 +620,7 @@ async function runTool(name, input, ctx) {
     if (state.done.includes(key)) return { error: "That exact work order was already added in this conversation." };
     const place = PLACES.includes(input.location) ? input.location : ctx.place;
     const row = ticketRow({ ...input, name: squash(input.customer_name), phone: input.phone ? formatPhone(input.phone) : "",
-      work: input.title, heard: state.heard }, place, now);
+      work: input.title }, place, now);
     const created = await insertTicket(env, fetchFn, row);
     state.done.push(key);
     return { ok: true, ticket: created && created.id, location: place };
@@ -771,7 +779,7 @@ async function rulesTurn(body, env, fetchFn, now) {
   const location = pickLocation(state.heard.join(" "), body.location);
   const row = ticketRow({ ...state }, location, now);
   await insertTicket(env, fetchFn, row);
-  return { done: true, say: `Work order added${state.name ? ` for ${state.name}` : ""}: ${row.title}.${note}` };
+  return { done: true, say: `Work order added${state.name ? ` for ${state.name}` : ""}: ${capital(state.work)}.${note}` };
 }
 
 // ---------------------------------------------------------------------------

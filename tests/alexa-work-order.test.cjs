@@ -222,12 +222,12 @@ test('work order: Claude looks up the phone and adds the ticket', async () => {
   assert.equal(out.done, true);
   assert.deepEqual(results(seen[1])[0].matches, [{ name: 'Douglas Smith', phone: '555-123-4567' }]);
   const row = shop.tickets[0];
-  assert.equal(row.title, 'Plug 14 lb ball');
+  assert.equal(row.title, 'Douglas Smith - Plug 14 lb ball');
   assert.equal(row.location, 'South Side');
   assert.equal(row.priority, 'high');
   assert.equal(row.due_date, '2026-10-29');
   assert.equal(row.status, 'new');
-  assert.match(row.details, /^Customer: Douglas Smith\nPhone: 555-123-4567\n\nNeeds it for Thursday league\.\n\nSaid: "work order for doug smith/);
+  assert.equal(row.details, 'Customer: Douglas Smith\nPhone: 555-123-4567\n\nNeeds it for Thursday league.');
   assert.deepEqual(results(seen[2])[0], { ok: true, ticket: 't1', location: 'South Side' });
 });
 
@@ -241,7 +241,8 @@ test('work order: values the tickets table would reject are dropped', async () =
   await say(fn, shop, 'ball return on lane 3 is jammed', undefined, claude);
   const row = shop.tickets[0];
   assert.deepEqual([row.category, row.priority, row.due_date], [null, 'normal', null]);
-  assert.match(row.details, /^Said: "/);
+  assert.equal(row.details, null);
+  assert.equal(row.title, 'Fix lane 3 ball return');
 });
 
 test('review: notes Claude makes are saved once, when the conversation ends', async () => {
@@ -290,7 +291,7 @@ test('AI: if Claude fails on the first turn, the simple rules still make the tic
   const shop = fakeShop();
   const out = await say(fn, shop, 'for doug smith to oil his ball', undefined, fakeClaude([new Error('timeout')]));
   assert.equal(out.done, true);
-  assert.equal(shop.tickets[0].title, 'Oil his ball');
+  assert.equal(shop.tickets[0].title, 'Doug Smith - Oil his ball');
   assert.match(shop.reviews[0].problem, /^AI step failed \(timeout\)/);
 });
 
@@ -324,7 +325,8 @@ test('rules: one breath, "for NAME to WORK", looks up the phone and adds the tic
   assert.equal(out.done, true);
   assert.equal(out.say, 'Work order added for Doug Smith: Plug his 14 pound ball.');
   const row = shop.tickets[0];
-  assert.match(row.details, /^Customer: Doug Smith\nPhone: 555-123-4567\n\nSaid: "/);
+  assert.equal(row.title, 'Doug Smith - Plug his 14 pound ball');
+  assert.equal(row.details, 'Customer: Doug Smith\nPhone: 555-123-4567');
   assert.equal(row.category, 'Customer');
   assert.equal(row.submitted_by, 'Alexa');
   assert.equal(shop.lookups, 4); // three tables and Speccy
@@ -361,7 +363,7 @@ test('rules: two different numbers for the name leaves the phone off and says so
     speccy: [{ name: 'Doug Smith', phone: '555-765-4321' }] });
   const out = await say(fn, shop, 'for doug smith to resurface his ball');
   assert.match(out.say, /more than one Doug Smith/);
-  assert.match(shop.tickets[0].details, /^Customer: Doug Smith\nPhone: \n/);
+  assert.equal(shop.tickets[0].details, 'Customer: Doug Smith'); // no empty phone line
 });
 
 test('rules: an invoice needs the AI, and says so', async () => {
@@ -523,4 +525,13 @@ test('resuming keeps only recent messages, cut where a person spoke', () => {
   assert.equal(typeof st.messages[0].content, 'string');
   assert.ok(st.messages.length <= 30);
   assert.deepEqual([st.turns, st.heard.length, st.done.length, st.review.length], [0, 0, 0, 0]);
+});
+
+test('editing: a new customer name also replaces the name at the start of the title', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ existing: [{ id: TICKETS[0].id, title: 'John Doe - Bake and resurface Special Effect',
+    details: 'Customer: John Doe', status: 'new' }] });
+  await fn.updateTicket(env, shop.fetch, { id: TICKETS[0].id, customer_name: 'Gary Latimer' }, new Date());
+  assert.deepEqual(JSON.parse(JSON.stringify(shop.patches[0].body)),
+    { details: 'Customer: Gary Latimer', title: 'Gary Latimer - Bake and resurface Special Effect' });
 });
