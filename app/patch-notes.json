@@ -8,7 +8,9 @@
       "Changed: shorter answers, and it no longer asks for due dates.",
       "Changed: say the wake word again within 5 minutes and it remembers what you were just doing.",
       "Changed: voice work orders are short: \"Joe Sutton - Plug thumb, NU Blue\", the phone if known, and only details that matter.",
-      "Changed: the shop laptop checks ball names against the ball catalog (the one behind the website's Bowling Balls page), so it spells them right and hears the newest ones better."
+      "Changed: the shop laptop checks ball names against the ball catalog (the one behind the website's Bowling Balls page), so it spells them right and hears the newest ones better.",
+      "New: ask the shop laptop about appointments (\"what does Tuesday look like?\", \"any openings this week for a drill?\") and book one (\"make an appointment Monday at 6:30\").",
+      "New: ask the shop laptop about an order, like \"what's the status on Jim Curtis's shoes?\""
     ]
   },
   {

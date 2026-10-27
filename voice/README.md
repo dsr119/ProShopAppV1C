@@ -106,6 +106,20 @@ be in open-link mode, or see below), that's noted in the review list.
 3. Supabase → **Edge Functions → Secrets**: add `SQUARE_ACCESS_TOKEN` with that
    token. Then open `alexa-work-order` and **Deploy** again.
 
+## Appointments and orders
+
+- "What does our Tuesday this week look like?" reads that day's shop hours and appointments.
+- "Is there any availability this week for a conventional drill?" lists open times from the
+  Shop Hours page minus booked appointments. Each appointment is counted as 30 minutes, since the
+  app doesn't store how long one takes.
+- "Make an appointment Monday at 6:30 for Joe Sutton, a drill" books it in the app (at this
+  laptop's location unless you say the other one). If the time clashes with another booking, is
+  outside shop hours, or the shop shows closed, it asks before booking anyway.
+- "What's the status on Jim Curtis's shoes?" reads the order book: ordered, arrived, drilled,
+  contacted, paid, picked up.
+
+Customer names are looked up in both the app's customers and Speccy.
+
 ## Review list
 
 Anything it didn't understand or had to guess is saved in **Table Editor →
