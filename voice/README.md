@@ -21,6 +21,12 @@ It finds the work order by customer or ball and changes only what you said
 (title, customer and phone, status, due date, priority, a note). It can't
 delete; do that in the app.
 
+**Ball names:** every ball mentioned is checked against the ball catalog (the
+`balls` table the website's scraper keeps current), so "fays 6" becomes
+*Storm Phaze 6* and an unknown ball is noted for review. When the laptop
+starts, it also fetches the newest ball names as listening hints for
+speech-to-text.
+
 **Follow-ups:** saying the wake word again within 5 minutes carries on the
 same conversation, so "change that one" works right after adding it.
 

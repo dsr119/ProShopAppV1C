@@ -12,7 +12,8 @@
 // Claude (Haiku, for speed) runs the conversation. It decides what to say
 // and what to ask, and acts only through the tools below: look up a customer
 // (customer list, orders, appointments and Speccy's spec sheets, by close
-// spelling too), search the Square item library, make a DRAFT invoice, add,
+// spelling too), check a ball name against the ball catalog (the balls table
+// the website's scraper fills), search the Square item library, make a DRAFT invoice, add,
 // find and change a ticket, and note something for review. Invoices are only ever drafts: staff check and send them from
 // Square, so a mishearing never reaches a customer. Things it didn't
 // understand or had to guess go to voice_review (migration/add_voice_review.sql).
@@ -284,6 +285,13 @@ function wordLike(a, b) {
   return 1 - prev[b.length] / Math.max(a.length, b.length);
 }
 
+// A word's consonant sound, so spellings that sound alike match:
+// "fays" and "phaze" are both "fs", "kwik" and "quick" both "kk".
+function sound(w) {
+  const t = w.replace(/ph/g, "f").replace(/ck|c|q/g, "k").replace(/z/g, "s").replace(/x/g, "ks");
+  return (t[0] + t.slice(1).replace(/[aeiouyhw]/g, "")).replace(/(.)\1+/g, "$1");
+}
+
 // How well an item name fits what was said, 0 to 2: the share of spoken words
 // found (closely) in the name, plus 1 for the exact name. Run-together words
 // count too: "iamx pearl" fits "I Am X Pearl".
@@ -293,7 +301,8 @@ function itemScore(query, name) {
   const glued = have.join("");
   let total = 0;
   for (const w of want) {
-    const best = Math.max(...have.map((h) => wordLike(w, h)));
+    const best = Math.max(...have.map((h) => Math.max(wordLike(w, h),
+      w.length >= 3 && h.length >= 3 && sound(w).length >= 2 && sound(w) === sound(h) ? 0.8 : 0)));
     total += best >= 0.75 ? best : w.length >= 3 && glued.includes(w) ? 0.9 : 0;
   }
   return total / want.length + (have.join(" ") === want.join(" ") ? 1 : 0);
@@ -369,6 +378,57 @@ async function draftInvoice(env, fetchFn, input, place) {
   });
   return { ok: true, draft_invoice: invoice && invoice.id, total: money(order.total_money),
     added_to_square: added, customer_in_square: [customer.given_name, customer.family_name].filter(Boolean).join(" ") || name };
+}
+
+// ---------------------------------------------------------------------------
+// Ball catalog: the balls table the website's scraper keeps current
+// (migration/add_balls_catalog.sql), for spelling ball names right.
+// ---------------------------------------------------------------------------
+
+let ballCache = { at: 0, list: [] };
+
+async function loadBalls(env, fetchFn) {
+  if (ballCache.list.length && Date.now() - ballCache.at < 3600 * 1000) return ballCache.list;
+  const list = [];
+  for (let offset = 0; offset < 10000; offset += 1000) {
+    const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/balls?select=brand,name,release_month,discontinued,is_recent_release` +
+      `&order=release_month.desc.nullslast&offset=${offset}&limit=1000`, { headers: dbHeaders(env) });
+    if (!res.ok) throw new Error(`Ball catalog said ${res.status}`);
+    const page = await res.json();
+    list.push(...page);
+    if (page.length < 1000) break;
+  }
+  ballCache = { at: Date.now(), list };
+  return list;
+}
+
+// The catalog balls closest to what was said, newest first among equals:
+// "nu blue" -> Storm Nu Blue, "fays 6" -> Storm Phaze 6.
+async function findBalls(env, fetchFn, said) {
+  const balls = await loadBalls(env, fetchFn);
+  const query = squash(String(said || "").replace(/\b\d{1,2}\s*(?:lb|lbs|pound|pounds|pounder)\b/gi, " "));
+  const brands = new Set(balls.map((b) => nameKey(b.brand)));
+  // A brand said along with the name narrows it down, but isn't part of the name.
+  const ws = words(query);
+  const brandSaid = ws.find((w) => brands.has(w)) || "";
+  const nameOnly = ws.filter((w) => w !== brandSaid).join(" ");
+  const scored = balls.map((b, i) => {
+    let score = Math.max(itemScore(nameOnly || query, b.name), itemScore(query, `${b.brand} ${b.name}`));
+    if (brandSaid && nameKey(b.brand) !== brandSaid) score -= 0.5;
+    return { b, score, i };
+  }).filter((x) => x.score >= 0.6);
+  scored.sort((x, y) => y.score - x.score || x.i - y.i);
+  const seen = new Set();
+  return scored.filter(({ b }) => !seen.has(`${b.brand}|${b.name}`) && seen.add(`${b.brand}|${b.name}`)).slice(0, 5)
+    .map(({ b }) => ({ ball: `${b.brand} ${b.name}`, released: String(b.release_month || "").slice(0, 7), discontinued: b.discontinued === "Yes" }));
+}
+
+// The newest ball names, as listening hints for the laptop's speech-to-text.
+async function ballHints(env, fetchFn, count = 60) {
+  const balls = await loadBalls(env, fetchFn);
+  const recent = balls.filter((b) => b.is_recent_release);
+  const rest = balls.filter((b) => !b.is_recent_release && b.discontinued !== "Yes");
+  return [...new Set([...recent, ...rest].map((b) => `${b.brand} ${b.name}`))].slice(0, count);
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +558,11 @@ const TOOLS = [
     input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
   },
   {
+    name: "find_ball",
+    description: "Look up a bowling ball by name in the shop's ball catalog (every current and past ball from the major brands). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
+    input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
+  },
+  {
     name: "search_square_items",
     description: "Search the Square item library for one thing to put on an invoice, as said (e.g. 'Phaze 6', 'standard drill'). Returns the closest items with their variations (usually ball weights) and prices. Search once per thing.",
     input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
@@ -574,7 +639,7 @@ const TOOLS = [
 function systemPrompt(now, location) {
   const today = now.toISOString().slice(0, 10);
   const weekday = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard, so fix the obvious ones.
+  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?"
 
 Be brief. Most replies are a few words, never more than one short sentence plus one question. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool.
 
@@ -603,6 +668,11 @@ async function runTool(name, input, ctx) {
   }
   if (name === "find_work_orders") return { work_orders: await findTickets(env, fetchFn, input) };
   if (name === "update_work_order") return await updateTicket(env, fetchFn, input, now);
+  if (name === "find_ball") {
+    const balls = await findBalls(env, fetchFn, input.said);
+    if (!balls.length) state.review.push(`Ball not in the catalog: "${squash(input.said)}"`);
+    return { balls };
+  }
   if (name === "search_square_items") {
     if (!env.SQUARE_ACCESS_TOKEN) return { error: "Square isn't connected (no SQUARE_ACCESS_TOKEN), so invoices can't be made." };
     return { items: await searchItems(env, fetchFn, squash(input.said)) };
@@ -816,6 +886,15 @@ async function handle(req, env, fetchFn, claude) {
   }
   const now = new Date();
   const text = squash(body.text);
+
+  // The laptop asks for listening hints when it starts.
+  if (body.hints) {
+    try {
+      return reply(200, { balls: await ballHints(env, fetchFn) });
+    } catch (err) {
+      return reply(200, { balls: [], error: String((err && err.message) || err) });
+    }
+  }
 
   // A first turn with nothing said (the laptop's --test) just opens the conversation.
   const existing = readAgentState(body.state);

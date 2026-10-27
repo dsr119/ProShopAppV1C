@@ -45,6 +45,15 @@ VOCAB = ("Work order or invoice for the bowling pro shop. Plug and redrill, resu
          "Motiv, Hammer, Roto Grip, Brunswick, DV8, Radical, Ebonite, Track, Columbia 300, "
          "900 Global, Valley, South Side, league, new customer.")
 
+MAX_HINT_BALLS = 35  # Whisper only reads the last ~220 tokens of its prompt
+
+
+def listening_prompt(balls):
+    """The newest ball names, then the shop words (kept last, so never cut)."""
+    names = ", ".join(balls[:MAX_HINT_BALLS])
+    return (f"Balls: {names}. " if names else "") + VOCAB
+
+
 # The tail of the wake word can end up in the recording.
 WAKE_WORDS = re.compile(r"^\W*((hey|hi|a)\W+)?(jarvis|mycroft|rhasspy|alexa)\b\W*", re.I)
 CANCEL = re.compile(r"^\s*(never ?mind|cancel|stop|forget it|nothing)\b", re.I)
@@ -88,6 +97,22 @@ def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
     except Exception as err:
         print("Server problem:", err)
         return {"done": True, "say": "Sorry, I couldn't reach the work order server. Please add it in the app."}
+
+
+def fetch_hints(cfg, opener=urllib.request.urlopen):
+    """The newest ball names from the shop's ball catalog, to hear them right."""
+    req = urllib.request.Request(
+        cfg["function_url"],
+        data=json.dumps({"hints": True}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-alexa-secret": cfg["password"]},
+        method="POST",
+    )
+    try:
+        with opener(req, timeout=20) as res:
+            return [b for b in json.loads(res.read().decode("utf-8")).get("balls", []) if isinstance(b, str)]
+    except Exception as err:
+        print("No ball names for listening hints:", err)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +221,9 @@ class Shop:
         download_models([cfg["wake_word"]])
         self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx")
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
+        balls = fetch_hints(cfg)
+        print(f"Listening for {min(len(balls), MAX_HINT_BALLS)} of the newest ball names.")
+        self.prompt = listening_prompt(balls)
         self.frames = queue.Queue()
         self.noise = []
         self.stream = sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=FRAME,
@@ -253,7 +281,7 @@ class Shop:
             return ""
         started = time.time()
         segments, _ = self.whisper.transcribe(ep.audio(), language="en", beam_size=1,
-                                              initial_prompt=VOCAB)
+                                              initial_prompt=getattr(self, "prompt", VOCAB))
         text = WAKE_WORDS.sub("", " ".join(s.text.strip() for s in segments)).strip()
         print(f"Heard ({time.time() - started:.1f}s):", text or "(nothing)")
         return text
