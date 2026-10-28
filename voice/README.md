@@ -172,6 +172,18 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 To run it with the lid closed (with an external mic), set Start → "Change
 what closing the lid does" → Plugged in → **Do nothing**.
 
+## Leaving it running
+
+It's fine to leave it on for days.
+
+- `start-windows.bat` starts it again by itself if it ever crashes. Ctrl+C quits.
+- If the mic is unplugged or stops sending sound, it keeps trying until the mic is back.
+- It fetches the newest ball names again once a day.
+- In Windows, set the laptop to **never sleep while plugged in**: Settings > System >
+  Power & sleep. A sleeping laptop can't hear the wake word.
+- To start it when Windows starts, press Win+R, type `shell:startup`, and put a
+  shortcut to `start-windows.bat` in that folder.
+
 ## Settings (`config.json`)
 
 | Setting | What it does |

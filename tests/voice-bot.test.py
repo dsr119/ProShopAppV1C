@@ -252,6 +252,39 @@ class MiscTests(unittest.TestCase):
         voice.post_turn({**CFG, 'model': 'sonnet'}, 'hi', None, opener)
         self.assertEqual(sent, [('haiku', 40), ('sonnet', 120)])
 
+    def test_keep_alive_reuses_one_connection_and_reconnects(self):
+        made = []
+
+        class Conn:
+            def __init__(self, host, timeout):
+                self.sock, self.calls, self.broken = None, 0, False
+                made.append(self)
+
+            def request(self, method, path, body, headers):
+                if self.broken:
+                    raise ConnectionResetError('server closed it')
+                self.calls += 1
+                self.status = 401 if b'bad' in body else 200
+
+            def getresponse(self):
+                status = self.status
+                return type('R', (), {'status': status, 'reason': 'x', 'headers': {}, 'read': lambda s: b'{"ok": true}'})()
+
+            def close(self):
+                pass
+
+        keep = voice.KeepAlive(Conn)
+        req = lambda body: voice.urllib.request.Request('https://fn.test/functions/v1/x', data=body, method='POST')
+        self.assertEqual(json.loads(keep(req(b'{}'), 5).read()), {'ok': True})
+        keep(req(b'{}'), 5)
+        self.assertEqual((len(made), made[0].calls), (1, 2))
+        made[0].broken = True  # the server dropped the idle connection
+        keep(req(b'{}'), 5)
+        self.assertEqual(len(made), 2)
+        with self.assertRaises(voice.urllib.error.HTTPError) as err:
+            keep(req(b'bad'), 5)
+        self.assertEqual(err.exception.code, 401)
+
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')
         path.write_text(json.dumps({'_help': 'x', 'password': 'abc', 'location': 'South Side'}))

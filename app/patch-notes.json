@@ -13,7 +13,8 @@
       "New: ask the shop laptop about an order, like \"what's the status on Jim Curtis's shoes?\"",
       "Changed: the shop laptop has a more natural voice, and can be switched to a smarter AI in its settings.",
       "Changed: the shop laptop answers faster: it starts talking after the first sentence, and doesn't offer appointment times that have already passed.",
-      "Changed: voice invoices use the closest Square item without asking about each one, and the laptop gives you a second chance if it didn't hear you."
+      "Changed: voice invoices use the closest Square item without asking about each one, and the laptop gives you a second chance if it didn't hear you.",
+      "Changed: the shop laptop is quicker between question and answer, and keeps itself running for days (it restarts itself and waits for the mic if it drops)."
     ]
   },
   {
