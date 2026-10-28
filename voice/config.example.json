@@ -10,7 +10,7 @@
   "silence_seconds": 1.0,
   "max_seconds": 20,
   "voice": "en_US-lessac-medium",
-  "voice_engine": "edge",
+  "voice_engine": "piper",
   "edge_voice": "en-US-AndrewNeural",
   "model": "haiku"
 }

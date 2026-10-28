@@ -138,7 +138,7 @@ class ConversationTests(unittest.TestCase):
         shop.flush = lambda: None
         original_post, original_beep = voice.post_turn, voice.beep
         voice.post_turn = lambda cfg, text, state, resume=False: posted.append((text, state)) or replies.pop(0)
-        voice.beep = lambda sd: None
+        voice.beep = lambda sd, *a: None
         try:
             shop.conversation()
         finally:
@@ -187,10 +187,17 @@ class ConversationTests(unittest.TestCase):
             voice.post_turn = original
         self.assertEqual(sent[-1], ('work order', None, False))
 
-    def test_silence_ends_it(self):
-        said, posted = self.run_conversation([''], [])
+    def test_silence_twice_ends_it(self):
+        said, posted = self.run_conversation(['', ''], [])
         self.assertEqual(posted, [])
         self.assertEqual(said, ["I didn't hear anything."])
+
+    def test_one_silence_listens_again(self):
+        said, posted = self.run_conversation(
+            ['work order', '', 'for Doug Smith to plug his ball'],
+            [{'done': False, 'say': "Who's it for?", 'state': 's1'}, {'done': True, 'say': 'Done.'}])
+        self.assertEqual(posted, [('work order', None), ('for Doug Smith to plug his ball', 's1')])
+        self.assertEqual(said[-1], 'Done.')
 
 
 class MiscTests(unittest.TestCase):

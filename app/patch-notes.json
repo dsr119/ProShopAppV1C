@@ -12,7 +12,8 @@
       "New: ask the shop laptop about appointments (\"what does Tuesday look like?\", \"any openings this week for a drill?\") and book one (\"make an appointment Monday at 6:30\").",
       "New: ask the shop laptop about an order, like \"what's the status on Jim Curtis's shoes?\"",
       "Changed: the shop laptop has a more natural voice, and can be switched to a smarter AI in its settings.",
-      "Changed: the shop laptop answers faster: it starts talking after the first sentence, and doesn't offer appointment times that have already passed."
+      "Changed: the shop laptop answers faster: it starts talking after the first sentence, and doesn't offer appointment times that have already passed.",
+      "Changed: voice invoices use the closest Square item without asking about each one, and the laptop gives you a second chance if it didn't hear you."
     ]
   },
   {

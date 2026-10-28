@@ -37,7 +37,7 @@ DEFAULTS = {
     "silence_seconds": 1.0,
     "max_seconds": 20,
     "voice": "en_US-lessac-medium",
-    "voice_engine": "edge",
+    "voice_engine": "piper",
     "edge_voice": "en-US-AndrewNeural",
     "model": "haiku",
 }
@@ -354,6 +354,11 @@ class Shop:
             state = None
         for _ in range(MAX_TURNS):
             text = self.listen()
+            if not text:
+                # One more chance before giving up: often they were still thinking.
+                beep(self.sd, 660, 0.15)
+                self.flush()
+                text = self.listen()
             if not text or CANCEL.match(text):
                 self.say("Okay, never mind." if text else "I didn't hear anything.")
                 return
