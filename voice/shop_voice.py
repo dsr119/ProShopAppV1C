@@ -172,7 +172,10 @@ def fetch_hints(cfg, opener=None):
     )
     try:
         with (opener or SERVER)(req, timeout=20) as res:
-            return [b for b in json.loads(res.read().decode("utf-8")).get("balls", []) if isinstance(b, str)]
+            data = json.loads(res.read().decode("utf-8"))
+        if data.get("error"):
+            print("Ball names problem on the server:", data["error"])
+        return [b for b in data.get("balls", []) if isinstance(b, str)]
     except Exception as err:
         print("No ball names for listening hints:", err)
         return []
