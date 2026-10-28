@@ -464,6 +464,10 @@ function clock(min) {
 function todayInShop() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
+function minutesNowInShop() {
+  const [h, m] = new Date().toLocaleTimeString("en-GB", { timeZone: "America/New_York", hour12: false }).split(":").map(Number);
+  return (h % 24) * 60 + m;
+}
 
 async function dbGet(env, fetchFn, path) {
   const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${path}`, { headers: dbHeaders(env) });
@@ -508,6 +512,7 @@ async function findOpenings(env, fetchFn, input) {
   const { days, error } = await daySchedule(env, fetchFn, input);
   if (error) return { error };
   const len = Math.max(15, Math.min(240, Number(input.minutes) || APPT_MINUTES));
+  const today = todayInShop(), nowMin = minutesNowInShop();
   return {
     minutes: len,
     days: days.map((day) => ({
@@ -518,6 +523,7 @@ async function findOpenings(env, fetchFn, input) {
         const free = [];
         for (const [o, c] of windows) {
           for (let t = o; t + len <= c; t += 30) {
+            if (day.date === today && t <= nowMin) continue; // already past
             if (!booked.some((b) => b < t + len && t < b + APPT_MINUTES)) free.push(clock(t));
           }
         }
@@ -841,6 +847,8 @@ const TOOLS = [
   },
 ];
 
+const CACHED_TOOLS = TOOLS.map((t, i) => (i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t));
+
 function systemPrompt(now, location) {
   const today = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const weekday = weekdayOf(today);
@@ -854,7 +862,7 @@ Customers: look them up with find_customer. If there's one match, use it without
 
 Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
 
-Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
+Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
 
 Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet."
 
@@ -862,7 +870,7 @@ Changing work orders: "change that one", "make it a bake and resurface", "mark t
 
 Invoices: who and what. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search each item with search_square_items and use only an item that clearly is what was said; otherwise ask ("Did you mean the Game Breaker 5 Solid?"). For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
 
-Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return.`;
+Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
 
 // Only what the API needs back: text and tool calls.
@@ -964,8 +972,9 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
     const response = await claude.messages.create({
       model: MODELS[model],
       max_tokens: 1024,
-      system: systemPrompt(now, body.location),
-      tools: TOOLS,
+      // Cached between calls: the instructions and tools are the same all day.
+      system: [{ type: "text", text: systemPrompt(now, body.location), cache_control: { type: "ephemeral" } }],
+      tools: CACHED_TOOLS,
       tool_choice: { type: "any" },
       messages: state.messages,
     }, { timeout: model === "haiku" ? 8000 : 25000 });

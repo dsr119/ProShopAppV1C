@@ -11,7 +11,8 @@
       "Changed: the shop laptop checks ball names against the ball catalog (the one behind the website's Bowling Balls page), so it spells them right and hears the newest ones better.",
       "New: ask the shop laptop about appointments (\"what does Tuesday look like?\", \"any openings this week for a drill?\") and book one (\"make an appointment Monday at 6:30\").",
       "New: ask the shop laptop about an order, like \"what's the status on Jim Curtis's shoes?\"",
-      "Changed: the shop laptop has a more natural voice, and can be switched to a smarter AI in its settings."
+      "Changed: the shop laptop has a more natural voice, and can be switched to a smarter AI in its settings.",
+      "Changed: the shop laptop answers faster: it starts talking after the first sentence, and doesn't offer appointment times that have already passed."
     ]
   },
   {

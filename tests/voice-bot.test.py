@@ -216,22 +216,24 @@ class MiscTests(unittest.TestCase):
         speaker('Work order added. Thanks.')
         self.assertEqual(played, [(5, 22050)])
 
-    def test_online_voice_plays_and_falls_back(self):
+    def test_online_voice_plays_each_sentence_and_falls_back(self):
         played, backup = [], []
         speaker = voice.EdgeSpeaker.__new__(voice.EdgeSpeaker)
         speaker.sd = type('SD', (), {'play': lambda self, audio, rate, blocking: played.append((len(audio), rate))})()
         speaker.fallback = backup.append
         speaker.miniaudio = type('M', (), {'SampleFormat': type('F', (), {'SIGNED16': 2}),
-                                           'decode': staticmethod(lambda data, output_format, nchannels: type('S', (), {'samples': [1, 2, 3], 'sample_rate': 44100})())})
-        speaker.mp3 = lambda text: b'mp3'
-        speaker('Booked Tuesday at 7.')
-        self.assertEqual((played, backup), ([(3, 44100)], []))
+                                           'decode': staticmethod(lambda data, output_format, nchannels: type('S', (), {'samples': [1] * len(data), 'sample_rate': 44100})())})
+        speaker.mp3 = lambda text: text.encode()
+        speaker('Booked. Tuesday at 7?')
+        self.assertEqual((played, backup), ([(7, 44100), (13, 44100)], []))
 
-        def offline(text):
-            raise OSError('no internet')
-        speaker.mp3 = offline
-        speaker('Booked Tuesday at 7.')
-        self.assertEqual(backup, ['Booked Tuesday at 7.'])
+        def flaky(text):
+            if text.startswith('Tuesday'):
+                raise OSError('no internet')
+            return text.encode()
+        speaker.mp3 = flaky
+        speaker('Booked. Tuesday at 7? Thanks.')
+        self.assertEqual(backup, ['Tuesday at 7? Thanks.'])
 
     def test_model_setting_is_sent_and_slower_models_wait_longer(self):
         sent = []
