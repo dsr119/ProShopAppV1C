@@ -89,9 +89,12 @@ be in open-link mode, or see below), that's noted in the review list.
   the closest one is something else it asks before using it. A ball's weight
   picks the variation; if you didn't say one, it asks.
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
-  name in Square, e.g. `standard drill` → `Drilling - Standard`. Run
-  `migration/add_voice_aliases.sql` once in the SQL Editor, then add or edit
-  rows in **Table Editor → voice_aliases**.
+  name in Square, e.g. `standard drill` → `Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop`. Run
+  `migration/add_voice_aliases.sql` once in the SQL Editor, then
+  `migration/voice_aliases_common_items.sql` (the shop's common items: drills,
+  grips, Jopo and Turbo, slug combo), then add or edit rows in
+  **Table Editor → voice_aliases**. "Pair of grips" on its own is the $5 grips
+  with a drill of a ball bought here and the $10 grips with an outside drill.
 - Speccy is read with its public key, which works while Speccy is in open-link
   mode. If Speccy is locked to signed-in staff, add secrets `SPECCY_URL` and
   `SPECCY_KEY` (Speccy's secret key) to this function.
