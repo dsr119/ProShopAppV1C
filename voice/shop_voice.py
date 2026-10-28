@@ -36,6 +36,60 @@ HINTS_SECONDS = 24 * 3600  # how often to fetch the newest ball names again
 class MicLost(Exception):
     pass
 
+
+# ---------------------------------------------------------------------------
+# Conversation log: voice/logs/2026-10-28.txt, one file a day
+# ---------------------------------------------------------------------------
+
+LOG_DAYS = 90  # older days' files are deleted
+
+
+class DailyLog:
+    """Everything the window shows, with the time, plus what the AI looked up."""
+
+    def __init__(self, folder):
+        self.folder = folder
+        os.makedirs(folder, exist_ok=True)
+        cutoff = time.time() - LOG_DAYS * 86400
+        for name in os.listdir(folder):
+            path = os.path.join(folder, name)
+            if name.endswith(".txt") and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+
+    def line(self, text):
+        try:
+            path = os.path.join(self.folder, time.strftime("%Y-%m-%d") + ".txt")
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%H:%M:%S')}  {text}\n")
+        except OSError:
+            pass  # a full disk mustn't stop the shop
+
+
+class Tee:
+    """Sends print() to the window and to the log."""
+
+    def __init__(self, out, log):
+        self.out, self.log, self.part = out, log, ""
+
+    def write(self, text):
+        self.out.write(text)
+        self.part += text
+        while "\n" in self.part:
+            done, self.part = self.part.split("\n", 1)
+            self.log.line(done)
+
+    def flush(self):
+        self.out.flush()
+
+
+LOG = None
+
+
+def note(text):
+    """A line for the log only, not the window."""
+    if LOG:
+        LOG.line(text)
+
 DEFAULTS = {
     "function_url": "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order",
     "password": "",
@@ -445,6 +499,8 @@ class Shop:
             reply = post_turn(self.cfg, text, state, resume=resume)
             resume = False
             print(f"Server answered in {time.time() - started:.1f}s")
+            for step in reply.get("trace") or []:
+                note(f"   AI: {step}")
             if reply.get("state"):
                 self.memory = (reply["state"], time.time())
             if reply.get("done") or not reply.get("state"):
@@ -477,6 +533,7 @@ class Shop:
     def serve(self):
         while True:
             self.wait_for_wake()
+            print("")
             print("Woke up.")
             threading.Thread(target=ping, args=(self.cfg,), daemon=True).start()
             beep(self.sd)
@@ -488,7 +545,10 @@ class Shop:
 
 
 def main():
+    global LOG
     cfg = load_config()
+    LOG = DailyLog(os.path.join(HERE, "logs"))
+    sys.stdout = Tee(sys.stdout, LOG)
     if "--list-mics" in sys.argv:
         import sounddevice as sd
         print(sd.query_devices())

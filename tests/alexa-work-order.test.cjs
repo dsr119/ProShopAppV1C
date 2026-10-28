@@ -757,3 +757,11 @@ test('ping warms the ball catalog', async () => {
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(shop.ballCalls, 5);
 });
+
+test('each reply carries a short trace of what the AI looked up, for the laptop log', async () => {
+  const fn = edgeFunction();
+  const out = await say(fn, fakeShop(), 'work order for Doug Smith', undefined,
+    fakeClaude([[use('find_customer', { name: 'Doug Smith' })], [speak('What are we doing?', false)]]));
+  assert.equal(out.trace.length, 1);
+  assert.match(out.trace[0], /^find_customer \{"name":"Doug Smith"\} -> \{/);
+});

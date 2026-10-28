@@ -961,6 +961,21 @@ function resumeState(state) {
   return state;
 }
 
+// What the AI looked up and did this turn, one short line each, for the
+// laptop's conversation log: "find_customer {"name":"Kalor Wright"} -> {"matches":[]...".
+function traceOf(messages) {
+  const results = new Map();
+  for (const m of messages) {
+    if (m.role === "user" && Array.isArray(m.content)) {
+      for (const b of m.content) if (b.type === "tool_result") results.set(b.tool_use_id, String(b.content));
+    }
+  }
+  const short = (v, n) => (v.length > n ? `${v.slice(0, n)}...` : v);
+  return messages.filter((m) => m.role === "assistant").flatMap((m) => m.content)
+    .filter((b) => b.type === "tool_use" && b.name !== "speak")
+    .map((b) => `${b.name} ${short(JSON.stringify(b.input), 200)} -> ${short(results.get(b.id) || "", 300)}`);
+}
+
 // One thing said. Returns { done, say, state? }.
 async function agentTurn(body, state, env, fetchFn, claude, now) {
   const text = squash(body.text);
@@ -1150,6 +1165,7 @@ async function handle(req, env, fetchFn, claude) {
   if (claude && (existing || !body.state)) {
     const state = existing ? (body.resume ? resumeState(existing) : existing) : { v: 2, messages: [], heard: [], turns: 0, done: [], review: [] };
     let turn;
+    const before = state.messages.length;
     try {
       turn = await agentTurn(body, state, env, fetchFn, claude, now);
     } catch (err) {
@@ -1171,7 +1187,7 @@ async function handle(req, env, fetchFn, claude) {
       state.review = [];
     }
     // The state comes back even when done, for the laptop to resume with.
-    return reply(200, { done, say: turn.say, state: JSON.stringify(state) });
+    return reply(200, { done, say: turn.say, state: JSON.stringify(state), trace: traceOf(state.messages.slice(before)) });
   }
 
   try {

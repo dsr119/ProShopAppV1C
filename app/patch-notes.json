@@ -3,7 +3,8 @@
     "version": "1.9",
     "date": "2026-10-28",
     "notes": [
-      "Fixed: the shop laptop checks ball names against the ball catalog again."
+      "Fixed: the shop laptop checks ball names against the ball catalog again.",
+      "New: the shop laptop saves each day's conversations to a file (voice/logs) for review."
     ]
   },
   {

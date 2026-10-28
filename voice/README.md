@@ -175,6 +175,15 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 To run it with the lid closed (with an external mic), set Start → "Change
 what closing the lid does" → Plugged in → **Do nothing**.
 
+## Conversation log
+
+Every conversation is saved in `voice/logs/`, one file a day (`2026-10-28.txt`):
+what it heard, what it said, how long each step took, and, on lines starting
+`AI:`, what it looked up (customers, Square items, balls) and what came back.
+To get help with a conversation that went wrong, send that day's file. Files
+older than 90 days are deleted. They hold customer names and phone numbers, so
+they stay on the laptop and aren't uploaded anywhere.
+
 ## Leaving it running
 
 It's fine to leave it on for days.
