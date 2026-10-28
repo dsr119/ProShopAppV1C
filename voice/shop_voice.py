@@ -205,14 +205,27 @@ class EdgeSpeaker:
             return bytes(out)
         return asyncio.run(fetch())
 
+    def pcm(self, text):
+        sound = self.miniaudio.decode(self.mp3(text), output_format=self.miniaudio.SampleFormat.SIGNED16, nchannels=1)
+        return np.asarray(sound.samples, dtype=np.int16), sound.sample_rate
+
     def __call__(self, text):
-        try:
-            sound = self.miniaudio.decode(self.mp3(text), output_format=self.miniaudio.SampleFormat.SIGNED16, nchannels=1)
-        except Exception as err:
-            print("Online voice failed, using the backup voice:", err)
-            return self.fallback(text)
-        print("Says:", text)
-        self.sd.play(np.asarray(sound.samples, dtype=np.int16), sound.sample_rate, blocking=True)
+        from concurrent.futures import ThreadPoolExecutor
+
+        # Every sentence is fetched at once; talking starts when the first is ready.
+        parts = [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p] or [text]
+        started = time.time()
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            jobs = [pool.submit(self.pcm, p) for p in parts]
+            for i, job in enumerate(jobs):
+                try:
+                    audio, rate = job.result()
+                except Exception as err:
+                    print("Online voice failed, using the backup voice:", err)
+                    return self.fallback(" ".join(parts[i:]))
+                if i == 0:
+                    print(f"Says ({time.time() - started:.1f}s):", text)
+                self.sd.play(audio, rate, blocking=True)
 
 
 def speak(text):

@@ -126,7 +126,8 @@ test('invoice: Claude asks for the last four, copes with a partial answer, and m
   assert.deepEqual(results(seen[1])[0].matches.map((m) => m.phone), ['570-766-8210', '570-555-1234']);
   assert.equal(seen[0].model, 'claude-haiku-5-5');
   assert.deepEqual(seen[0].tool_choice, { type: 'any' });
-  assert.match(seen[0].system, /bowling pro shop/);
+  assert.match(seen[0].system[0].text, /bowling pro shop/);
+  assert.deepEqual([seen[0].system[0].cache_control, seen[0].tools.at(-1).cache_control], [{ type: 'ephemeral' }, { type: 'ephemeral' }]);
 
   out = await say(fn, shop, '8-1-0.', out.state, claude);
   assert.equal(out.say, 'I only caught 8 1 0. What are all four digits?');
@@ -586,7 +587,7 @@ test('balls: Claude checks the ball, and an unknown one is noted for review', as
   assert.equal(a.balls[0].ball, 'Storm Nu Blue');
   assert.deepEqual(b.balls, []);
   assert.match(shop.reviews[0].problem, /Ball not in the catalog: "zork ultra"/);
-  assert.match(seen[0].system, /find_ball/);
+  assert.match(seen[0].system[0].text, /find_ball/);
 });
 
 test('balls: the laptop gets the newest ball names as listening hints', async () => {
@@ -655,11 +656,17 @@ test('schedule: hours per location and the appointments for a day', async () => 
 
 test('openings: shop hours minus bookings, in half hours', async () => {
   const fn = edgeFunction();
+  fn.todayInShop = () => '2026-10-26';
   const out = plain(await fn.findOpenings(env, scheduleShop().fetch, { from: '2026-10-27', to: '2026-10-28', location: 'Valley' }));
   assert.deepEqual(out, { minutes: 30, days: [{ date: '2026-10-27', day: 'Tuesday',
     open: [{ location: 'Valley', free: ['6:00 PM', '7:00 PM', '7:30 PM', '8:00 PM'] }] }] });
   const long = plain(await fn.findOpenings(env, scheduleShop().fetch, { from: '2026-10-27', to: '2026-10-27', location: 'Valley', minutes: 60 }));
   assert.deepEqual(long.days[0].open[0].free, ['7:00 PM', '7:30 PM']);
+  // Later the same day, times already gone aren't offered.
+  fn.todayInShop = () => '2026-10-27';
+  fn.minutesNowInShop = () => 19 * 60 + 15;
+  const late = plain(await fn.findOpenings(env, scheduleShop().fetch, { from: '2026-10-27', to: '2026-10-27', location: 'Valley' }));
+  assert.deepEqual(late.days[0].open[0].free, ['7:30 PM', '8:00 PM']);
 });
 
 test('booking: a clash or closed shop needs an OK; then it books at the laptop\'s location', async () => {
