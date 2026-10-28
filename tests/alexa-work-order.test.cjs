@@ -80,8 +80,9 @@ let ids = 0;
 const use = (name, input) => ({ type: 'tool_use', id: `tu${++ids}`, name, input });
 const speak = (s, done = false) => use('speak', { say: s, done });
 function fakeClaude(script, seen = []) {
-  return { messages: { create: async (params) => {
+  return { messages: { create: async (params, opts) => {
     seen.push(JSON.parse(JSON.stringify(params)));
+    seen.timeouts = (seen.timeouts || []).concat(opts && opts.timeout);
     const next = script.shift();
     if (!next) throw new Error('script ran out');
     if (next instanceof Error) throw next;
@@ -596,4 +597,127 @@ test('balls: the laptop gets the newest ball names as listening hints', async ()
   assert.ok(!balls.includes('Ebonite Game Breaker 5 Solid')); // discontinued
   const bad = await fn.handle(post({ hints: true }, 'nope'), env, ballShop().fetch);
   assert.equal(bad.status, 401);
+});
+
+// --- appointments and orders -----------------------------------------------------
+
+const HOURS = [
+  { location: 'Valley Bowling Lanes', date: '2026-10-27', open1: '6:00 PM', close1: '8:30 PM', note1: 'Doug Only', open2: null, close2: null, note2: null },
+  { location: 'Idle Hours South', date: '2026-10-27', open1: '11:30 AM', close1: '2:00 PM', note1: null, open2: '6:00 PM', close2: '8:30 PM', note2: null },
+  { location: 'Valley Bowling Lanes', date: '2026-10-28', open1: null, close1: null, note1: null, open2: null, close2: null, note2: null },
+];
+const APPTS = [
+  { id: 'a1', customer_name: 'Ann Lee', phone: '555-000-1111', service: 'Conventional drill', location: 'Valley', appt_date: '2026-10-27', appt_time: '18:30:00', completed: false, notes: null },
+];
+const ORDERS = [
+  { customer_name: 'Jim Curtis', item: 'Dexter SST 8 shoes 10.5', quantity: 1, submitted_at: '2026-10-15T12:00:00Z', shop_order_date: '2026-10-20', supplier: 'Dexter',
+    checked_in_at: null, drilled: false, has_been_called: false, time_called: null, last_contacted_at: null, paid: true, out_the_door: false, pickup_location: 'Valley', notes: null },
+  { customer_name: 'Jim Curtis', item: 'Storm Phaze 6 15 lb', quantity: 1, submitted_at: '2026-09-01T12:00:00Z', shop_order_date: '2026-09-02', supplier: 'Storm',
+    checked_in_at: '2026-09-08T15:00:00Z', drilled: true, has_been_called: true, time_called: null, last_contacted_at: '2026-09-09T15:00:00Z', paid: true, out_the_door: false, pickup_location: 'Valley', notes: null },
+  { customer_name: 'Tim Curtis', item: 'Hammer Black Widow', quantity: 1, submitted_at: '2026-10-01T12:00:00Z', shop_order_date: null,
+    checked_in_at: null, drilled: false, has_been_called: false, paid: false, out_the_door: false },
+];
+function scheduleShop() {
+  const shop = fakeShop();
+  const inner = shop.fetch;
+  shop.booked = [];
+  shop.urls = [];
+  shop.fetch = async (url, init = {}) => {
+    const json = (v, status = 200) => new Response(JSON.stringify(v), { status });
+    if (url.startsWith('https://db.test/rest/v1/hours?')) { shop.urls.push(url); return json(HOURS.filter((h) => url.includes(`date=gte.${h.date}`) || url.includes(`lte.${h.date}`))); }
+    if (url.startsWith('https://db.test/rest/v1/appointments') && init.method === 'POST') { shop.booked.push(JSON.parse(init.body)); return json([{ id: 'new1' }], 201); }
+    if (url.startsWith('https://db.test/rest/v1/appointments?select=id')) { shop.urls.push(url); return json(APPTS); }
+    if (url.startsWith('https://db.test/rest/v1/orders?select=customer_name,item')) { shop.urls.push(url); return json(ORDERS); }
+    return inner(url, init);
+  };
+  return shop;
+}
+const plain = (v) => JSON.parse(JSON.stringify(v));
+
+test('times: shop hour text and appointment times read the same way', () => {
+  const fn = edgeFunction();
+  assert.deepEqual([fn.toMinutes('6:00 PM'), fn.toMinutes('18:30:00'), fn.toMinutes('12:15 am'), fn.toMinutes('After League')], [1080, 1110, 15, null]);
+  assert.deepEqual([fn.clock(1110), fn.clock(690), fn.clock(720)], ['6:30 PM', '11:30 AM', '12:00 PM']);
+});
+
+test('schedule: hours per location and the appointments for a day', async () => {
+  const fn = edgeFunction();
+  const shop = scheduleShop();
+  const seen = [];
+  const claude = fakeClaude([[use('check_schedule', { from: '2026-10-27' })], [speak('Valley 6 to 8:30, Ann Lee at 6:30.', true)]], seen);
+  await say(fn, shop, 'what does tuesday look like', undefined, claude);
+  const day = results(seen[1])[0].days[0];
+  assert.deepEqual(day, { date: '2026-10-27', day: 'Tuesday',
+    hours: [{ location: 'Valley', open: '6:00 PM-8:30 PM (Doug Only)' }, { location: 'South Side', open: '11:30 AM-2:00 PM, 6:00 PM-8:30 PM' }],
+    appointments: [{ id: 'a1', time: '6:30 PM', customer: 'Ann Lee', service: 'Conventional drill', location: 'Valley', done: false }] });
+  assert.match(shop.urls.find((u) => u.includes('appointments')), /appt_date=gte\.2026-10-27&appt_date=lte\.2026-10-27&deleted_at=is\.null/);
+});
+
+test('openings: shop hours minus bookings, in half hours', async () => {
+  const fn = edgeFunction();
+  const out = plain(await fn.findOpenings(env, scheduleShop().fetch, { from: '2026-10-27', to: '2026-10-28', location: 'Valley' }));
+  assert.deepEqual(out, { minutes: 30, days: [{ date: '2026-10-27', day: 'Tuesday',
+    open: [{ location: 'Valley', free: ['6:00 PM', '7:00 PM', '7:30 PM', '8:00 PM'] }] }] });
+  const long = plain(await fn.findOpenings(env, scheduleShop().fetch, { from: '2026-10-27', to: '2026-10-27', location: 'Valley', minutes: 60 }));
+  assert.deepEqual(long.days[0].open[0].free, ['7:00 PM', '7:30 PM']);
+});
+
+test('booking: a clash or closed shop needs an OK; then it books at the laptop\'s location', async () => {
+  const fn = edgeFunction();
+  fn.todayInShop = () => '2026-10-27';
+  const shop = scheduleShop();
+  let out = plain(await fn.bookAppointment(env, shop.fetch, { customer_name: 'Bob Ray', service: 'Conventional drill', date: '2026-10-27', time: '6:30 PM', location: 'Valley' }));
+  assert.equal(out.needs_ok, true);
+  assert.match(out.warnings[0], /Ann Lee is already booked at 6:30 PM/);
+  out = plain(await fn.bookAppointment(env, shop.fetch, { customer_name: 'Bob Ray', service: 'Drill', date: '2026-10-27', time: '3 PM', location: 'Valley' }));
+  assert.match(out.warnings[0], /outside shop hours/);
+  out = plain(await fn.bookAppointment(env, shop.fetch, { customer_name: 'Bob Ray', service: 'Drill', date: '2026-10-28', time: '6 PM', location: 'Valley' }));
+  assert.match(out.warnings[0], /closed at Valley/);
+  assert.equal(shop.booked.length, 0);
+
+  const seen = [];
+  const claude = fakeClaude([[use('book_appointment', { customer_name: 'Bob Ray', phone: '5701234567', service: 'Conventional drill', date: '2026-10-27', time: '7:00 PM' })],
+    [speak('Booked Tuesday at 7.', true)]], seen);
+  await say(fn, shop, 'book bob ray tuesday at 7 for a conventional drill', undefined, claude, 'Valley');
+  assert.deepEqual(results(seen[1])[0], { ok: true, appointment: 'new1', date: '2026-10-27', day: 'Tuesday', time: '7:00 PM', location: 'Valley' });
+  assert.deepEqual(shop.booked[0], { customer_name: 'Bob Ray', phone: '570-123-4567', service: 'Conventional drill', location: 'Valley',
+    appt_date: '2026-10-27', appt_time: '19:00', notes: null });
+  out = plain(await fn.bookAppointment(env, shop.fetch, { customer_name: 'Bob Ray', service: 'Drill', date: '2026-10-27', time: '6:30 PM', location: 'Valley', confirmed: true }));
+  assert.equal(out.ok, true);
+  out = plain(await fn.bookAppointment(env, shop.fetch, { customer_name: 'Bob Ray', service: 'Drill', date: '2020-01-06', location: 'Valley' }));
+  assert.match(out.warnings[0], /Monday 2020-01-06 has already passed/);
+});
+
+test('orders: a customer\'s order status, narrowed by item', async () => {
+  const fn = edgeFunction();
+  const shop = scheduleShop();
+  let out = plain(await fn.findOrders(env, shop.fetch, { customer_name: 'Jim Curtis', item: 'shoes' }));
+  assert.deepEqual(out.orders.map((o) => [o.item, o.status]), [['Dexter SST 8 shoes 10.5', 'ordered 2026-10-20 from Dexter, not in yet, paid']]);
+  out = plain(await fn.findOrders(env, shop.fetch, { customer_name: 'Jim Curtis' }));
+  assert.deepEqual(out.orders.map((o) => o.status), ['ordered 2026-10-20 from Dexter, not in yet, paid', 'arrived 2026-09-08, drilled, customer contacted 2026-09-09, paid']);
+  out = plain(await fn.findOrders(env, shop.fetch, { customer_name: 'Jim Curtis', item: 'bag' }));
+  assert.equal(out.orders.length, 2);
+  assert.match(out.note, /Nothing matched that item/);
+  assert.match(decodeURIComponent(shop.urls.find((u) => u.includes('orders'))), /or=\(customer_name\.ilike\.\*cur\*,customer_name\.ilike\.\*urt\*,customer_name\.ilike\.\*rtis\*\)/);
+});
+
+test('the prompt knows today in New York and this week\'s dates', () => {
+  const fn = edgeFunction();
+  const p = fn.systemPrompt(new Date('2026-10-28T02:00:00Z'), 'Valley'); // 10 PM Tuesday in New York
+  assert.match(p, /Today is Tuesday 2026-10-27/);
+  assert.match(p, /this week is Monday 2026-10-26 to Sunday 2026-11-01/);
+});
+
+test('model: Haiku by default; the laptop or the VOICE_MODEL secret can pick a bigger one', async () => {
+  const fn = edgeFunction();
+  const run = async (body, extraEnv = {}) => {
+    const seen = [];
+    const claude = fakeClaude([[speak('Hi.', false)]], seen);
+    await fn.handle(post({ text: 'hello', location: 'Valley', ...body }), { ...env, ...extraEnv }, fakeShop().fetch, claude);
+    return [seen[0].model, seen.timeouts[0]];
+  };
+  assert.deepEqual(await run({}), ['claude-haiku-5-5', 8000]);
+  assert.deepEqual(await run({ model: 'Sonnet' }), ['claude-sonnet-5-5', 25000]);
+  assert.deepEqual(await run({}, { VOICE_MODEL: 'opus' }), ['claude-opus-5-5', 25000]);
+  assert.deepEqual(await run({ model: 'gpt' }), ['claude-haiku-5-5', 8000]);
 });

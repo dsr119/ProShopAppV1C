@@ -44,7 +44,12 @@
 // and the tests can load it under Node.
 
 const MAX_TITLE = 200;
-const MODEL = "claude-haiku-5-5";
+// The laptop's config.json "model" (or the VOICE_MODEL secret) picks one; Haiku is quickest.
+const MODELS = { haiku: "claude-haiku-5-5", sonnet: "claude-sonnet-5-5", opus: "claude-opus-5-5" };
+function pickModel(body, env) {
+  const name = String(body.model || env.VOICE_MODEL || "haiku").trim().toLowerCase();
+  return MODELS[name] ? name : "haiku";
+}
 const SQUARE_URL = "https://connect.squareup.com/v2";
 const SQUARE_VERSION = "2026-09-16";
 // Speccy (the spec sheet app) is a separate Supabase project. Its URL and
@@ -158,10 +163,10 @@ async function customerRows(name, env, fetchFn) {
   const key = env.SPECCY_KEY || SPECCY_KEY;
   let speccy = "read", fromSpeccy = [];
   try {
-    const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone` +
+    const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone,phone_mobile` +
       `&${or("name")}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    if (res.ok) fromSpeccy = (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone }));
+    if (res.ok) fromSpeccy = (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone || r.phone_mobile }));
     else speccy = `could not be read (error ${res.status})`;
   } catch (err) {
     speccy = `could not be read (${err && err.message})`;
@@ -432,6 +437,173 @@ async function ballHints(env, fetchFn, count = 60) {
 }
 
 // ---------------------------------------------------------------------------
+// Appointments, shop hours and orders
+// ---------------------------------------------------------------------------
+
+const APPT_MINUTES = 30;   // how long a booking is taken to block, unless said
+// The hours table names the bowling centers; appointments say Valley / South Side.
+const hoursPlace = (location) => (/south/i.test(location || "") ? "South Side" : /valley/i.test(location || "") ? "Valley" : null);
+const isoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdayOf = (d) => WEEKDAYS[new Date(`${d}T12:00:00Z`).getUTCDay()];
+
+// "6:00 PM" / "18:30" / "6:30" -> minutes after midnight; null for "After League" and the like.
+function toMinutes(v) {
+  const m = /^\s*(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(am|pm|a\.m\.|p\.m\.)?\s*$/i.exec(String(v || ""));
+  if (!m) return null;
+  let h = Number(m[1]) % 24;
+  const ap = (m[3] || "").toLowerCase().replace(/\./g, "");
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return h * 60 + Number(m[2] || 0);
+}
+function clock(min) {
+  return `${((Math.floor(min / 60) + 11) % 12) + 1}:${String(min % 60).padStart(2, "0")} ${min >= 720 ? "PM" : "AM"}`;
+}
+
+function todayInShop() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+async function dbGet(env, fetchFn, path) {
+  const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${path}`, { headers: dbHeaders(env) });
+  if (!res.ok) throw new Error(`Database said ${res.status}`);
+  return res.json();
+}
+
+// Each day from..to: the shop's hours at each location and the appointments.
+async function daySchedule(env, fetchFn, { from, to, location }) {
+  if (!isoDate(from)) return { error: "from must be YYYY-MM-DD" };
+  if (!isoDate(to)) to = from;
+  const [hours, appts] = await Promise.all([
+    dbGet(env, fetchFn, `hours?select=location,date,open1,close1,note1,open2,close2,note2&date=gte.${from}&date=lte.${to}&order=date.asc`),
+    dbGet(env, fetchFn, `appointments?select=id,customer_name,phone,service,location,appt_date,appt_time,completed,notes` +
+      `&appt_date=gte.${from}&appt_date=lte.${to}&deleted_at=is.null&order=appt_date.asc,appt_time.asc.nullslast`),
+  ]);
+  const want = PLACES.includes(location) && location !== "Both" ? location : null;
+  const days = [];
+  for (let d = from; d <= to && days.length < 31; d = new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
+    const open = hours.filter((h) => h.date === d && (!want || hoursPlace(h.location) === want)).map((h) => ({
+      location: hoursPlace(h.location) || h.location,
+      times: [[h.open1, h.close1, h.note1], [h.open2, h.close2, h.note2]].filter(([o]) => o)
+        .map(([o, c, n]) => `${o}${c ? `-${c}` : ""}${n ? ` (${n})` : ""}`),
+      windows: [[h.open1, h.close1], [h.open2, h.close2]].map(([o, c]) => [toMinutes(o), toMinutes(c)]).filter(([o, c]) => o !== null && c !== null && c > o),
+    }));
+    days.push({
+      date: d,
+      day: weekdayOf(d),
+      hours: open.map(({ location: l, times }) => ({ location: l, open: times.length ? times.join(", ") : "closed" })),
+      appointments: appts.filter((a) => a.appt_date === d && (!want || !a.location || a.location === want)).map((a) => ({
+        id: a.id, time: a.appt_time ? clock(toMinutes(a.appt_time)) : "no time", customer: a.customer_name,
+        service: a.service, location: a.location, done: a.completed, ...(a.notes ? { notes: a.notes } : {}),
+      })),
+      _windows: open,
+    });
+  }
+  return { days };
+}
+
+// Open times each day: shop hours minus booked appointments, in 30-minute steps.
+async function findOpenings(env, fetchFn, input) {
+  const { days, error } = await daySchedule(env, fetchFn, input);
+  if (error) return { error };
+  const len = Math.max(15, Math.min(240, Number(input.minutes) || APPT_MINUTES));
+  return {
+    minutes: len,
+    days: days.map((day) => ({
+      date: day.date,
+      day: day.day,
+      open: day._windows.map(({ location, windows }) => {
+        const booked = day.appointments.filter((a) => !a.location || a.location === location).map((a) => toMinutes(a.time)).filter((m) => m !== null);
+        const free = [];
+        for (const [o, c] of windows) {
+          for (let t = o; t + len <= c; t += 30) {
+            if (!booked.some((b) => b < t + len && t < b + APPT_MINUTES)) free.push(clock(t));
+          }
+        }
+        return { location, free };
+      }).filter((x) => x.free.length),
+    })).filter((d) => d.open.length),
+  };
+}
+
+async function bookAppointment(env, fetchFn, input) {
+  const name = squash(input.customer_name), service = squash(input.service);
+  if (!name || !service || !isoDate(input.date)) return { error: "Need customer_name, service and date (YYYY-MM-DD)." };
+  const location = input.location === "Valley" || input.location === "South Side" ? input.location : null;
+  const start = toMinutes(input.time);
+  if (input.time && start === null) return { error: `Couldn't read the time "${input.time}".` };
+  if (!input.confirmed) {
+    const { days } = await daySchedule(env, fetchFn, { from: input.date, to: input.date, location });
+    const day = days[0];
+    const warnings = [];
+    if (input.date < todayInShop()) warnings.push(`${weekdayOf(input.date)} ${input.date} has already passed.`);
+    if (start !== null) {
+      const clash = day.appointments.find((a) => toMinutes(a.time) !== null && Math.abs(toMinutes(a.time) - start) < APPT_MINUTES
+        && (!location || !a.location || a.location === location));
+      if (clash) warnings.push(`${clash.customer} is already booked at ${clash.time} (${clash.service}).`);
+      // Hours are only set two weeks ahead; with none, there's nothing to check against.
+      const openThere = day._windows.filter((w) => !location || w.location === location);
+      const timed = openThere.filter((w) => w.windows.length);
+      if (openThere.length && !timed.length && openThere.every((w) => !day.hours.find((h) => h.location === w.location && h.open !== "closed"))) {
+        warnings.push(`The shop shows closed${location ? ` at ${location}` : ""} that day.`);
+      } else if (timed.length && !timed.some((w) => w.windows.some(([o, c]) => start >= o && start < c))) {
+        warnings.push(`That's outside shop hours (${day.hours.map((h) => `${h.location} ${h.open}`).join("; ")}).`);
+      }
+    }
+    if (warnings.length) return { needs_ok: true, warnings, note: "Tell them, and book with confirmed: true only if they still want it." };
+  }
+  const time = start === null ? null : `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
+  const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/appointments`, {
+    method: "POST",
+    headers: { ...dbHeaders(env), "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify({ customer_name: name, phone: input.phone ? formatPhone(input.phone) : null, service, location,
+      appt_date: input.date, appt_time: time, notes: squash(input.notes) || null }),
+  });
+  if (!res.ok) throw new Error(`Database said ${res.status}: ${await res.text()}`);
+  const [created] = await res.json();
+  return { ok: true, appointment: created && created.id, date: input.date, day: weekdayOf(input.date), time: time ? clock(start) : "no time", location };
+}
+
+// Where an order stands, in the order the shop works it.
+function orderStatus(o) {
+  const day = (v) => String(v || "").slice(0, 10);
+  if (o.out_the_door) return "picked up";
+  const steps = [];
+  if (!o.shop_order_date) steps.push("not ordered yet");
+  else if (!o.checked_in_at) steps.push(`ordered ${day(o.shop_order_date)}${o.supplier ? ` from ${o.supplier}` : ""}, not in yet`);
+  else steps.push(`arrived ${day(o.checked_in_at)}`);
+  if (o.checked_in_at && o.drilled) steps.push("drilled");
+  if (o.has_been_called || o.last_contacted_at) steps.push(`customer contacted ${day(o.last_contacted_at || o.time_called)}`.trim());
+  if (o.paid) steps.push("paid");
+  return steps.join(", ");
+}
+
+// A customer's orders, newest first, optionally narrowed by item words.
+async function findOrders(env, fetchFn, { customer_name, item }) {
+  const pieces = namePieces(customer_name);
+  if (!pieces.length) return { error: "Need a customer name." };
+  const rows = await dbGet(env, fetchFn, `orders?select=customer_name,item,quantity,submitted_at,shop_order_date,supplier,checked_in_at,` +
+    `drilled,has_been_called,time_called,last_contacted_at,paid,out_the_door,pickup_location,notes` +
+    `&or=(${pieces.map((p) => `customer_name.ilike.*${p}*`).join(",")})&deleted_at=is.null&order=submitted_at.desc.nullslast&limit=200`);
+  const want = nameWords(customer_name);
+  const ws = words(item || "").filter((w) => w.length >= 3 && !FILLER.has(w));
+  const fits = rows.filter((o) => {
+    const who = nameWords(o.customer_name);
+    const firstFits = want.length < 2 || !who.length || who[0].startsWith(want[0]) || want[0].startsWith(who[0]);
+    return who.length && firstFits && wordLike(lastKey(want), lastKey(who)) >= 0.7;
+  });
+  const byItem = ws.length ? fits.filter((o) => ws.some((w) => words(o.item).some((h) => wordLike(w, h) >= 0.75 || sound(w) === sound(h)))) : fits;
+  return {
+    orders: (byItem.length ? byItem : fits).slice(0, 6).map((o) => ({
+      customer: o.customer_name, item: o.item, ordered_by_customer: String(o.submitted_at || "").slice(0, 10),
+      status: orderStatus(o), pickup: o.pickup_location, ...(o.notes ? { notes: o.notes } : {}),
+    })),
+    ...(ws.length && !byItem.length && fits.length ? { note: "Nothing matched that item; these are all their recent orders." } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tickets and review notes
 // ---------------------------------------------------------------------------
 
@@ -558,6 +730,39 @@ const TOOLS = [
     input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
   },
   {
+    name: "check_schedule",
+    description: "The shop's hours and booked appointments for a day or range of days (YYYY-MM-DD). Use for 'what does Tuesday look like' or 'any appointments Saturday'.",
+    input_schema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" }, location: { type: "string", enum: ["Valley", "South Side", "Both"] } }, required: ["from"] },
+  },
+  {
+    name: "find_openings",
+    description: "Open appointment times (during shop hours, not already booked) for each day in a range. minutes is how long the job takes (default 30; a drill is usually 30, a fitting maybe 45).",
+    input_schema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" }, location: { type: "string", enum: ["Valley", "South Side", "Both"] }, minutes: { type: "integer" } }, required: ["from", "to"] },
+  },
+  {
+    name: "book_appointment",
+    description: "Book an appointment. time like '6:30 PM'. If it clashes or is outside shop hours you get needs_ok with warnings: tell them, and call again with confirmed: true only if they still want it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customer_name: { type: "string" },
+        phone: { type: "string" },
+        service: { type: "string", description: "What we're doing, e.g. 'Conventional drill, Storm Phaze 6'." },
+        date: { type: "string" },
+        time: { type: "string" },
+        location: { type: "string", enum: ["Valley", "South Side"] },
+        notes: { type: "string" },
+        confirmed: { type: "boolean" },
+      },
+      required: ["customer_name", "service", "date"],
+    },
+  },
+  {
+    name: "order_status",
+    description: "A customer's orders and where each stands (not ordered yet, ordered and waiting, arrived, drilled, customer contacted, picked up). item narrows it ('shoes', 'Phaze').",
+    input_schema: { type: "object", properties: { customer_name: { type: "string" }, item: { type: "string" } }, required: ["customer_name"] },
+  },
+  {
     name: "find_ball",
     description: "Look up a bowling ball by name in the shop's ball catalog (every current and past ball from the major brands). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
     input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
@@ -637,15 +842,21 @@ const TOOLS = [
 ];
 
 function systemPrompt(now, location) {
-  const today = now.toISOString().slice(0, 10);
-  const weekday = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?"
+  const today = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const weekday = weekdayOf(today);
+  const monday = new Date(Date.parse(`${today}T12:00:00Z`) - ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
+  const sunday = new Date(Date.parse(`${monday}T12:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
+  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?"
 
 Be brief. Most replies are a few words, never more than one short sentence plus one question. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool.
 
 Customers: look them up with find_customer. If there's one match, use it without comment. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once: "Did you mean John Jablonski?" If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once.
 
 Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
+
+Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
+
+Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet."
 
 Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
 
@@ -668,6 +879,14 @@ async function runTool(name, input, ctx) {
   }
   if (name === "find_work_orders") return { work_orders: await findTickets(env, fetchFn, input) };
   if (name === "update_work_order") return await updateTicket(env, fetchFn, input, now);
+  if (name === "check_schedule") {
+    const out = await daySchedule(env, fetchFn, input);
+    if (out.days) out.days.forEach((d) => delete d._windows);
+    return out;
+  }
+  if (name === "find_openings") return await findOpenings(env, fetchFn, input);
+  if (name === "book_appointment") return await bookAppointment(env, fetchFn, { ...input, location: input.location || hoursPlace(ctx.place) });
+  if (name === "order_status") return await findOrders(env, fetchFn, input);
   if (name === "find_ball") {
     const balls = await findBalls(env, fetchFn, input.said);
     if (!balls.length) state.review.push(`Ball not in the catalog: "${squash(input.said)}"`);
@@ -740,15 +959,16 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
 
   const place = pickLocation(state.heard.join(" "), body.location);
   const ctx = { env, fetchFn, state, now, place };
+  const model = pickModel(body, env);
   for (let step = 0; step < MAX_STEPS; step++) {
     const response = await claude.messages.create({
-      model: MODEL,
+      model: MODELS[model],
       max_tokens: 1024,
       system: systemPrompt(now, body.location),
       tools: TOOLS,
       tool_choice: { type: "any" },
       messages: state.messages,
-    });
+    }, { timeout: model === "haiku" ? 8000 : 25000 });
     if (response.stop_reason === "refusal") throw new Error("Claude declined");
     const content = response.content.map(keepBlock).filter(Boolean);
     state.messages.push({ role: "assistant", content });
@@ -946,7 +1166,7 @@ if (typeof Deno !== "undefined") {
       claude = null;
       if (env.ANTHROPIC_API_KEY) {
         const { default: Anthropic } = await import("npm:@anthropic-ai/sdk");
-        // Each Claude call has 8 seconds; a turn may take a few.
+        // Each Claude call has 8 seconds (25 for the bigger models); a turn may take a few.
         claude = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 8000, maxRetries: 0 });
       }
     }

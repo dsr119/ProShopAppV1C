@@ -36,7 +36,7 @@ class PostTurnTests(unittest.TestCase):
 
         reply = voice.post_turn(CFG, 'for Doug Smith', 's1', opener)
         self.assertEqual(reply['say'], 'What are we doing?')
-        self.assertEqual(sent['body'], {'text': 'for Doug Smith', 'location': 'South Side', 'state': 's1'})
+        self.assertEqual(sent['body'], {'text': 'for Doug Smith', 'location': 'South Side', 'model': 'haiku', 'state': 's1'})
         self.assertEqual(sent['secret'], 'pw')
         voice.post_turn(CFG, 'change it', 's1', opener, resume=True)
         self.assertEqual(sent['body']['resume'], True)
@@ -215,6 +215,33 @@ class MiscTests(unittest.TestCase):
         speaker.sd = type('SD', (), {'play': lambda self, audio, rate, blocking: played.append((len(audio), rate))})()
         speaker('Work order added. Thanks.')
         self.assertEqual(played, [(5, 22050)])
+
+    def test_online_voice_plays_and_falls_back(self):
+        played, backup = [], []
+        speaker = voice.EdgeSpeaker.__new__(voice.EdgeSpeaker)
+        speaker.sd = type('SD', (), {'play': lambda self, audio, rate, blocking: played.append((len(audio), rate))})()
+        speaker.fallback = backup.append
+        speaker.miniaudio = type('M', (), {'SampleFormat': type('F', (), {'SIGNED16': 2}),
+                                           'decode': staticmethod(lambda data, output_format, nchannels: type('S', (), {'samples': [1, 2, 3], 'sample_rate': 44100})())})
+        speaker.mp3 = lambda text: b'mp3'
+        speaker('Booked Tuesday at 7.')
+        self.assertEqual((played, backup), ([(3, 44100)], []))
+
+        def offline(text):
+            raise OSError('no internet')
+        speaker.mp3 = offline
+        speaker('Booked Tuesday at 7.')
+        self.assertEqual(backup, ['Booked Tuesday at 7.'])
+
+    def test_model_setting_is_sent_and_slower_models_wait_longer(self):
+        sent = []
+
+        def opener(req, timeout):
+            sent.append((json.loads(req.data)['model'], timeout))
+            raise OSError('stop here')
+        voice.post_turn(CFG, 'hi', None, opener)
+        voice.post_turn({**CFG, 'model': 'sonnet'}, 'hi', None, opener)
+        self.assertEqual(sent, [('haiku', 40), ('sonnet', 120)])
 
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')
