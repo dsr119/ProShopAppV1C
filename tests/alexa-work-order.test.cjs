@@ -554,7 +554,8 @@ function ballShop(extra = {}) {
   const inner = shop.fetch;
   shop.ballCalls = 0;
   shop.fetch = async (url, init) => {
-    if (url.startsWith('https://db.test/rest/v1/balls?')) { shop.ballCalls += 1; return new Response(JSON.stringify(url.includes('offset=0') ? BALLS : []), { status: 200 }); }
+    // Like the real database: a page past the end is a 416, not an empty list.
+    if (url.startsWith('https://db.test/rest/v1/balls?')) { shop.ballCalls += 1; return url.includes('offset=0&') ? new Response(JSON.stringify(BALLS), { status: 200 }) : new Response('{"code":"PGRST103"}', { status: 416 }); }
     return inner(url, init);
   };
   return shop;
@@ -755,4 +756,12 @@ test('ping warms the ball catalog', async () => {
   const res = await fn.handle(post({ ping: true }), env, shop.fetch, null);
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(shop.ballCalls, 5);
+});
+
+test('each reply carries a short trace of what the AI looked up, for the laptop log', async () => {
+  const fn = edgeFunction();
+  const out = await say(fn, fakeShop(), 'work order for Doug Smith', undefined,
+    fakeClaude([[use('find_customer', { name: 'Doug Smith' })], [speak('What are we doing?', false)]]));
+  assert.equal(out.trace.length, 1);
+  assert.match(out.trace[0], /^find_customer \{"name":"Doug Smith"\} -> \{/);
 });

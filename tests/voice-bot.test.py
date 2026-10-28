@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 import unittest
 import urllib.error
 from pathlib import Path
@@ -284,6 +285,27 @@ class MiscTests(unittest.TestCase):
         with self.assertRaises(voice.urllib.error.HTTPError) as err:
             keep(req(b'bad'), 5)
         self.assertEqual(err.exception.code, 401)
+
+    def test_log_keeps_the_window_and_the_ai_steps(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            old = os.path.join(folder, '2020-01-01.txt')
+            Path(old).write_text('old')
+            os.utime(old, (0, 0))
+            log = voice.DailyLog(folder)
+            self.assertFalse(os.path.exists(old))
+            window = io.StringIO()
+            tee = voice.Tee(window, log)
+            tee.write('Heard (1.2s): work order for ')
+            tee.write('Doug\nSays: Done.\n')
+            voice.LOG = log
+            try:
+                said, posted = ConversationTests.run_conversation(self, ['hi'], [{'done': True, 'say': 'Hi.', 'trace': ['find_customer {} -> {}']}])
+            finally:
+                voice.LOG = None
+            lines = Path(folder, voice.time.strftime('%Y-%m-%d') + '.txt').read_text().splitlines()
+            self.assertEqual(window.getvalue(), 'Heard (1.2s): work order for Doug\nSays: Done.\n')
+            self.assertEqual([l[10:] for l in lines], ['Heard (1.2s): work order for Doug', 'Says: Done.', '   AI: find_customer {} -> {}'])
 
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')
