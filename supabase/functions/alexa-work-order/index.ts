@@ -395,13 +395,16 @@ let ballCache = { at: 0, list: [] };
 async function loadBalls(env, fetchFn) {
   if (ballCache.list.length && Date.now() - ballCache.at < 3600 * 1000) return ballCache.list;
   const list = [];
-  for (let offset = 0; offset < 10000; offset += 1000) {
-    const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/balls?select=brand,name,release_month,discontinued,is_recent_release` +
-      `&order=release_month.desc.nullslast&offset=${offset}&limit=1000`, { headers: dbHeaders(env) });
-    if (!res.ok) throw new Error(`Ball catalog said ${res.status}`);
-    const page = await res.json();
-    list.push(...page);
-    if (page.length < 1000) break;
+  // Five pages at a time rather than one after another.
+  for (let start = 0; start < 10000; start += 5000) {
+    const pages = await Promise.all([0, 1000, 2000, 3000, 4000].map(async (o) => {
+      const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/balls?select=brand,name,release_month,discontinued,is_recent_release` +
+        `&order=release_month.desc.nullslast&offset=${start + o}&limit=1000`, { headers: dbHeaders(env) });
+      if (!res.ok) throw new Error(`Ball catalog said ${res.status}`);
+      return res.json();
+    }));
+    for (const page of pages) list.push(...page);
+    if (pages.some((p) => p.length < 1000)) break;
   }
   ballCache = { at: Date.now(), list };
   return list;
@@ -847,6 +850,8 @@ const TOOLS = [
   },
 ];
 
+// Tools that do something; a speak given with only these is said once they succeed.
+const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "note_for_review"]);
 const CACHED_TOOLS = TOOLS.map((t, i) => (i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t));
 
 function systemPrompt(now, location) {
@@ -856,7 +861,7 @@ function systemPrompt(now, location) {
   const sunday = new Date(Date.parse(`${monday}T12:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
   return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?"
 
-Be brief. Most replies are a few words, never more than one short sentence plus one question. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool.
+Be brief: under 20 words when you can, never more than one short sentence plus one question. Don't list choices or prices unless asked. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool. To save time, when you have everything needed to create, change or book something, call speak (the confirmation) in the same step as the action; it is only said if the action worked.
 
 Customers: look them up with find_customer. If there's one match, use it without comment. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once: "Did you mean John Jablonski?" If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once.
 
@@ -868,7 +873,7 @@ Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in on
 
 Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
 
-Invoices: who and what. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search each item with search_square_items and use only an item that clearly is what was said; otherwise ask ("Did you mean the Game Breaker 5 Solid?"). For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
+Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill; "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search every item with search_square_items in one step. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
 
 Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
@@ -987,26 +992,27 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
       const say = content.filter((b) => b.type === "text").map((b) => b.text).join(" ") || "Sorry, say that again?";
       return { done: false, say };
     }
-    const results = [];
-    let spoken = null;
-    for (const call of calls) {
-      if (call.name === "speak") {
-        spoken = { say: squash(call.input && call.input.say) || "Okay.", done: !!(call.input && call.input.done) };
-        results.push({ type: "tool_result", tool_use_id: call.id, content: "said" });
-        continue;
-      }
-      let out;
+    // The tools in one step run at the same time.
+    const outs = await Promise.all(calls.map(async (call) => {
+      if (call.name === "speak") return null;
       try {
-        out = await runTool(call.name, call.input, ctx);
+        return await runTool(call.name, call.input, ctx);
       } catch (err) {
         console.log(`${call.name} failed:`, err && err.message);
-        out = { error: String((err && err.message) || err) };
+        const out = { error: String((err && err.message) || err) };
         if (call.name !== "find_customer") state.review.push(`${call.name} failed: ${out.error}`);
+        return out;
       }
-      results.push({ type: "tool_result", tool_use_id: call.id, content: JSON.stringify(out), ...(out.error ? { is_error: true } : {}) });
-    }
+    }));
+    // speak alongside actions saves a round trip, but only counts if they all went through.
+    const others = calls.map((c, i) => ({ c, out: outs[i] })).filter((x) => x.c.name !== "speak");
+    const speakCall = calls.find((c) => c.name === "speak");
+    const sayNow = speakCall && others.every(({ c, out }) => ACTIONS.has(c.name) && !out.error && !out.needs_ok);
+    const results = calls.map((call, i) => (call.name === "speak"
+      ? { type: "tool_result", tool_use_id: call.id, content: sayNow ? "said" : "Not said: check the results above, then speak." }
+      : { type: "tool_result", tool_use_id: call.id, content: JSON.stringify(outs[i]), ...(outs[i].error ? { is_error: true } : {}) }));
     state.messages.push({ role: "user", content: results });
-    if (spoken) return spoken;
+    if (sayNow) return { say: squash(speakCall.input && speakCall.input.say) || "Okay.", done: !!(speakCall.input && speakCall.input.done) };
   }
   state.review.push("Got stuck (too many steps)");
   return { done: true, say: "Sorry, I got stuck on that one. Please add it in the app or Square." };
@@ -1115,6 +1121,13 @@ async function handle(req, env, fetchFn, claude) {
   }
   const now = new Date();
   const text = squash(body.text);
+
+  // The laptop pings when it hears the wake word, so the function and the
+  // ball catalog are loaded by the time the words arrive.
+  if (body.ping) {
+    try { await loadBalls(env, fetchFn); } catch { /* the real turn will say */ }
+    return reply(200, { ok: true });
+  }
 
   // The laptop asks for listening hints when it starts.
   if (body.hints) {

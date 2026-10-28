@@ -571,7 +571,7 @@ test('balls: misheard ball names find the real ones in the catalog', async () =>
   assert.equal(await top('Exponent solid'), 'Roto Grip Exponent Solid');
   assert.equal(await top('hammer special effect'), 'Hammer Special Effect');
   assert.equal((await fn.findBalls(env, shop.fetch, 'wrist brace')).length, 0);
-  assert.equal(shop.ballCalls, 1); // loaded once, then cached
+  assert.equal(shop.ballCalls, 5); // one batch of five pages, then cached
 });
 
 test('balls: Claude checks the ball, and an unknown one is noted for review', async () => {
@@ -727,4 +727,32 @@ test('model: Haiku by default; the laptop or the VOICE_MODEL secret can pick a b
   assert.deepEqual(await run({ model: 'Sonnet' }), ['claude-sonnet-5-5', 25000]);
   assert.deepEqual(await run({}, { VOICE_MODEL: 'opus' }), ['claude-opus-5-5', 25000]);
   assert.deepEqual(await run({ model: 'gpt' }), ['claude-haiku-5-5', 8000]);
+});
+
+test('a confirmation given with the action is said only when the action worked', async () => {
+  const fn = edgeFunction();
+  // Created: said straight away, one Claude call.
+  let seen = [];
+  let shop = fakeShop();
+  let out = await say(fn, shop, 'work order for Doug Smith to plug his ball', undefined,
+    fakeClaude([[use('create_work_order', { title: 'Doug Smith - Plug ball', category: 'Customer', customer_name: 'Doug Smith' }), speak('Done: plug on Doug Smith\'s ball.', true)]], seen));
+  assert.equal(seen.length, 1);
+  assert.equal(out.say, "Done: plug on Doug Smith's ball.");
+  assert.equal(shop.tickets.length, 1);
+  // Paired with a lookup: not said; Claude sees the results and speaks again.
+  seen = [];
+  shop = fakeShop();
+  out = await say(fn, shop, 'work order for Doug Smith', undefined,
+    fakeClaude([[use('find_customer', { name: 'Doug Smith' }), speak('Done.', true)], [speak('What are we doing for Doug?', false)]], seen));
+  assert.equal(seen.length, 2);
+  assert.equal(out.say, 'What are we doing for Doug?');
+  assert.match(seen[1].messages.at(-1).content.find((b) => b.content.startsWith('Not said')).content, /check the results/);
+});
+
+test('ping warms the ball catalog', async () => {
+  const fn = edgeFunction();
+  const shop = ballShop();
+  const res = await fn.handle(post({ ping: true }), env, shop.fetch, null);
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.equal(shop.ballCalls, 5);
 });

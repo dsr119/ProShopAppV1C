@@ -89,9 +89,12 @@ be in open-link mode, or see below), that's noted in the review list.
   the closest one is something else it asks before using it. A ball's weight
   picks the variation; if you didn't say one, it asks.
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
-  name in Square, e.g. `standard drill` → `Drilling - Standard`. Run
-  `migration/add_voice_aliases.sql` once in the SQL Editor, then add or edit
-  rows in **Table Editor → voice_aliases**.
+  name in Square, e.g. `standard drill` → `Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop`. Run
+  `migration/add_voice_aliases.sql` once in the SQL Editor, then
+  `migration/voice_aliases_common_items.sql` (the shop's common items: drills,
+  grips, Jopo and Turbo, slug combo), then add or edit rows in
+  **Table Editor → voice_aliases**. "Pair of grips" on its own is the $5 grips
+  with a drill of a ball bought here and the $10 grips with an outside drill.
 - Speccy is read with its public key, which works while Speccy is in open-link
   mode. If Speccy is locked to signed-in staff, add secrets `SPECCY_URL` and
   `SPECCY_KEY` (Speccy's secret key) to this function.
@@ -172,6 +175,18 @@ Settings → System → Power). To start it with Windows, press Win+R, type
 To run it with the lid closed (with an external mic), set Start → "Change
 what closing the lid does" → Plugged in → **Do nothing**.
 
+## Leaving it running
+
+It's fine to leave it on for days.
+
+- `start-windows.bat` starts it again by itself if it ever crashes. Ctrl+C quits.
+- If the mic is unplugged or stops sending sound, it keeps trying until the mic is back.
+- It fetches the newest ball names again once a day.
+- In Windows, set the laptop to **never sleep while plugged in**: Settings > System >
+  Power & sleep. A sleeping laptop can't hear the wake word.
+- To start it when Windows starts, press Win+R, type `shell:startup`, and put a
+  shortcut to `start-windows.bat` in that folder.
+
 ## Settings (`config.json`)
 
 | Setting | What it does |
@@ -180,7 +195,7 @@ what closing the lid does" → Plugged in → **Do nothing**.
 | `location` | `Valley` or `South Side`; used unless the other one is said. |
 | `wake_word` | `hey_jarvis` (default), `alexa`, `hey_mycroft` or `hey_rhasspy`. A custom one like "Hey Pro Shop" can be trained later. |
 | `model` | The AI: `haiku` (default, quickest), `sonnet` (smarter, a few seconds slower), `opus` (smartest, slowest, costs about 5x Haiku). |
-| `voice_engine` | `edge` (default): Microsoft's free online voices, the most human-sounding. `piper`: the voice below, which runs on the laptop with no internet. If the online voice fails, it falls back to Piper. |
+| `voice_engine` | `piper` (default): the voice below, quick and runs on the laptop. `edge`: Microsoft's free online voices, more human-sounding but a few seconds slower to start talking (the log's `Says (5.5s)`). If the online voice fails, it falls back to Piper. |
 | `edge_voice` | `en-US-AndrewNeural` (default, male), `en-US-BrianNeural` (male), `en-US-AvaNeural` (female), `en-US-EmmaNeural` (female), `en-US-GuyNeural`, `en-US-JennyNeural`. |
 | `voice` | The Piper (backup) voice: `en_US-lessac-medium` (default), `en_US-ryan-medium` (male), `en_US-amy-medium`; downloaded on first use. Add `-low` instead of `-medium` for a faster, rougher voice; `""` uses the computer's built-in voice. |
 | `wake_threshold` | 0 to 1. Raise it (0.6, 0.7) if it wakes up on its own; lower it (0.4) if it misses you. |

@@ -138,7 +138,7 @@ class ConversationTests(unittest.TestCase):
         shop.flush = lambda: None
         original_post, original_beep = voice.post_turn, voice.beep
         voice.post_turn = lambda cfg, text, state, resume=False: posted.append((text, state)) or replies.pop(0)
-        voice.beep = lambda sd: None
+        voice.beep = lambda sd, *a: None
         try:
             shop.conversation()
         finally:
@@ -187,10 +187,17 @@ class ConversationTests(unittest.TestCase):
             voice.post_turn = original
         self.assertEqual(sent[-1], ('work order', None, False))
 
-    def test_silence_ends_it(self):
-        said, posted = self.run_conversation([''], [])
+    def test_silence_twice_ends_it(self):
+        said, posted = self.run_conversation(['', ''], [])
         self.assertEqual(posted, [])
         self.assertEqual(said, ["I didn't hear anything."])
+
+    def test_one_silence_listens_again(self):
+        said, posted = self.run_conversation(
+            ['work order', '', 'for Doug Smith to plug his ball'],
+            [{'done': False, 'say': "Who's it for?", 'state': 's1'}, {'done': True, 'say': 'Done.'}])
+        self.assertEqual(posted, [('work order', None), ('for Doug Smith to plug his ball', 's1')])
+        self.assertEqual(said[-1], 'Done.')
 
 
 class MiscTests(unittest.TestCase):
@@ -244,6 +251,39 @@ class MiscTests(unittest.TestCase):
         voice.post_turn(CFG, 'hi', None, opener)
         voice.post_turn({**CFG, 'model': 'sonnet'}, 'hi', None, opener)
         self.assertEqual(sent, [('haiku', 40), ('sonnet', 120)])
+
+    def test_keep_alive_reuses_one_connection_and_reconnects(self):
+        made = []
+
+        class Conn:
+            def __init__(self, host, timeout):
+                self.sock, self.calls, self.broken = None, 0, False
+                made.append(self)
+
+            def request(self, method, path, body, headers):
+                if self.broken:
+                    raise ConnectionResetError('server closed it')
+                self.calls += 1
+                self.status = 401 if b'bad' in body else 200
+
+            def getresponse(self):
+                status = self.status
+                return type('R', (), {'status': status, 'reason': 'x', 'headers': {}, 'read': lambda s: b'{"ok": true}'})()
+
+            def close(self):
+                pass
+
+        keep = voice.KeepAlive(Conn)
+        req = lambda body: voice.urllib.request.Request('https://fn.test/functions/v1/x', data=body, method='POST')
+        self.assertEqual(json.loads(keep(req(b'{}'), 5).read()), {'ok': True})
+        keep(req(b'{}'), 5)
+        self.assertEqual((len(made), made[0].calls), (1, 2))
+        made[0].broken = True  # the server dropped the idle connection
+        keep(req(b'{}'), 5)
+        self.assertEqual(len(made), 2)
+        with self.assertRaises(voice.urllib.error.HTTPError) as err:
+            keep(req(b'bad'), 5)
+        self.assertEqual(err.exception.code, 401)
 
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')

@@ -8,14 +8,18 @@ customer's phone and adds the ticket. The laptop speaks the answer.
 Setup and settings: voice/README.md and voice/config.json.
 """
 
+import http.client
+import io
 import json
 import os
 import queue
 import re
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import numpy as np
@@ -25,6 +29,12 @@ RATE = 16000
 FRAME = 1280  # 80 ms, the frame size the wake word model expects
 MAX_TURNS = 8
 MEMORY_SECONDS = 300  # a new wake word this soon carries on ("change that one")
+MIC_TIMEOUT = 10  # seconds without any audio means the mic is gone
+HINTS_SECONDS = 24 * 3600  # how often to fetch the newest ball names again
+
+
+class MicLost(Exception):
+    pass
 
 DEFAULTS = {
     "function_url": "https://ngghyuvykqqklztvvmld.supabase.co/functions/v1/alexa-work-order",
@@ -37,7 +47,7 @@ DEFAULTS = {
     "silence_seconds": 1.0,
     "max_seconds": 20,
     "voice": "en_US-lessac-medium",
-    "voice_engine": "edge",
+    "voice_engine": "piper",
     "edge_voice": "en-US-AndrewNeural",
     "model": "haiku",
 }
@@ -74,7 +84,56 @@ def load_config(path=os.path.join(HERE, "config.json")):
 # Talking to the work order function
 # ---------------------------------------------------------------------------
 
-def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
+class KeepAlive:
+    """Opens requests like urlopen, but keeps one connection to the server
+    open between turns: a new secure connection costs about half a second on
+    a slow laptop."""
+
+    def __init__(self, connect=http.client.HTTPSConnection):
+        self.connect = connect
+        self.conn, self.host = None, None
+        self.lock = threading.Lock()
+
+    def __call__(self, req, timeout):
+        url = urllib.parse.urlsplit(req.full_url)
+        with self.lock:
+            for attempt in (1, 2):
+                try:
+                    if self.conn is None or self.host != url.netloc:
+                        self.conn, self.host = self.connect(url.netloc, timeout=timeout), url.netloc
+                    self.conn.timeout = timeout
+                    if self.conn.sock is not None:
+                        self.conn.sock.settimeout(timeout)
+                    self.conn.request(req.get_method(), url.path or "/", body=req.data, headers=dict(req.header_items()))
+                    res = self.conn.getresponse()
+                    body = res.read()
+                    break
+                except (http.client.HTTPException, ConnectionError, OSError):
+                    if self.conn is not None:
+                        self.conn.close()
+                    self.conn = None
+                    if attempt == 2:
+                        raise
+        if res.status >= 400:
+            raise urllib.error.HTTPError(req.full_url, res.status, res.reason, res.headers, io.BytesIO(body))
+        return io.BytesIO(body)
+
+
+SERVER = KeepAlive()
+
+
+def ping(cfg, opener=None):
+    """Wakes the server up while someone is still talking. Errors don't matter."""
+    req = urllib.request.Request(
+        cfg["function_url"], data=b'{"ping": true}',
+        headers={"Content-Type": "application/json", "x-alexa-secret": cfg["password"]}, method="POST")
+    try:
+        (opener or SERVER)(req, timeout=10).read()
+    except Exception:
+        pass
+
+
+def post_turn(cfg, text, state, opener=None, resume=False):
     """One turn of the conversation. Returns the function's reply as a dict."""
     body = {"text": text, "location": cfg["location"], "model": cfg["model"]}
     if state:
@@ -89,7 +148,7 @@ def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
     )
     try:
         # A turn can take a few AI steps; the bigger models are slower.
-        with opener(req, timeout=40 if cfg["model"] == "haiku" else 120) as res:
+        with (opener or SERVER)(req, timeout=40 if cfg["model"] == "haiku" else 120) as res:
             return json.loads(res.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         try:
@@ -103,7 +162,7 @@ def post_turn(cfg, text, state, opener=urllib.request.urlopen, resume=False):
         return {"done": True, "say": "Sorry, I couldn't reach the work order server. Please add it in the app."}
 
 
-def fetch_hints(cfg, opener=urllib.request.urlopen):
+def fetch_hints(cfg, opener=None):
     """The newest ball names from the shop's ball catalog, to hear them right."""
     req = urllib.request.Request(
         cfg["function_url"],
@@ -112,7 +171,7 @@ def fetch_hints(cfg, opener=urllib.request.urlopen):
         method="POST",
     )
     try:
-        with opener(req, timeout=20) as res:
+        with (opener or SERVER)(req, timeout=20) as res:
             return [b for b in json.loads(res.read().decode("utf-8")).get("balls", []) if isinstance(b, str)]
     except Exception as err:
         print("No ball names for listening hints:", err)
@@ -274,13 +333,26 @@ class Shop:
         download_models([cfg["wake_word"]])
         self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx")
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
-        balls = fetch_hints(cfg)
-        print(f"Listening for {min(len(balls), MAX_HINT_BALLS)} of the newest ball names.")
-        self.prompt = listening_prompt(balls)
+        self.refresh_hints()
         self.frames = queue.Queue()
         self.noise = []
-        self.stream = sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=FRAME,
-                                     device=cfg["mic"], callback=self._heard)
+        self.stream = self.open_stream()
+
+    def open_stream(self):
+        return self.sd.InputStream(samplerate=RATE, channels=1, dtype="int16", blocksize=FRAME,
+                                   device=self.cfg["mic"], callback=self._heard)
+
+    def refresh_hints(self):
+        balls = fetch_hints(self.cfg)
+        print(f"Listening for {min(len(balls), MAX_HINT_BALLS)} of the newest ball names.")
+        self.prompt = listening_prompt(balls)
+        self.hints_at = time.time()
+
+    def next_frame(self):
+        try:
+            return self.frames.get(timeout=MIC_TIMEOUT)
+        except queue.Empty:
+            raise MicLost() from None
 
     def _heard(self, data, _frames, _time, status):
         self.frames.put(data[:, 0].copy())
@@ -294,7 +366,10 @@ class Shop:
     def wait_for_wake(self):
         heard = 0
         while True:
-            frame = self.frames.get()
+            frame = self.next_frame()
+            if heard % 1000 == 999 and time.time() - self.hints_at > HINTS_SECONDS:
+                self.refresh_hints()  # new balls come out; the program may run for days
+                self.flush()
             self.noise = (self.noise + [rms(frame)])[-100:]
             heard += 1
             if heard == 50 and max(self.noise) < 1:
@@ -327,14 +402,15 @@ class Shop:
         noise = float(np.median(self.noise)) if self.noise else 0.0
         ep = Endpointer(noise, self.cfg["silence_seconds"], self.cfg["max_seconds"])
         print("Listening...")
-        while not ep.add(self.frames.get()):
+        while not ep.add(self.next_frame()):
             pass
         if not ep.spoke:
             print(f"Heard nothing loud enough (loudest {ep.loudest:.0f}, needed {ep.threshold:.0f}).")
             return ""
         started = time.time()
         segments, _ = self.whisper.transcribe(ep.audio(), language="en", beam_size=1,
-                                              initial_prompt=getattr(self, "prompt", VOCAB))
+                                              initial_prompt=getattr(self, "prompt", VOCAB),
+                                              without_timestamps=True, condition_on_previous_text=False)
         text = WAKE_WORDS.sub("", " ".join(s.text.strip() for s in segments)).strip()
         print(f"Heard ({time.time() - started:.1f}s):", text or "(nothing)")
         return text
@@ -354,6 +430,11 @@ class Shop:
             state = None
         for _ in range(MAX_TURNS):
             text = self.listen()
+            if not text:
+                # One more chance before giving up: often they were still thinking.
+                beep(self.sd, 660, 0.15)
+                self.flush()
+                text = self.listen()
             if not text or CANCEL.match(text):
                 self.say("Okay, never mind." if text else "I didn't hear anything.")
                 return
@@ -373,18 +454,34 @@ class Shop:
 
     def run(self):
         name = self.cfg["wake_word"].replace("_", " ").title()
-        with self.stream:
-            print("Mic:", self.sd.query_devices(self.cfg["mic"], "input")["name"])
-            print(f'Ready. Say "{name}", then what you need. Ctrl+C to quit.')
-            while True:
-                self.wait_for_wake()
-                print("Woke up.")
-                beep(self.sd)
-                # No flush here: words said right after the wake word, without
-                # waiting for the beep, are kept.
-                self.wake.reset()
-                self.conversation()
-                self.flush()
+        while True:
+            try:
+                with self.stream:
+                    print("Mic:", self.sd.query_devices(self.cfg["mic"], "input")["name"])
+                    print(f'Ready. Say "{name}", then what you need. Ctrl+C to quit.')
+                    self.serve()
+            except (MicLost, self.sd.PortAudioError) as err:
+                # Unplugged, or Windows went to sleep: try again until it's back.
+                print("The mic stopped sending sound:", err or "no audio", "- trying again in 5 seconds...")
+                while True:
+                    time.sleep(5)
+                    try:
+                        self.stream = self.open_stream()
+                        break
+                    except Exception as again:
+                        print("Mic not ready yet:", again)
+
+    def serve(self):
+        while True:
+            self.wait_for_wake()
+            print("Woke up.")
+            threading.Thread(target=ping, args=(self.cfg,), daemon=True).start()
+            beep(self.sd)
+            # No flush here: words said right after the wake word, without
+            # waiting for the beep, are kept.
+            self.wake.reset()
+            self.conversation()
+            self.flush()
 
 
 def main():
