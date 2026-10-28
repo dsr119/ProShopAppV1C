@@ -33,6 +33,9 @@ MIC_TIMEOUT = 10  # seconds without any audio means the mic is gone
 HINTS_SECONDS = 24 * 3600  # how often to fetch the newest ball names again
 
 
+CONFIG_PROBLEM = 3  # exit code: start-windows.bat doesn't restart for this
+
+
 class MicLost(Exception):
     pass
 
@@ -130,7 +133,13 @@ def load_config(path=os.path.join(HERE, "config.json")):
     cfg = dict(DEFAULTS)
     if os.path.exists(path):
         with open(path, encoding="utf-8-sig") as f:  # Notepad may add a BOM
-            cfg.update({k: v for k, v in json.load(f).items() if not k.startswith("_")})
+            try:
+                cfg.update({k: v for k, v in json.load(f).items() if not k.startswith("_")})
+            except json.JSONDecodeError as err:
+                print(f"config.json has a typo on line {err.lineno}, character {err.colno}: {err.msg}.")
+                print("Usually a missing comma at the end of the line above, or a missing quote.")
+                print("Compare it with config.example.json.")
+                sys.exit(CONFIG_PROBLEM)
     return cfg
 
 
@@ -554,7 +563,8 @@ def main():
         print(sd.query_devices())
         return
     if not cfg["password"]:
-        sys.exit("Put the work order password in voice/config.json first (see voice/README.md).")
+        print("Put the work order password in voice/config.json first (see voice/README.md).")
+        sys.exit(CONFIG_PROBLEM)
     if "--test" in sys.argv:
         # An empty turn only asks the first question, so no ticket is added.
         reply = post_turn(cfg, "", None)
