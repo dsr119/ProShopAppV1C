@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseItemCodes, buildUrl, authHeader, parseResponse, checkStock, BATCH_SIZE } from '../scraper/ace-mitchell.mjs';
+import { parseItemCodes, buildUrl, authHeader, parseResponse, checkStock, BATCH_SIZE, sizeCode, sizeFromCode, shoeStyles, SHOE_SIZES, mergeSiteInfo } from '../scraper/ace-mitchell.mjs';
 
 const REPLY = `<?xml version="1.0" encoding="UTF-8"?>
 <PriceAndAvailabilityResponse>
@@ -55,4 +55,30 @@ test('batches requests', async () => {
 
 test('needs credentials', async () => {
   await assert.rejects(checkStock(['A'], {}), /must be set/);
+});
+
+test('shoe size codes: size x10 in three digits', () => {
+  assert.equal(sizeCode('58100118', 9.5), '58100118 095');
+  assert.equal(sizeCode('58100118', 10), '58100118 100');
+  assert.equal(sizeCode('58107101Y', 1), '58107101Y 010');
+  assert.equal(sizeFromCode('58100118 105'), 10.5);
+  assert.equal(sizeFromCode('58100118'), null);
+  assert.equal(SHOE_SIZES.length, 31);
+  assert.equal(SHOE_SIZES.at(-1), 16);
+});
+
+test('only zero-stock shoe styles are expanded', () => {
+  const styles = shoeStyles([
+    { item_code: '58100118', category: 'Shoes', qty_total: 0 },
+    { item_code: 'DXPD673', category: 'Shoes', qty_total: 633 },
+    { item_code: '58100118 095', category: 'Shoes', qty_total: 0 },
+    { item_code: '59111100002', category: 'Bags', qty_total: 0 },
+  ]);
+  assert.deepEqual(styles, ['58100118']);
+});
+
+test('a shoe size gets its style\'s picture', () => {
+  const [row] = mergeSiteInfo([{ item_code: '58100118 095' }], [{ sku: '58100118', name: 'Renegade Blue Mesh Mens', image_url: 'i', product_url: 'u' }]);
+  assert.equal(row.site_name, 'Renegade Blue Mesh Mens');
+  assert.equal(row.image_url, 'i');
 });

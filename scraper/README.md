@@ -96,6 +96,12 @@ picture and link to the `vendor_stock` table (daily, 10:30 UTC). The service
 can only look codes up, it cannot list what Ace Mitchell carries, which is why
 the site is read first.
 
+Shoes are stocked per size. The site lists the style (`58100118`); each size
+is its own code, the style plus the size times ten in three digits
+(`58100118 095` is size 9.5). Any shoe style with no stock of its own is
+checked in every size from 1 to 16, and each size that exists is saved as its
+own row with the style's name and picture.
+
 One-time setup:
 
 1. Run [`supabase/migrations/20261102_vendor_stock.sql`](../supabase/migrations/20261102_vendor_stock.sql)
