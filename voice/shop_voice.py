@@ -558,6 +558,7 @@ def main():
     cfg = load_config()
     LOG = DailyLog(os.path.join(HERE, "logs"))
     sys.stdout = Tee(sys.stdout, LOG)
+    sys.stderr = Tee(sys.stderr, LOG)  # so a crash's error is in the log too
     if "--list-mics" in sys.argv:
         import sounddevice as sd
         print(sd.query_devices())

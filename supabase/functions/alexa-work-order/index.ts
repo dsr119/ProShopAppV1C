@@ -304,11 +304,15 @@ function itemScore(query, name) {
   const want = words(query), have = words(name);
   if (!want.length || !have.length) return 0;
   const glued = have.join("");
+  // Two name words said as one: "jackalovinx" ~ "jackal onyx".
+  const pairs = have.slice(1).map((h, i) => have[i] + h);
   let total = 0;
   for (const w of want) {
-    const best = Math.max(...have.map((h) => Math.max(wordLike(w, h),
+    const best = Math.max(...have.concat(pairs).map((h) => Math.max(wordLike(w, h),
       w.length >= 3 && h.length >= 3 && sound(w).length >= 2 && sound(w) === sound(h) ? 0.8 : 0)));
-    total += best >= 0.75 ? best : w.length >= 3 && glued.includes(w) ? 0.9 : 0;
+    // A long run-together word is allowed a little more slack.
+    const pair = w.length >= 8 ? Math.max(0, ...pairs.map((h) => wordLike(w, h))) : 0;
+    total += best >= 0.75 ? best : w.length >= 3 && glued.includes(w) ? 0.9 : pair >= 0.7 ? pair : 0;
   }
   return total / want.length + (have.join(" ") === want.join(" ") ? 1 : 0);
 }
@@ -381,7 +385,7 @@ async function draftInvoice(env, fetchFn, input, place) {
       accepted_payment_methods: { card: true, square_gift_card: false, bank_account: false, buy_now_pay_later: false, cash_app_pay: false },
     },
   });
-  return { ok: true, draft_invoice: invoice && invoice.id, total: money(order.total_money),
+  return { ok: true, draft_invoice: invoice && invoice.id, version: invoice && invoice.version, total: money(order.total_money),
     added_to_square: added, customer_in_square: [customer.given_name, customer.family_name].filter(Boolean).join(" ") || name };
 }
 
@@ -412,6 +416,12 @@ async function loadBalls(env, fetchFn) {
   return list;
 }
 
+// "Storm Phaze 6", but not "Motiv Motiv Jackal Onyx" when the catalog's name
+// already starts with the brand.
+function ballLabel(b) {
+  return nameKey(b.name).startsWith(nameKey(b.brand)) ? squash(b.name) : `${b.brand} ${b.name}`;
+}
+
 // The catalog balls closest to what was said, newest first among equals:
 // "nu blue" -> Storm Nu Blue, "fays 6" -> Storm Phaze 6.
 async function findBalls(env, fetchFn, said) {
@@ -430,7 +440,7 @@ async function findBalls(env, fetchFn, said) {
   scored.sort((x, y) => y.score - x.score || x.i - y.i);
   const seen = new Set();
   return scored.filter(({ b }) => !seen.has(`${b.brand}|${b.name}`) && seen.add(`${b.brand}|${b.name}`)).slice(0, 5)
-    .map(({ b }) => ({ ball: `${b.brand} ${b.name}`, released: String(b.release_month || "").slice(0, 7), discontinued: b.discontinued === "Yes" }));
+    .map(({ b }) => ({ ball: ballLabel(b), released: String(b.release_month || "").slice(0, 7), discontinued: b.discontinued === "Yes" }));
 }
 
 // The newest ball names, as listening hints for the laptop's speech-to-text.
@@ -438,7 +448,7 @@ async function ballHints(env, fetchFn, count = 60) {
   const balls = await loadBalls(env, fetchFn);
   const recent = balls.filter((b) => b.is_recent_release);
   const rest = balls.filter((b) => !b.is_recent_release && b.discontinued !== "Yes");
-  return [...new Set([...recent, ...rest].map((b) => `${b.brand} ${b.name}`))].slice(0, count);
+  return [...new Set([...recent, ...rest].map(ballLabel))].slice(0, count);
 }
 
 // ---------------------------------------------------------------------------
@@ -793,6 +803,7 @@ const TOOLS = [
         phone: { type: "string" },
         new_customer: { type: "boolean" },
         lines: { type: "array", items: { type: "object", properties: { variation_id: { type: "string" }, quantity: { type: "integer" } }, required: ["variation_id"] } },
+        replaces: { type: "string", description: "To change an invoice made earlier in this conversation (add or swap items): its draft_invoice id. The new draft has every line, and the old draft is deleted." },
       },
       required: ["customer_name", "phone", "lines"],
     },
@@ -861,7 +872,7 @@ function systemPrompt(now, location) {
   const weekday = weekdayOf(today);
   const monday = new Date(Date.parse(`${today}T12:00:00Z`) - ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
   const sunday = new Date(Date.parse(`${monday}T12:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
-  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?"
+  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?" If nothing is close, use the name as said; never suggest an unrelated ball. One find_ball per ball (one retry at most), and don't repeat a lookup with the same input. Speech-to-text slips: "in a voice" or "and voice" means invoice; "look order" or "work with" means work order.
 
 Be brief: under 20 words when you can, never more than one short sentence plus one question. Don't list choices or prices unless asked. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool. To save time, when you have everything needed to create, change or book something, call speak (the confirmation) in the same step as the action; it is only said if the action worked.
 
@@ -875,7 +886,7 @@ Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in on
 
 Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
 
-Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search every item with search_square_items in one step. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
+Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search every item, the ball too, with search_square_items in one step, and make the invoice only after all the results are back. To add or change items on an invoice you just made, make it again with every line and replaces set to the earlier draft_invoice id. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
 
 Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
@@ -915,8 +926,25 @@ async function runTool(name, input, ctx) {
     if (!env.SQUARE_ACCESS_TOKEN) return { error: "Square isn't connected (no SQUARE_ACCESS_TOKEN), so invoices can't be made." };
     const key = JSON.stringify(input);
     if (state.done.includes(key)) return { error: "That exact invoice was already made in this conversation." };
-    const out = await draftInvoice(env, fetchFn, input, ctx.place);
-    if (out.ok) state.done.push(key);
+    state.invoices = state.invoices || [];
+    const old = input.replaces ? state.invoices.find((i) => i.id === input.replaces) : null;
+    if (input.replaces && !old) return { error: "replaces must be a draft_invoice id from this conversation." };
+    const { version, ...out } = await draftInvoice(env, fetchFn, input, ctx.place);
+    if (out.ok) {
+      state.done.push(key);
+      state.invoices.push({ id: out.draft_invoice, version });
+      if (old) {
+        // Only a draft this conversation made, now replaced by one with every line.
+        try {
+          await square(env, fetchFn, "DELETE", `/invoices/${encodeURIComponent(old.id)}?version=${old.version}`);
+          state.invoices = state.invoices.filter((i) => i !== old);
+          out.replaced = old.id;
+        } catch (err) {
+          out.note = `The earlier draft couldn't be deleted (${err.message}); delete it in Square.`;
+          state.review.push(`Old draft invoice ${old.id} not deleted: ${err.message}`);
+        }
+      }
+    }
     return out;
   }
   if (name === "create_work_order") {
@@ -1009,9 +1037,14 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
       const say = content.filter((b) => b.type === "text").map((b) => b.text).join(" ") || "Sorry, say that again?";
       return { done: false, say };
     }
-    // The tools in one step run at the same time.
+    // The tools in one step run at the same time, so an invoice made alongside
+    // its item searches would miss what they find.
+    const searching = calls.some((c) => c.name === "search_square_items");
     const outs = await Promise.all(calls.map(async (call) => {
       if (call.name === "speak") return null;
+      if (call.name === "create_draft_invoice" && searching) {
+        return { error: "Not made: search every item first, then make the invoice in a later step with what the searches found." };
+      }
       try {
         return await runTool(call.name, call.input, ctx);
       } catch (err) {

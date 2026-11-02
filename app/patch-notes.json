@@ -4,7 +4,8 @@
     "date": "2026-10-28",
     "notes": [
       "Fixed: the shop laptop checks ball names against the ball catalog again.",
-      "New: the shop laptop saves each day's conversations to a file (voice/logs) for review."
+      "New: the shop laptop saves each day's conversations to a file (voice/logs) for review.",
+      "Changed: adding an item to a voice invoice replaces the draft instead of leaving two; ball names run together (\"Jackalovinx\") are recognized."
     ]
   },
   {
