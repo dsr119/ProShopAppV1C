@@ -1,5 +1,5 @@
-# Checks Ace Mitchell's stock for the codes in scraper/ace-mitchell-items.txt
-# and saves it to the Supabase vendor_stock table. The dealer login lives only
+# Reads bag and shoe SKUs from acemitchell.com, checks Ace Mitchell's stock
+# for them (plus any codes in scraper/ace-mitchell-items.txt) and saves it to the Supabase vendor_stock table. The dealer login lives only
 # in the ACE_MITCHELL_EMAIL / ACE_MITCHELL_PASSWORD repository secrets.
 
 name: Ace Mitchell stock
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       item_codes:
-        description: Codes to check instead of the list file, comma separated (e.g. BR157 12, BR157 13)
+        description: Codes to check instead of reading the site, comma separated (e.g. 59111100002, 59112302002)
         type: string
         default: ''
       dry_run:
@@ -29,14 +29,14 @@ permissions:
 jobs:
   stock:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Test against canned replies
-        run: node --test tests/ace-mitchell.test.mjs
+        run: node --test tests/ace-mitchell.test.mjs tests/ace-mitchell-site.test.mjs
       - name: Check stock
         env:
           ACE_MITCHELL_EMAIL: ${{ secrets.ACE_MITCHELL_EMAIL }}

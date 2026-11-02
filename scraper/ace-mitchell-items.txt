@@ -1,4 +1,3 @@
-# Ace Mitchell item codes to check for stock, one per line (or comma separated).
-# Format: product number, a space, then the size or weight, e.g. "BR157 12".
-# Ace Mitchell's API can only look codes up; it cannot list what they carry,
-# so shoe and bag codes go here (from Ace Mitchell's price list or website).
+# Extra Ace Mitchell item codes to check, one per line (or comma separated).
+# Bag and shoe SKUs are read from acemitchell.com automatically; list codes
+# here only for items the site doesn't show.

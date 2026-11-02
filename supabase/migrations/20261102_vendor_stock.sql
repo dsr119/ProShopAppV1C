@@ -13,6 +13,9 @@ create table if not exists public.vendor_stock (
   qty_ny            integer not null default 0,
   qty_tn            integer not null default 0,
   qty_total         integer not null default 0,
+  site_name         text,          -- name, picture and link from acemitchell.com
+  image_url         text,
+  product_url       text,
   checked_at        timestamptz not null default now(),
   primary key (vendor, item_code)
 );
@@ -23,7 +26,8 @@ alter table public.vendor_stock enable row level security;
 
 -- What the website may read: in-stock items, no cost.
 create or replace view public.vendor_stock_public as
-  select vendor, item_code, display_name, upc, category, qty_total, checked_at
+  select vendor, item_code, coalesce(site_name, display_name) as name, display_name, upc, category,
+         image_url, qty_total, checked_at
   from public.vendor_stock
   where qty_total > 0;
 

@@ -88,10 +88,13 @@ these jobs never commit.
 ## Ace Mitchell stock
 
 [`ace-mitchell.mjs`](ace-mitchell.mjs) asks Ace Mitchell's NetSuite price and
-availability service about every code in
-[`ace-mitchell-items.txt`](ace-mitchell-items.txt) and saves the reply to the
-`vendor_stock` table (daily, 10:30 UTC). The service can only look codes up,
-it cannot list what Ace Mitchell carries, so the codes have to be listed.
+availability service about every bag, shoe and ball SKU on acemitchell.com
+(read by [`ace-mitchell-site.mjs`](ace-mitchell-site.mjs), 20 seconds between
+pages as their robots.txt asks), plus any extra codes in
+[`ace-mitchell-items.txt`](ace-mitchell-items.txt), and saves stock, name,
+picture and link to the `vendor_stock` table (daily, 10:30 UTC). The service
+can only look codes up, it cannot list what Ace Mitchell carries, which is why
+the site is read first.
 
 One-time setup:
 
@@ -103,5 +106,5 @@ One-time setup:
    (the dealer login). Never put them in a file or a commit: this repo is public.
 
 To test: **Actions → Ace Mitchell stock → Run workflow**, type some codes in
-the box (e.g. `BR157 12, BR157 13`) and leave *dry run* ticked. The log shows
+the box (e.g. `59111100002, 59112302002`, two bag SKUs from their site) and leave *dry run* ticked. The log shows
 stock per warehouse or the error for each code.

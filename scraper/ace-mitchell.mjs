@@ -5,14 +5,15 @@
  * saves the answers to the Supabase `vendor_stock` table.
  *
  * The service only looks items up by code; it cannot list what Ace Mitchell
- * carries. So the codes to check come from the list file (or ACE_ITEM_CODES
- * for a one-off test). Codes look like "BR157 12": the product number, a
- * space, then the size or weight.
+ * carries. So the codes come from Ace Mitchell's public bag and shoe pages
+ * (ace-mitchell-site.mjs), plus any extra codes in ace-mitchell-items.txt.
+ * ACE_ITEM_CODES replaces both for a one-off test.
  *
  * Env:
  *   ACE_MITCHELL_EMAIL, ACE_MITCHELL_PASSWORD  the dealer login (Actions secrets only)
  *   ACE_ITEM_CODES   optional: comma- or newline-separated codes to check
  *                    instead of the list file
+ *   SKIP_SITE=1      don't read acemitchell.com, only the list file
  *   DRY_RUN=1        print what came back, save nothing
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   for saving
  */
@@ -122,10 +123,22 @@ export async function checkStock(codes, { email, password, fetchImpl = fetch, lo
 }
 
 async function main() {
-  const listFile = new URL('./ace-mitchell-items.txt', import.meta.url);
-  const codes = parseItemCodes(process.env.ACE_ITEM_CODES || fs.readFileSync(listFile, 'utf8'));
+  let site = [];
+  let codes;
+  if (process.env.ACE_ITEM_CODES) {
+    codes = parseItemCodes(process.env.ACE_ITEM_CODES);
+  } else {
+    if (process.env.SKIP_SITE !== '1') {
+      const { crawlCatalog } = await import('./ace-mitchell-site.mjs');
+      console.log('Reading bags, shoes and balls from acemitchell.com (20 s between pages, as their robots.txt asks)');
+      site = await crawlCatalog();
+      console.log(`Found ${site.length} SKUs on the site\n`);
+    }
+    const listFile = new URL('./ace-mitchell-items.txt', import.meta.url);
+    codes = parseItemCodes([...site.map((p) => p.sku), fs.readFileSync(listFile, 'utf8')].join('\n'));
+  }
   if (!codes.length) {
-    console.log('No item codes to check. Add them to scraper/ace-mitchell-items.txt.');
+    console.log('No item codes to check.');
     return;
   }
   const { found, errors } = await checkStock(codes, {
@@ -137,14 +150,25 @@ async function main() {
   for (const r of found) {
     console.log(`  ${r.item_code.padEnd(14)} ${String(r.qty_total).padStart(4)} in stock  (OH ${r.qty_oh} / NY ${r.qty_ny} / TN ${r.qty_tn})  ${r.category || ''}  ${r.display_name || ''}`);
   }
-  for (const e of errors) console.log(`  ${String(e.item_code).padEnd(14)} ERROR ${e.error}`);
+  for (const e of errors.slice(0, 50)) console.log(`  ${String(e.item_code).padEnd(14)} ERROR ${e.error}`);
+  if (errors.length > 50) console.log(`  ... and ${errors.length - 50} more not found`);
 
   if (process.env.DRY_RUN === '1') { console.log('\nDry run: nothing saved.'); return; }
   if (!found.length) return;
   const { upsertRows } = await import('./supabase.mjs');
   const checked_at = new Date().toISOString();
-  await upsertRows('vendor_stock', found.map((r) => ({ vendor: 'Ace Mitchell', ...r, checked_at })), 'vendor,item_code');
-  console.log(`Saved ${found.length} rows to vendor_stock.`);
+  const rows = mergeSiteInfo(found, site).map((r) => ({ vendor: 'Ace Mitchell', ...r, checked_at }));
+  await upsertRows('vendor_stock', rows, 'vendor,item_code');
+  console.log(`Saved ${rows.length} rows to vendor_stock.`);
+}
+
+/** Adds the site's name, picture and link to each API row (matched by code). */
+export function mergeSiteInfo(found, site) {
+  const bySku = new Map(site.map((p) => [p.sku.toUpperCase(), p]));
+  return found.map((r) => {
+    const p = bySku.get(String(r.item_code).toUpperCase());
+    return { ...r, site_name: p?.name ?? null, image_url: p?.image_url ?? null, product_url: p?.product_url ?? null };
+  });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
