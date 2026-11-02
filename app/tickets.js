@@ -1,9 +1,8 @@
-// Ticket queue -- Keith's side.
+// Ticket queue.
 //
-// Staff send tickets from ticket.html; this page is where they get read,
-// prioritised and handed to someone. The default tab is "To review", because
-// the failure mode of a ticket system is not a lost ticket, it is a ticket
-// nobody has looked at.
+// Staff (and the voice bot) send tickets from ticket.html; this page is where
+// they get worked. Every open ticket sits in one queue -- there is no separate
+// review step -- sorted overdue, then urgent, then longest wait.
 //
 // Assignment is a name, not an id. See migration/add_staff_and_tickets.sql --
 // the roster supplies the spelling, it does not own the history.
@@ -12,7 +11,7 @@ const $ = (id) => document.getElementById(id);
 
 const PRIORITY_RANK = { urgent: 0, high: 1, normal: 2, low: 3 };
 const STATUS_LABEL = {
-  new: "To review",
+  new: "New",
   assigned: "Assigned",
   in_progress: "In progress",
   blocked: "Blocked",
@@ -20,7 +19,28 @@ const STATUS_LABEL = {
 };
 
 let TICKETS = [];
-let view = "review";
+let view = "queue";
+// Linked appointments by ticket id, soonest first. Empty until the
+// add_ticket_plug_and_schedule.sql migration has been run.
+let TICKET_APPTS = {};
+
+// Plug work moves through three states, one button press each.
+const PLUG_STEPS = [
+  { key: "prepped",   label: "Prepped" },
+  { key: "at_keiths", label: "At Keiths" },
+  { key: "plugged",   label: "Plugged in shop" },
+];
+const PLUG_LABEL = Object.fromEntries(PLUG_STEPS.map((p) => [p.key, p.label]));
+
+// "Plug thumb", "plug and redrill", "plugged" -- any ticket that mentions it.
+function isPlugWork(t) {
+  return !!t.plug_state || /\bplug/i.test(`${t.title || ""}\n${t.details || ""}`);
+}
+
+function nextPlugStep(t) {
+  const i = PLUG_STEPS.findIndex((p) => p.key === t.plug_state);
+  return PLUG_STEPS[i + 1] || null;
+}
 let editing = null;
 
 function showError(err) {
@@ -40,10 +60,30 @@ async function load() {
       "tickets",
       "select=*&deleted_at=is.null&order=submitted_at.desc"
     );
+    await loadTicketAppts();
     render();
   } catch (err) {
     showError(err);
   }
+}
+
+async function loadTicketAppts() {
+  const map = {};
+  try {
+    const today = new Date();
+    const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const rows = await db.selectAll(
+      "appointments",
+      `select=id,ticket_id,appt_date,appt_time,location&deleted_at=is.null` +
+        `&ticket_id=not.is.null&appt_date=gte.${iso}&order=appt_date.asc,appt_time.asc.nullsfirst`
+    );
+    for (const a of rows) (map[a.ticket_id] ||= []).push(a);
+  } catch (err) {
+    // Before the migration there is no ticket_id column. Tickets still work;
+    // they just cannot show "Scheduled".
+    console.warn("Ticket appointments unavailable:", err);
+  }
+  TICKET_APPTS = map;
 }
 
 async function loadAssignees() {
@@ -64,8 +104,7 @@ async function loadAssignees() {
 // ---------------------------------------------------------------------------
 
 function inView(t, which) {
-  if (which === "review") return t.status === "new";
-  if (which === "open") return t.status !== "new" && t.status !== "done";
+  if (which === "queue") return t.status !== "done";
   if (which === "done") return t.status === "done";
   return true;
 }
@@ -149,16 +188,14 @@ function render() {
 
   $("empty").classList.toggle("hidden", rows.length > 0);
   $("empty").textContent = {
-    review: "Nothing waiting to be reviewed.",
-    open: "Nothing in progress.",
+    queue: "Nothing in the queue.",
     done: "Nothing finished yet.",
     all: "No tickets.",
   }[view];
 
   // Tab counts are of the whole queue, not the filtered view -- the point of
   // the number is to be true when you are looking at another tab.
-  $("n_review").textContent = TICKETS.filter((t) => inView(t, "review")).length;
-  $("n_open").textContent = TICKETS.filter((t) => inView(t, "open")).length;
+  $("n_queue").textContent = TICKETS.filter((t) => inView(t, "queue")).length;
 
   const late = TICKETS.filter((t) => overdueDays(t) > 0).length;
   $("count").textContent =
@@ -188,7 +225,14 @@ function card(t) {
   status.className = "badge stat-" + t.status;
   status.textContent = STATUS_LABEL[t.status] || t.status;
 
-  head.append(pri, title, status);
+  head.append(pri, title);
+  if (t.plug_state) {
+    const plug = document.createElement("span");
+    plug.className = "badge plug plug-" + t.plug_state;
+    plug.textContent = PLUG_LABEL[t.plug_state];
+    head.appendChild(plug);
+  }
+  head.appendChild(status);
   el.appendChild(head);
 
   // --- details, if any --------------------------------------------------
@@ -221,6 +265,13 @@ function card(t) {
       : `due ${shortDate(t.due_date)}`;
     meta.appendChild(due);
   }
+  const booked = (TICKET_APPTS[t.id] || [])[0];
+  if (booked) {
+    const s = document.createElement("span");
+    s.className = "booked";
+    s.textContent = `Scheduled ${apptWhen(booked)}`;
+    meta.appendChild(s);
+  }
   el.appendChild(meta);
 
   // --- assign, inline. Reviewing a queue means assigning without opening
@@ -234,7 +285,28 @@ function card(t) {
   assign.addEventListener("change", () => assignTo(t, assign));
   foot.appendChild(assign);
 
-  // "Reviewed and handed off" is one click on the common path.
+  // Plug work: one press moves it to the next state.
+  if (isPlugWork(t) && t.status !== "done") {
+    const step = nextPlugStep(t);
+    if (step) {
+      const plug = document.createElement("button");
+      plug.className = "plugbtn";
+      plug.textContent = step.label;
+      plug.title = t.plug_state
+        ? `Now: ${PLUG_LABEL[t.plug_state]}. Press when it is ${step.label.toLowerCase()}.`
+        : "Press when the ball is prepped for the plug.";
+      plug.addEventListener("click", () => patch(t, plug, { plug_state: step.key }));
+      foot.appendChild(plug);
+    }
+  }
+
+  if (t.status !== "done") {
+    const sch = document.createElement("button");
+    sch.textContent = "Schedule";
+    sch.addEventListener("click", () => openScheduler(t));
+    foot.appendChild(sch);
+  }
+
   if (t.status !== "done") {
     const done = document.createElement("button");
     done.textContent = "Mark done";
@@ -275,8 +347,16 @@ async function patch(t, btn, changes) {
     render();
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = label; }
-    showError(err);
+    showError(migrationHint(err));
   }
+}
+
+// The one error worth translating: the plug column does not exist until the
+// migration has been run.
+function migrationHint(err) {
+  return /plug_state|ticket_id/i.test(String(err && err.message ? err.message : err))
+    ? new Error("The database needs migration/add_ticket_plug_and_schedule.sql run in Supabase first.")
+    : err;
 }
 
 // Assigning is also a review decision: a ticket that has been handed to
@@ -323,6 +403,8 @@ function openDialog(t) {
   $("t_priority").value = t.priority;
   $("t_due").value = t.due_date || "";
   $("t_resolution").value = t.resolution || "";
+  $("t_plug").value = t.plug_state || "";
+  $("t_plugwrap").classList.toggle("hidden", !isPlugWork(t));
 
   staff.fillSelect($("t_staff"), t.assigned_to)
     .catch((err) => console.error("Could not load the staff roster:", err));
@@ -350,6 +432,11 @@ async function saveDialog(e) {
       : null,
   };
 
+  // Only send plug_state when it changed, so saving a ticket still works
+  // before the migration has been run.
+  const plug = $("t_plug").value || null;
+  if (plug !== (editing.plug_state || null)) changes.plug_state = plug;
+
   const btn = $("t_save");
   btn.disabled = true;
   btn.textContent = "Saving…";
@@ -359,7 +446,7 @@ async function saveDialog(e) {
     $("dlg").close();
     render();
   } catch (err) {
-    showError(err);
+    showError(migrationHint(err));
   } finally {
     btn.disabled = false;
     btn.textContent = "Save";
@@ -378,6 +465,222 @@ async function removeTicket() {
     showError(err);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Scheduler -- the same one-week strip as the Drilling page.
+//
+// Days are {y, m, d} integers and never go through the Date constructor as a
+// string -- new Date("2026-08-30") is UTC midnight and renders as the 29th.
+// ---------------------------------------------------------------------------
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad = (n) => String(n).padStart(2, "0");
+const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+let sched = { ticket: null, weekStart: null, picked: null, appts: [] };
+
+function startOfWeek(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+
+function weekDays(start) {
+  return Array.from({ length: 7 }, (_, i) =>
+    new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+}
+
+function prettyTime(t) {
+  if (!t) return "";
+  const [hs, mm] = t.split(":");
+  let h = Number(hs);
+  const ap = h >= 12 ? "p" : "a";
+  h = h % 12 || 12;
+  return mm === "00" ? `${h}${ap}` : `${h}:${mm}${ap}`;
+}
+
+function apptWhen(a) {
+  const [y, m, d] = a.appt_date.split("-").map(Number);
+  const day = DOW[new Date(y, m - 1, d).getDay()];
+  return `${day} ${m}/${d}` + (a.appt_time ? ` ${prettyTime(a.appt_time)}` : "");
+}
+
+// Who the ticket is for. Tickets keep the customer in the details as
+// "Customer: ..." and "Phone: ..." lines (the form and the voice bot both
+// write it that way); voice tickets also title themselves "Name - job".
+function ticketCustomer(t) {
+  const d = t.details || "";
+  const name = (/^Customer:[ \t]*(.+)$/m.exec(d) || [])[1];
+  const phone = (/^Phone:[ \t]*(.+)$/m.exec(d) || [])[1];
+  const dash = (t.title || "").split(" - ");
+  return {
+    name: (name || (dash.length > 1 ? dash[0] : "")).trim(),
+    phone: (phone || "").trim(),
+    job: (dash.length > 1 && name ? dash.slice(1).join(" - ") : t.title || "").trim(),
+  };
+}
+
+function openScheduler(t) {
+  const today = new Date();
+  const c = ticketCustomer(t);
+  sched.ticket = t;
+  sched.weekStart = startOfWeek(today);
+  sched.picked = isoOf(today);
+
+  $("s_name").value = c.name;
+  $("s_phone").value = c.phone;
+  $("s_service").value = c.job;
+  $("s_location").value = t.location === "Both" ? "" : (t.location || "");
+  $("s_time").value = "";
+
+  $("scheddlg").showModal();
+  loadWeek();
+}
+
+async function loadWeek() {
+  const days = weekDays(sched.weekStart);
+  const from = isoOf(days[0]);
+  const to = isoOf(days[6]);
+  $("s_weeklabel").textContent =
+    `${MON[days[0].getMonth()]} ${days[0].getDate()} – ${MON[days[6].getMonth()]} ${days[6].getDate()}`;
+  try {
+    sched.appts = await db.selectAll(
+      "appointments",
+      `select=customer_name,service,location,appt_date,appt_time&deleted_at=is.null` +
+        `&appt_date=gte.${from}&appt_date=lte.${to}` +
+        `&order=appt_time.asc.nullsfirst`
+    );
+  } catch (err) {
+    sched.appts = [];
+    showError(err);
+  }
+  renderWeek();
+}
+
+function renderWeek() {
+  const strip = $("s_strip");
+  strip.innerHTML = "";
+  const todayIso = isoOf(new Date());
+  const counts = {};
+  for (const a of sched.appts) counts[a.appt_date] = (counts[a.appt_date] || 0) + 1;
+
+  for (const d of weekDays(sched.weekStart)) {
+    const key = isoOf(d);
+    const n = counts[key] || 0;
+    const cell = document.createElement("div");
+    cell.className = "wday";
+    if (key === todayIso) cell.classList.add("today");
+    if (key === sched.picked) cell.classList.add("selected");
+    if (n >= 4) cell.classList.add("busy");
+    cell.innerHTML =
+      `<div class="wd-dow">${DOW[d.getDay()]}</div>` +
+      `<div class="wd-num">${d.getDate()}</div>` +
+      `<div class="wd-count">${n ? n : ""}</div>`;
+    cell.title = n ? `${n} appointment${n === 1 ? "" : "s"}` : "Nothing booked";
+    cell.addEventListener("click", () => { sched.picked = key; renderWeek(); });
+    strip.appendChild(cell);
+  }
+  renderDayList();
+}
+
+function renderDayList() {
+  const list = $("s_dayappts");
+  list.innerHTML = "";
+  const onDay = sched.appts.filter((a) => a.appt_date === sched.picked);
+  const [y, m, d] = sched.picked.split("-").map(Number);
+  const when = new Date(y, m - 1, d);
+  $("s_picked").textContent = `${DOW[when.getDay()]} ${m}/${d}` +
+    (onDay.length ? ` · ${onDay.length} booked` : " · nothing booked");
+
+  if (!onDay.length) {
+    list.innerHTML = '<div class="none">Nothing booked this day.</div>';
+    return;
+  }
+  for (const a of onDay) {
+    const row = document.createElement("div");
+    row.className = "dayrow";
+    const tm = document.createElement("span");
+    tm.className = "t";
+    tm.textContent = prettyTime(a.appt_time) || "—";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.textContent = a.customer_name;
+    const svc = document.createElement("span");
+    svc.className = "svc";
+    svc.textContent = a.service || "";
+    row.append(tm, who, svc);
+    if (a.location) {
+      const loc = document.createElement("span");
+      loc.className = "loc" + (a.location === "South Side" ? " south" : "");
+      loc.textContent = a.location;
+      row.appendChild(loc);
+    }
+    list.appendChild(row);
+  }
+}
+
+function stepWeek(delta) {
+  const [y, m, d] = sched.picked.split("-").map(Number);
+  const dow = new Date(y, m - 1, d).getDay();
+  const s = sched.weekStart;
+  sched.weekStart = new Date(s.getFullYear(), s.getMonth(), s.getDate() + delta * 7);
+  sched.picked = isoOf(weekDays(sched.weekStart)[dow]);
+  loadWeek();
+}
+
+async function bookAppointment(e) {
+  e.preventDefault();
+  const t = sched.ticket;
+  const row = {
+    ticket_id: t.id,
+    customer_name: $("s_name").value.trim(),
+    phone: $("s_phone").value.trim() || null,
+    service: $("s_service").value.trim(),
+    location: $("s_location").value || null,
+    appt_date: sched.picked,
+    appt_time: $("s_time").value || null,
+    completed: false,
+    staff_member: t.assigned_to || null,
+    paid: false,
+  };
+  if (!row.customer_name || !row.service) return;
+
+  const btn = $("s_save");
+  btn.disabled = true;
+  btn.textContent = "Booking…";
+  try {
+    try {
+      await db.insert("appointments", row);
+    } catch (err) {
+      // Before the migration there is no ticket_id column: book it anyway,
+      // just without the link back to the ticket.
+      if (!/ticket_id/i.test(String(err && err.message ? err.message : err))) throw err;
+      delete row.ticket_id;
+      await db.insert("appointments", row);
+    }
+    $("scheddlg").close();
+    await loadTicketAppts();
+    render();
+  } catch (err) {
+    showError(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Book it";
+  }
+}
+
+$("s_prev").addEventListener("click", () => stepWeek(-1));
+$("s_next").addEventListener("click", () => stepWeek(1));
+$("s_thisweek").addEventListener("click", () => {
+  sched.weekStart = startOfWeek(new Date());
+  sched.picked = isoOf(new Date());
+  loadWeek();
+});
+$("s_cancel").addEventListener("click", () => $("scheddlg").close());
+$("schedform").addEventListener("submit", bookAppointment);
+customers.attach("s_name", "s_phone");
 
 // ---------------------------------------------------------------------------
 // Staff roster editor

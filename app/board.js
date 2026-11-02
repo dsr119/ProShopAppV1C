@@ -32,10 +32,23 @@ const num = (key, fallback, min, max) => {
   return Number.isFinite(v) && v >= min && v <= max ? v : fallback;
 };
 
+// The house: the URL wins (each Pi opens its own URL), then whatever was last
+// picked in the header on this computer, then both.
+const LOCATIONS = ["Valley", "South Side", ""];
+const LOC_KEY = "board.location";
+function pickLocation() {
+  if (params.has("location")) return params.get("location") || "";
+  try {
+    const saved = localStorage.getItem(LOC_KEY);
+    if (saved !== null && LOCATIONS.includes(saved)) return saved;
+  } catch { /* storage blocked: fall through */ }
+  return "";
+}
+
 const CFG = {
   days:     num("days", 7, 1, 60),
   refresh:  num("refresh", 60, 15, 3600) * 1000,
-  location: params.get("location") || "",
+  location: pickLocation(),
   // Long enough to read a screenful without hurrying, short enough that the
   // last page is never more than a minute away on a busy day.
   page:     num("page", 12, 4, 120) * 1000,
@@ -567,11 +580,13 @@ function drawHeader() {
 
   // Which house this screen belongs to. Two identical dark boards in two
   // buildings is how someone ends up working from the wrong one.
-  const house = $("house");
-  house.textContent = CFG.location || "Both houses";
-  house.className = "house" +
-    (CFG.location === "Valley" ? " valley"
-     : CFG.location === "South Side" ? " south" : "");
+  for (const b of $("houses").querySelectorAll("button")) {
+    const on = b.dataset.loc === CFG.location;
+    b.className = on
+      ? "on" + (CFG.location === "Valley" ? " valley"
+                : CFG.location === "South Side" ? " south" : "")
+      : "";
+  }
 
   let h = n.getHours();
   const ap = h >= 12 ? "PM" : "AM";
@@ -728,8 +743,27 @@ window.addEventListener("resize", () => {
   resizeTimer = setTimeout(render, 250);
 });
 
-document.title = (CFG.location ? CFG.location + " — " : "") +
-  "Day Board — Perfexxxxion Pro Shop";
+function setTitle() {
+  document.title = (CFG.location ? CFG.location + " — " : "") +
+    "Day Board — Perfexxxxion Pro Shop";
+}
+setTitle();
+
+// Switching house: remember it here, keep the URL honest (so a bookmark or a
+// Pi kiosk URL copied from the address bar opens the same house), redraw.
+$("houses").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || b.dataset.loc === CFG.location) return;
+  CFG.location = b.dataset.loc;
+  try { localStorage.setItem(LOC_KEY, CFG.location); } catch { /* ignore */ }
+  const url = new URL(location.href);
+  if (CFG.location) url.searchParams.set("location", CFG.location);
+  else url.searchParams.set("location", "");
+  history.replaceState(null, "", url);
+  setTitle();
+  drawHeader();
+  render();
+});
 
 drawHeader();
 poll();

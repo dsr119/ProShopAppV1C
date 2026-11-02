@@ -6,7 +6,7 @@
 <title>Tickets — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="style.css?v=32">
 </head>
 <body>
 
@@ -44,12 +44,11 @@
     <a class="btnlink" href="ticket.html">Submit a ticket</a>
   </div>
 
-  <!-- Review first. Everything a staff member has sent that Keith has not
-       looked at yet sits in its own tab, and that tab carries the count so
-       the number is visible without switching to it. -->
+  <!-- One queue. Every open ticket, new or assigned, sits in the same list,
+       oldest wait first after anything overdue or urgent. There is no
+       separate review step. -->
   <div class="tabs" id="tabs">
-    <button class="tab on" data-view="review">To review <span class="pill" id="n_review">0</span></button>
-    <button class="tab" data-view="open">In progress <span class="pill" id="n_open">0</span></button>
+    <button class="tab on" data-view="queue">Queue <span class="pill" id="n_queue">0</span></button>
     <button class="tab" data-view="done">Done</button>
     <button class="tab" data-view="all">All</button>
   </div>
@@ -76,7 +75,7 @@
         </label>
         <label>Status
           <select id="t_status">
-            <option value="new">To review</option>
+            <option value="new">New</option>
             <option value="assigned">Assigned</option>
             <option value="in_progress">In progress</option>
             <option value="blocked">Blocked</option>
@@ -99,6 +98,15 @@
         </label>
       </div>
 
+      <label id="t_plugwrap">Plug
+        <select id="t_plug">
+          <option value="">Not started</option>
+          <option value="prepped">Prepped</option>
+          <option value="at_keiths">At Keiths</option>
+          <option value="plugged">Plugged in shop</option>
+        </select>
+      </label>
+
       <label>Resolution / notes
         <textarea id="t_resolution" rows="3"
                   placeholder="What was done, or what it is waiting on."></textarea>
@@ -109,6 +117,59 @@
       <span class="spacer"></span>
       <button type="button" id="t_cancel">Cancel</button>
       <button type="submit" class="primary" id="t_save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Schedule an appointment from a ticket. Same week strip as Drilling. -->
+<dialog id="scheddlg" class="wide">
+  <form method="dialog" id="schedform">
+    <h3>Schedule an appointment</h3>
+    <div class="body">
+      <div class="forwhom">
+        <div class="row2">
+          <label>Customer
+            <input type="text" id="s_name" autocomplete="off" required>
+          </label>
+          <label>Phone
+            <input type="tel" id="s_phone" autocomplete="off">
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <div class="weeknav">
+          <button type="button" id="s_prev" title="Previous week">&larr;</button>
+          <button type="button" id="s_next" title="Next week">&rarr;</button>
+          <button type="button" id="s_thisweek">This week</button>
+          <span class="label" id="s_weeklabel"></span>
+        </div>
+        <div class="weekstrip" id="s_strip"></div>
+        <div class="dayappts" id="s_dayappts"></div>
+      </div>
+
+      <div class="row2">
+        <label>Time
+          <input type="time" id="s_time" step="900">
+        </label>
+        <label>Location
+          <select id="s_location">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+          </select>
+        </label>
+      </div>
+
+      <label>What are we doing
+        <textarea id="s_service" required></textarea>
+      </label>
+    </div>
+    <div class="foot">
+      <span class="count" id="s_picked"></span>
+      <span class="spacer"></span>
+      <button type="button" id="s_cancel">Cancel</button>
+      <button type="submit" class="primary" id="s_save">Book it</button>
     </div>
   </form>
 </dialog>
@@ -139,8 +200,9 @@
 
 <script src="config.js?v=21"></script>
 <script src="db.js?v=21"></script>
+<script src="customers.js?v=25"></script>
 <script src="staff.js?v=21"></script>
-<script src="tickets.js?v=21"></script>
+<script src="tickets.js?v=22"></script>
 <script src="whats-new.js?v=32"></script>
 </body>
 </html>

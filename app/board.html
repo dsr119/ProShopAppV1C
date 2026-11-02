@@ -6,7 +6,7 @@
 <title>Day Board — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="board.css?v=21">
+<link rel="stylesheet" href="board.css?v=22">
 </head>
 <!--
   The wall screen.
@@ -25,7 +25,8 @@
   Tuning, all optional, via the query string:
 
     ?days=7          how far ahead "coming up" reaches   (default 7)
-    ?location=Valley limit to one house                  (default both)
+    ?location=Valley limit to one house   (default: the last house picked
+                                          in the header on this computer, else both)
 
   The shop runs one board per house, so each Pi opens its own URL:
 
@@ -46,7 +47,13 @@
   <div class="top">
     <span class="day"   id="day"></span>
     <span class="date"  id="date"></span>
-    <span class="house" id="house"></span>
+    <!-- Which house this screen shows. Click to switch; the choice is
+         remembered on this computer. A ?location= in the URL wins. -->
+    <span class="houses" id="houses">
+      <button type="button" data-loc="Valley">Valley</button>
+      <button type="button" data-loc="South Side">South</button>
+      <button type="button" data-loc="">Both</button>
+    </span>
     <span class="stale" id="stale"></span>
     <span class="clock" id="clock"></span>
   </div>
@@ -79,6 +86,6 @@
 
 <script src="config.js?v=21"></script>
 <script src="db.js?v=21"></script>
-<script src="board.js?v=30"></script>
+<script src="board.js?v=31"></script>
 </body>
 </html>

@@ -80,7 +80,7 @@ function readForm() {
 
   if (!by) {
     $("f_by").focus();
-    throw new Error("Put your name on it so Keith knows who to ask.");
+    throw new Error("Put your name on it so we know who to ask.");
   }
   if (!title) {
     $("f_title").focus();
@@ -122,7 +122,7 @@ async function send(e) {
     rememberWho(row.submitted_by);
     session.unshift(created || row);
     renderSession();
-    showOk("Sent. Keith will see it in the queue.");
+    showOk("Sent. It is in the ticket queue.");
 
     // The name and location stay: a shift that turns up one problem usually
     // turns up three, and they are all being reported by the same person
