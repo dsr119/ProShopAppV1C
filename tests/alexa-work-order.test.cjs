@@ -61,7 +61,8 @@ function fakeShop({ directory = [], orders = [], speccy = [], squareCustomers = 
       return json({ items: catalog.filter((i) => q.split(' ').some((w) => i.item_data.name.toLowerCase().includes(w))) });
     }
     if (p === '/orders') return json({ order: { id: 'O1', total_money: { amount: 21995, currency: 'USD' } } });
-    if (p === '/invoices') return json({ invoice: { id: 'I1', status: 'DRAFT' } });
+    if (p === '/invoices') { shop.invoiceCount = (shop.invoiceCount || 0) + 1; return json({ invoice: { id: `I${shop.invoiceCount}`, version: 0, status: 'DRAFT' } }); }
+    if (p.startsWith('/invoices/') && init.method === 'DELETE') return json({});
     return json({ errors: [{ detail: 'unexpected ' + p }] }, 400);
   };
   return shop;
@@ -764,4 +765,46 @@ test('each reply carries a short trace of what the AI looked up, for the laptop 
     fakeClaude([[use('find_customer', { name: 'Doug Smith' })], [speak('What are we doing?', false)]]));
   assert.equal(out.trace.length, 1);
   assert.match(out.trace[0], /^find_customer \{"name":"Doug Smith"\} -> \{/);
+});
+
+test('invoice: adding an item makes a new draft with every line and deletes the earlier one', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ squareCustomers: [{ id: 'C1', family_name: 'Lee', phone: '5550001111' }] });
+  const first = { customer_name: 'Ann Lee', phone: '5550001111', lines: [{ variation_id: 'drill1' }] };
+  const seen = [];
+  const claude = fakeClaude([
+    [use('create_draft_invoice', first)], [speak('Draft for Ann Lee: drilling.', true)],
+    [use('create_draft_invoice', { ...first, lines: [{ variation_id: 'drill1' }, { variation_id: 'phaze15' }], replaces: 'I1' })], [speak('Added the Phaze.', true)],
+  ], seen);
+  let out = await say(fn, shop, 'invoice ann lee a drilling', undefined, claude);
+  out = await fn.handle(post({ text: 'add the phaze to that', state: out.state, location: 'Valley', resume: true }), env, shop.fetch, claude).then((r) => r.json());
+  const made = results(seen[3])[0];
+  assert.equal(made.draft_invoice, 'I2');
+  assert.equal(made.replaced, 'I1');
+  assert.equal(made.version, undefined);
+  assert.ok(shop.calls.some((c) => c.path === '/invoices/I1?version=0'));
+});
+
+test('invoice: one made in the same step as its item searches is held back', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ squareCustomers: [{ id: 'C1', family_name: 'Lee', phone: '5550001111' }] });
+  const seen = [];
+  await say(fn, shop, 'invoice ann lee phaze and a drilling', undefined, fakeClaude([
+    [use('search_square_items', { said: 'phaze' }), use('create_draft_invoice', { customer_name: 'Ann Lee', phone: '5550001111', lines: [{ variation_id: 'drill1' }] })],
+    [speak('Which weight?', false)]], seen));
+  assert.match(results(seen[1])[1].error, /search every item first/);
+  assert.equal(shop.calls.some((c) => c.path === '/invoices'), false);
+});
+
+test('balls: the brand is said once, and run-together names still match', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop();
+  const inner = shop.fetch;
+  const balls = [{ brand: 'Motiv', name: 'Motiv Jackal Onyx', release_month: '2025-01-01', discontinued: 'No', is_recent_release: true }];
+  shop.fetch = async (url, init) => (url.startsWith('https://db.test/rest/v1/balls?')
+    ? (url.includes('offset=0&') ? new Response(JSON.stringify(balls), { status: 200 }) : new Response('{}', { status: 416 }))
+    : inner(url, init));
+  const found = await fn.findBalls(env, shop.fetch, 'Jackalovinx');
+  assert.equal(found[0].ball, 'Motiv Jackal Onyx');
+  assert.equal((await fn.ballHints(env, shop.fetch))[0], 'Motiv Jackal Onyx');
 });

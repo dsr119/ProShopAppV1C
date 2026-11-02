@@ -1,3 +1,4 @@
+import contextlib
 import importlib.util
 import io
 import json
@@ -306,6 +307,18 @@ class MiscTests(unittest.TestCase):
             lines = Path(folder, voice.time.strftime('%Y-%m-%d') + '.txt').read_text().splitlines()
             self.assertEqual(window.getvalue(), 'Heard (1.2s): work order for Doug\nSays: Done.\n')
             self.assertEqual([l[10:] for l in lines], ['Heard (1.2s): work order for Doug', 'Says: Done.', '   AI: find_customer {} -> {}'])
+
+    def test_config_typo_says_where_and_stops(self):
+        path = Path(__file__).with_name('voice-config-bad.tmp.json')
+        path.write_text('{\n  "password": "abc"\n  "location": "Valley"\n}')
+        out = io.StringIO()
+        try:
+            with self.assertRaises(SystemExit) as stop, contextlib.redirect_stdout(out):
+                voice.load_config(str(path))
+        finally:
+            path.unlink()
+        self.assertEqual(stop.exception.code, voice.CONFIG_PROBLEM)
+        self.assertIn('typo on line 3', out.getvalue())
 
     def test_config_file_overrides_defaults(self):
         path = Path(__file__).with_name('voice-config.tmp.json')
