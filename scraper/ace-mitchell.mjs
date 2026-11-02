@@ -22,7 +22,9 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 export const ACCOUNT = '3727826';
-export const ROLE = '1005';
+// Ace Mitchell's docs say nlauth_role=1005, but our login gets INVALID_ROLE
+// with it and works without it, so it is only sent when ACE_MITCHELL_ROLE is set.
+export const ROLE = process.env.ACE_MITCHELL_ROLE || '';
 export const ENDPOINT = `https://${ACCOUNT}.restlets.api.netsuite.com/app/site/hosting/restlet.nl?script=15&deploy=1`;
 // Ace Mitchell's docs say about 64 items per request before it may time out.
 export const BATCH_SIZE = 50;
@@ -47,8 +49,8 @@ export function buildUrl(codes) {
   return `${ENDPOINT}&itemCodes=${codes.map(encodeURIComponent).join(',')}`;
 }
 
-export function authHeader(email, password) {
-  return `NLAuth nlauth_account=${ACCOUNT}, nlauth_email=${email}, nlauth_signature=${password}, nlauth_role=${ROLE}`;
+export function authHeader(email, password, role = ROLE) {
+  return `NLAuth nlauth_account=${ACCOUNT}, nlauth_email=${email}, nlauth_signature=${password}` + (role ? `, nlauth_role=${role}` : '');
 }
 
 function decode(s) {
