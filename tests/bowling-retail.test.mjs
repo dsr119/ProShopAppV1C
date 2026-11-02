@@ -73,3 +73,23 @@ test('retail columns go on every size of a matched style, and clear when unmatch
   assert.equal(out[1].consumer_price, null);
   assert.equal(styleName({ display_name: 'Kam Charcoal Grey Mens Size 10' }), 'Kam Charcoal Grey Mens');
 });
+
+test('brands must agree when both names have one; typos and NFL extras are forgiven', () => {
+  const retail = [
+    P('DV8 Dye-Sub Triple Tote', 'Bags'),
+    P('900 Global Backpack Blue Camo', 'Bags'),
+    P('KR Strikeforce 2020 NFL Single Tote Buffalo Bills', 'Bags', 59.99),
+    P('3G Womens Kicks II Lavender', 'Shoes', 69.99),
+  ];
+  const m = matchNames([
+    { name: 'Hammer Dye-Sub Triple Tote Barbwire', category: 'Bags' },
+    { name: 'Ebonite Backpack Blue', category: 'Bags' },
+    { name: 'Buffalo Bills Single', category: 'Bags' },
+    { name: 'Kicks II Lavendar Ladies Size', category: 'Shoes' },
+  ], retail);
+  assert.equal(m.get('Hammer Dye-Sub Triple Tote Barbwire').ok, false);
+  assert.equal(m.get('Ebonite Backpack Blue').ok, false);
+  assert.equal(m.get('Buffalo Bills Single').product.price, 59.99);
+  assert.equal(m.get('Buffalo Bills Single').ok, true);
+  assert.equal(m.get('Kicks II Lavendar Ladies Size').ok, true);
+});
