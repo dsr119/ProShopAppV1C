@@ -830,3 +830,26 @@ test('balls: a brand said doesn\'t count as a matched word ("Storm NU Blue" isn\
   assert.equal((await fn.findBalls(env, shop.fetch, 'Storm NU Blue')).length, 0);
   assert.equal((await fn.findBalls(env, shop.fetch, 'Storm Phase 2'))[0].ball, 'Storm Phaze II');
 });
+
+test('invoice: no phone on file uses the stand-in number, matching the full name only', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ squareCustomers: [
+    { id: 'CX', given_name: 'Ann', family_name: 'Other', phone: '5555555555' },
+    { id: 'CL', given_name: 'Bob', family_name: 'Lee', phone: '5555555555' }] });
+  const seen = [];
+  await say(fn, shop, 'invoice bob lee a drilling', undefined, fakeClaude([
+    [use('create_draft_invoice', { customer_name: 'Bob Lee', phone: '', lines: [{ variation_id: 'drill1' }] })], [speak('Done.', true)]], seen));
+  let made = results(seen[1])[0];
+  assert.equal(made.ok, true);
+  assert.match(made.phone, /stand-in/);
+  assert.equal(shop.calls.find((c) => c.path === '/orders').body.order.customer_id, 'CL');
+  // Someone not there yet is added under the stand-in number, not matched to another customer.
+  const seen2 = [];
+  await say(fn, shop, 'invoice ann lee a drilling', undefined, fakeClaude([
+    [use('create_draft_invoice', { customer_name: 'Ann Lee', lines: [{ variation_id: 'drill1' }] })], [speak('Done.', true)]], seen2));
+  made = results(seen2[1])[0];
+  assert.equal(made.added_to_square, true);
+  const created = shop.calls.find((c) => c.path === '/customers').body;
+  assert.deepEqual([created.given_name, created.family_name, created.phone_number], ['Ann', 'Lee', '+15555555555']);
+  assert.equal(shop.calls.filter((c) => c.path === '/orders').at(-1).body.order.customer_id, 'CNEW');
+});

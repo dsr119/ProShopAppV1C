@@ -88,6 +88,10 @@ be in open-link mode, or see below), that's noted in the review list.
   that's clearly what you meant ("IAMX Pearl" → *Storm I Am X Pearl*). When
   the closest one is something else it asks before using it. A ball's weight
   picks the variation; if you didn't say one, it asks.
+- **No phone on file:** the invoice goes under the shop's stand-in number,
+  555-555-5555. The customer is matched by full name among Square customers with
+  that number, or added to Square with it. (Invoices only hold a cart to be paid
+  in person; they're never texted.)
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
   name in Square, e.g. `standard drill` → `Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop`. Run
   `migration/add_voice_aliases.sql` once in the SQL Editor, then
