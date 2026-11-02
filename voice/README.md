@@ -88,6 +88,10 @@ be in open-link mode, or see below), that's noted in the review list.
   that's clearly what you meant ("IAMX Pearl" → *Storm I Am X Pearl*). When
   the closest one is something else it asks before using it. A ball's weight
   picks the variation; if you didn't say one, it asks.
+- **No phone on file:** the invoice goes under the shop's stand-in number,
+  555-555-5555. The customer is matched by full name among Square customers with
+  that number, or added to Square with it. (Invoices only hold a cart to be paid
+  in person; they're never texted.)
 - **Shop words:** the `voice_aliases` table maps what you say to the item's real
   name in Square, e.g. `standard drill` → `Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop`. Run
   `migration/add_voice_aliases.sql` once in the SQL Editor, then
@@ -208,6 +212,8 @@ It's fine to leave it on for days.
 | `edge_voice` | `en-US-AndrewNeural` (default, male), `en-US-BrianNeural` (male), `en-US-AvaNeural` (female), `en-US-EmmaNeural` (female), `en-US-GuyNeural`, `en-US-JennyNeural`. |
 | `voice` | The Piper (backup) voice: `en_US-lessac-medium` (default), `en_US-ryan-medium` (male), `en_US-amy-medium`; downloaded on first use. Add `-low` instead of `-medium` for a faster, rougher voice; `""` uses the computer's built-in voice. |
 | `wake_threshold` | 0 to 1. Raise it (0.6, 0.7) if it wakes up on its own; lower it (0.4) if it misses you. |
+| `wake_vad` | 0 to 1 (default 0.5): how sure it must be that a person is talking before the wake word counts. Raise it if TV or machines wake it. |
+| `wake_frames` | How many moments in a row (80 ms each) the wake word must be heard; default 2. Raise to 3 if it still wakes on its own. |
 | `whisper_model` | `base.en` (default). `small.en` hears better but is slower; `tiny.en` for a very old laptop. |
 | `mic` | Leave `null` for the default mic. `py -3.12 shop_voice.py --list-mics` lists them; put the number here. |
 | `silence_seconds` | How long a pause ends your sentence. Raise to 1.5 if it cuts you off. |

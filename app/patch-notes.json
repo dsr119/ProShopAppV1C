@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.10",
+    "date": "2026-11-02",
+    "notes": [
+      "Fixed: the shop laptop wakes up on its own much less, and goes back to sleep quietly when it does.",
+      "Changed: voice invoices for a customer with no phone on file use the 555-555-5555 stand-in number instead of asking for one."
+    ]
+  },
+  {
     "version": "2.0",
     "date": "2026-11-02",
     "notes": [

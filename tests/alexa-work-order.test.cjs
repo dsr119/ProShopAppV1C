@@ -808,3 +808,48 @@ test('balls: the brand is said once, and run-together names still match', async 
   assert.equal(found[0].ball, 'Motiv Jackal Onyx');
   assert.equal((await fn.ballHints(env, shop.fetch))[0], 'Motiv Jackal Onyx');
 });
+
+test('a placeholder customer name makes a work order with no customer', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop();
+  await say(fn, shop, 'plug and redrill a forge, customer unknown', undefined, fakeClaude([
+    [use('create_work_order', { customer_name: '<UNKNOWN>', title: 'Plug and redrill, Motiv Forge', category: 'Customer', details: 'Customer to fill in' }), speak('Done.', true)]]));
+  assert.equal(shop.tickets.length, 1);
+  assert.doesNotMatch(JSON.stringify(shop.tickets[0]), /UNKNOWN/);
+});
+
+test('balls: a brand said doesn\'t count as a matched word ("Storm NU Blue" isn\'t Ocean Blue)', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop();
+  const inner = shop.fetch;
+  const balls = [{ brand: 'Storm', name: 'Storm Ice Storm Ocean Blue', release_month: '2024-01-01', discontinued: 'No' },
+    { brand: 'Storm', name: 'Storm Phaze II', release_month: '2016-10-01', discontinued: 'No' }];
+  shop.fetch = async (url, init) => (url.startsWith('https://db.test/rest/v1/balls?')
+    ? (url.includes('offset=0&') ? new Response(JSON.stringify(balls), { status: 200 }) : new Response('{}', { status: 416 }))
+    : inner(url, init));
+  assert.equal((await fn.findBalls(env, shop.fetch, 'Storm NU Blue')).length, 0);
+  assert.equal((await fn.findBalls(env, shop.fetch, 'Storm Phase 2'))[0].ball, 'Storm Phaze II');
+});
+
+test('invoice: no phone on file uses the stand-in number, matching the full name only', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ squareCustomers: [
+    { id: 'CX', given_name: 'Ann', family_name: 'Other', phone: '5555555555' },
+    { id: 'CL', given_name: 'Bob', family_name: 'Lee', phone: '5555555555' }] });
+  const seen = [];
+  await say(fn, shop, 'invoice bob lee a drilling', undefined, fakeClaude([
+    [use('create_draft_invoice', { customer_name: 'Bob Lee', phone: '', lines: [{ variation_id: 'drill1' }] })], [speak('Done.', true)]], seen));
+  let made = results(seen[1])[0];
+  assert.equal(made.ok, true);
+  assert.match(made.phone, /stand-in/);
+  assert.equal(shop.calls.find((c) => c.path === '/orders').body.order.customer_id, 'CL');
+  // Someone not there yet is added under the stand-in number, not matched to another customer.
+  const seen2 = [];
+  await say(fn, shop, 'invoice ann lee a drilling', undefined, fakeClaude([
+    [use('create_draft_invoice', { customer_name: 'Ann Lee', lines: [{ variation_id: 'drill1' }] })], [speak('Done.', true)]], seen2));
+  made = results(seen2[1])[0];
+  assert.equal(made.added_to_square, true);
+  const created = shop.calls.find((c) => c.path === '/customers').body;
+  assert.deepEqual([created.given_name, created.family_name, created.phone_number], ['Ann', 'Lee', '+15555555555']);
+  assert.equal(shop.calls.filter((c) => c.path === '/orders').at(-1).body.order.customer_id, 'CNEW');
+});

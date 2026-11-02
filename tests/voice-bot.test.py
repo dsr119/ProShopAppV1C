@@ -189,10 +189,25 @@ class ConversationTests(unittest.TestCase):
             voice.post_turn = original
         self.assertEqual(sent[-1], ('work order', None, False))
 
-    def test_silence_twice_ends_it(self):
-        said, posted = self.run_conversation(['', ''], [])
-        self.assertEqual(posted, [])
-        self.assertEqual(said, ["I didn't hear anything."])
+    def test_nothing_said_after_waking_goes_back_to_sleep_quietly(self):
+        said, posted = self.run_conversation([''], [])
+        self.assertEqual((posted, said), ([], []))
+
+    def test_silence_twice_mid_conversation_ends_it(self):
+        said, posted = self.run_conversation(['work order', '', ''], [{'done': False, 'say': "Who's it for?", 'state': 's1'}])
+        self.assertEqual(len(posted), 1)
+        self.assertEqual(said[-1], "I didn't hear anything.")
+
+    def test_wake_word_must_hold_for_two_frames(self):
+        shop = voice.Shop.__new__(voice.Shop)
+        shop.cfg = dict(CFG, wake_threshold=0.5, wake_frames=2)
+        scores = iter([0.9, 0.1, 0.9, 0.2, 0.7, 0.8])
+        seen = []
+        shop.wake = type('W', (), {'predict': lambda self, f: seen.append(1) or {'alexa': next(scores)}})()
+        shop.next_frame = lambda: np.ones(1280, np.int16) * 500
+        shop.noise, shop.hints_at = [], voice.time.time()
+        shop.wait_for_wake()
+        self.assertEqual(len(seen), 6)  # the lone 0.9s didn't wake it; 0.7 then 0.8 did
 
     def test_one_silence_listens_again(self):
         said, posted = self.run_conversation(
