@@ -246,3 +246,16 @@ ordered, and sorts by the customer order date, oldest first. The **Texted**
 button records the time someone texted the customer about that order and shows
 the latest one under it. Only the latest time is kept, not a history. Until the
 SQL is run the page still loads; the Texted column just reads "Unavailable".
+
+### Tickets: one queue, plug states, Schedule; Day Board house switch
+
+Run `migration/add_ticket_plug_and_schedule.sql` in Supabase SQL Editor. The
+Tickets page has a single **Queue** tab (no separate "To review" step). Any
+ticket that mentions a plug gets a button that steps it through **Prepped**,
+**At Keiths** and **Plugged in shop** (stored in `tickets.plug_state`; fixable
+in Details). **Schedule** books an appointment from a ticket, filling the
+customer from the ticket's `Customer:`/`Phone:` lines, and links it with
+`appointments.ticket_id` so the card shows "Scheduled". Until the SQL is run,
+the page loads and Schedule still books (without the link); only the plug
+button errors. The Day Board header has Valley / South / Both buttons; the pick
+is remembered per computer, and a `?location=` in the URL still wins.

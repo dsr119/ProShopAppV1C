@@ -963,7 +963,16 @@ select.assign:disabled { opacity: .5; }
   border-top: 1px solid var(--line);
 }
 
-.tfoot .assign { flex: 1; max-width: none; border-color: var(--line); background: var(--panel); }
+.tfoot { flex-wrap: wrap; }
+.tfoot .assign { flex: 1; min-width: 120px; max-width: none; border-color: var(--line); background: var(--panel); }
+.tfoot .plugbtn { background: #fff7e6; border-color: #f0c36d; color: #8a5a00; font-weight: 600; }
+.tfoot .plugbtn:hover { background: #ffefcc; }
+
+/* Plug work state on a ticket card. */
+.badge.plug            { background: #fff7e6; color: #8a5a00; }
+.badge.plug-at_keiths  { background: #ede9fe; color: #6d28d9; }
+.badge.plug-plugged    { background: var(--ok-soft); color: var(--ok); }
+.tmeta .booked { color: var(--accent); font-weight: 600; }
 .tfoot button { font-size: 12.5px; padding: 4px 9px; }
 
 .ticketdetails {

@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.0",
+    "date": "2026-11-02",
+    "notes": [
+      "New: the Day Board has Valley / South / Both buttons at the top. It remembers your pick on that computer.",
+      "New: tickets with plug work have a button: Prepped, then At Keiths, then Plugged in shop.",
+      "New: Schedule button on tickets to book an appointment for that customer.",
+      "Changed: no more \"To review\" step. All open tickets are in one Queue."
+    ]
+  },
+  {
     "version": "1.9",
     "date": "2026-10-28",
     "notes": [

@@ -68,18 +68,41 @@ body { user-select: none; cursor: none; }
 
 .top .date { font-size: clamp(22px, 2.2vw, 39px); color: var(--muted); }
 
-.house {
-  font-size: clamp(24px, 2.4vw, 42px);
-  font-weight: 700;
-  letter-spacing: .02em;
-  padding: 2px clamp(10px, .9vw, 18px);
-  border-radius: 999px;
-  border: 2px solid var(--line);
-  color: var(--muted);
+/* The house switch. The active house reads as the old house pill (large,
+   coloured), the other two stay small and dim so the wall still reads at a
+   glance which board this is. */
+.houses {
+  display: inline-flex;
+  align-items: baseline;
+  gap: clamp(4px, .5vw, 10px);
+  cursor: pointer;
 }
 
-.house.valley { color: var(--valley); border-color: var(--valley); }
-.house.south  { color: var(--south);  border-color: var(--south); }
+.houses button {
+  font: inherit;
+  font-size: clamp(14px, 1.2vw, 20px);
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: 2px clamp(8px, .7vw, 14px);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  opacity: .55;
+  cursor: pointer;
+}
+
+.houses button:hover { opacity: 1; }
+
+.houses button.on {
+  font-size: clamp(24px, 2.4vw, 42px);
+  font-weight: 700;
+  border-width: 2px;
+  opacity: 1;
+}
+
+.houses button.on.valley { color: var(--valley); border-color: var(--valley); }
+.houses button.on.south  { color: var(--south);  border-color: var(--south); }
 
 .top .clock {
   margin-left: auto;
