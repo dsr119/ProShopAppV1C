@@ -14,6 +14,10 @@ on:
         description: Codes to check instead of reading the site, comma separated (e.g. 59111100002, 59112302002)
         type: string
         default: ''
+      prices_only:
+        description: Skip the stock check, only refresh bowling.com prices
+        type: boolean
+        default: false
       dry_run:
         description: Check and print, but do not save anything
         type: boolean
@@ -36,8 +40,9 @@ jobs:
         with:
           node-version: 22
       - name: Test against canned replies
-        run: node --test tests/ace-mitchell.test.mjs tests/ace-mitchell-site.test.mjs
+        run: node --test tests/ace-mitchell.test.mjs tests/ace-mitchell-site.test.mjs tests/bowling-retail.test.mjs
       - name: Check stock
+        if: ${{ !inputs.prices_only }}
         env:
           ACE_MITCHELL_EMAIL: ${{ secrets.ACE_MITCHELL_EMAIL }}
           ACE_MITCHELL_PASSWORD: ${{ secrets.ACE_MITCHELL_PASSWORD }}
@@ -46,3 +51,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
         run: node scraper/ace-mitchell.mjs
+      - name: Add bowling.com prices
+        if: ${{ !inputs.item_codes }}
+        env:
+          SUPABASE_URL: https://ngghyuvykqqklztvvmld.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+        run: node scraper/bowling-prices.mjs
