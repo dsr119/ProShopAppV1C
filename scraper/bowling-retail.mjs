@@ -55,7 +55,7 @@ export async function crawlRetail({ fetchImpl = fetch, log = console.log, delayM
 
 const SPELLINGS = {
   blk: 'black', bk: 'black', blck: 'black', wht: 'white', wh: 'white', grey: 'gray', gry: 'gray', gy: 'gray',
-  blu: 'blue', bl: 'blue', nvy: 'navy', nv: 'navy', pnk: 'pink', pk: 'pink', prpl: 'purple', pur: 'purple', purp: 'purple',
+  blu: 'blue', bl: 'blue', nvy: 'navy', nv: 'navy', pnk: 'pink', pk: 'pink', prpl: 'purple', prp: 'purple', pur: 'purple', purp: 'purple',
   slv: 'silver', slvr: 'silver', sil: 'silver', grn: 'green', gr: 'green', org: 'orange', orng: 'orange', brn: 'brown', br: 'brown',
   char: 'charcoal', chr: 'charcoal', roy: 'royal', ryl: 'royal', rd: 'red', ylw: 'yellow', yel: 'yellow', yllw: 'yellow',
   gld: 'gold', tan: 'tan', teal: 'teal', aqua: 'teal', lt: 'light', dk: 'dark', camo: 'camo', multi: 'multi',
@@ -106,6 +106,9 @@ function words(name) {
 /** The brand named in a name, or null. */
 export function brandOf(name) {
   const w = words(name);
+  // Turbo is a grip and bag brand but also a Dexter shoe ("Turbo BOA"), so
+  // only a leading "Turbo" counts as the brand.
+  if (w[0] === 'turbo') return 'turbo';
   for (const b of BRANDS) {
     for (let i = 0; i + b.length <= w.length; i++) {
       if (b.every((t, j) => w[i + j] === t)) return b[0];
@@ -191,7 +194,7 @@ export function matchNames(aceItems, retail, { minScore = MIN_SCORE } = {}) {
     }
     // A near tie means the name doesn't tell two products apart: skip it.
     result.set(name, best
-      ? { ...best, second, ok: best.score >= minScore && best.score - second >= 0.05 }
+      ? { ...best, second, ok: best.score >= minScore && best.score - second >= 0.03 }
       : { product: null, score: 0, second: 0, ok: false });
   }
   return result;
