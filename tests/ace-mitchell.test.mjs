@@ -20,9 +20,10 @@ test('parses list file codes', () => {
   assert.deepEqual(parseItemCodes('# note\nBR157  12\nBG200, dx100 10 # shoe\n\nbr157 12'), ['BR157 12', 'BG200', 'dx100 10']);
 });
 
-test('url encodes spaces and keeps commas; header carries the role', () => {
+test('url encodes spaces and keeps commas; role only when given', () => {
   assert.match(buildUrl(['BR157 12', 'BG200']), /itemCodes=BR157%2012,BG200$/);
-  assert.match(authHeader('a@b.com', 'pw'), /nlauth_email=a@b\.com, nlauth_signature=pw, nlauth_role=1005$/);
+  assert.match(authHeader('a@b.com', 'pw'), /nlauth_email=a@b\.com, nlauth_signature=pw$/);
+  assert.match(authHeader('a@b.com', 'pw', '1005'), /nlauth_signature=pw, nlauth_role=1005$/);
 });
 
 test('parses found items and errors', () => {
@@ -45,7 +46,7 @@ test('batches requests', async () => {
   const urls = [];
   const fetchImpl = async (url, opts) => {
     urls.push(url);
-    assert.match(opts.headers.Authorization, /nlauth_role=1005/);
+    assert.match(opts.headers.Authorization, /nlauth_signature=p$/);
     return { ok: true, text: async () => '<PriceAndAvailabilityResponse></PriceAndAvailabilityResponse>' };
   };
   await checkStock(codes, { email: 'e', password: 'p', fetchImpl, log: () => {} });
