@@ -84,3 +84,24 @@ tar xzf backup.tar.gz   # backup/orders.csv, backup/appointments.csv, ...
 The workflow also re-enables both schedules each week. GitHub switches off
 scheduled workflows in a repository that has had no commits for 60 days, and
 these jobs never commit.
+
+## Ace Mitchell stock
+
+[`ace-mitchell.mjs`](ace-mitchell.mjs) asks Ace Mitchell's NetSuite price and
+availability service about every code in
+[`ace-mitchell-items.txt`](ace-mitchell-items.txt) and saves the reply to the
+`vendor_stock` table (daily, 10:30 UTC). The service can only look codes up,
+it cannot list what Ace Mitchell carries, so the codes have to be listed.
+
+One-time setup:
+
+1. Run [`supabase/migrations/20261102_vendor_stock.sql`](../supabase/migrations/20261102_vendor_stock.sql)
+   in Supabase → SQL Editor. The table is locked to the service-role key
+   because it holds our dealer cost; the website reads `vendor_stock_public`
+   (in-stock items, no cost).
+2. Add repository secrets `ACE_MITCHELL_EMAIL` and `ACE_MITCHELL_PASSWORD`
+   (the dealer login). Never put them in a file or a commit: this repo is public.
+
+To test: **Actions → Ace Mitchell stock → Run workflow**, type some codes in
+the box (e.g. `BR157 12, BR157 13`) and leave *dry run* ticked. The log shows
+stock per warehouse or the error for each code.
