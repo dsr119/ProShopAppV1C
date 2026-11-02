@@ -45,6 +45,28 @@ export function parseItemCodes(text) {
   return codes;
 }
 
+/**
+ * Shoes are stocked per size. The site lists the style (e.g. "58100118") and
+ * the sizes are separate codes: style, a space, then the size times ten in
+ * three digits ("58100118 095" is size 9.5, "58107101Y 010" youth size 1).
+ * Found by trying codes against the API on 2026-11-02.
+ */
+export const SHOE_SIZES = Array.from({ length: 31 }, (_, i) => 1 + i / 2); // 1 to 16 by halves
+
+export function sizeCode(style, size) {
+  return `${style} ${String(Math.round(size * 10)).padStart(3, '0')}`;
+}
+
+export function sizeFromCode(code) {
+  const m = String(code).match(/ (\d{3})$/);
+  return m ? +m[1] / 10 : null;
+}
+
+/** Shoe styles worth expanding: found as Shoes with no stock of their own. */
+export function shoeStyles(found) {
+  return found.filter((r) => r.category === 'Shoes' && r.qty_total === 0 && !/ /.test(r.item_code)).map((r) => r.item_code);
+}
+
 export function buildUrl(codes) {
   return `${ENDPOINT}&itemCodes=${codes.map(encodeURIComponent).join(',')}`;
 }
@@ -119,7 +141,8 @@ export async function checkStock(codes, { email, password, fetchImpl = fetch, lo
     const result = parseResponse(text);
     found.push(...result.found);
     errors.push(...result.errors);
-    log(`Checked ${Math.min(i + BATCH_SIZE, codes.length)} of ${codes.length}`);
+    const done = Math.min(i + BATCH_SIZE, codes.length);
+    if (done === codes.length || (i / BATCH_SIZE) % 10 === 0) log(`Checked ${done} of ${codes.length}`);
   }
   return { found, errors };
 }
@@ -143,10 +166,18 @@ async function main() {
     console.log('No item codes to check.');
     return;
   }
-  const { found, errors } = await checkStock(codes, {
-    email: process.env.ACE_MITCHELL_EMAIL,
-    password: process.env.ACE_MITCHELL_PASSWORD,
-  });
+  const login = { email: process.env.ACE_MITCHELL_EMAIL, password: process.env.ACE_MITCHELL_PASSWORD };
+  const { found, errors } = await checkStock(codes, login);
+
+  // Shoe styles carry no stock themselves; ask about every size of each.
+  const styles = shoeStyles(found);
+  if (styles.length) {
+    const sizeCodes = styles.flatMap((style) => SHOE_SIZES.map((size) => sizeCode(style, size)));
+    console.log(`\nChecking sizes 1-16 for ${styles.length} shoe styles (${sizeCodes.length} codes; most sizes don't exist, that's fine)`);
+    const sizes = await checkStock(sizeCodes, login);
+    console.log(`Found ${sizes.found.length} shoe sizes, ${sizes.found.filter((r) => r.qty_total > 0).length} in stock`);
+    found.push(...sizes.found);
+  }
 
   console.log(`\nFound ${found.length}, in stock ${found.filter((r) => r.qty_total > 0).length}, not found ${errors.length}\n`);
   for (const r of found) {
@@ -168,7 +199,9 @@ async function main() {
 export function mergeSiteInfo(found, site) {
   const bySku = new Map(site.map((p) => [p.sku.toUpperCase(), p]));
   return found.map((r) => {
-    const p = bySku.get(String(r.item_code).toUpperCase());
+    // A shoe size ("58100118 095") takes its style's name, picture and link.
+    const code = String(r.item_code).toUpperCase();
+    const p = bySku.get(code) || bySku.get(code.split(' ')[0]);
     return { ...r, site_name: p?.name ?? null, image_url: p?.image_url ?? null, product_url: p?.product_url ?? null };
   });
 }
