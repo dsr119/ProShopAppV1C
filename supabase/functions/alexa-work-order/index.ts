@@ -433,7 +433,9 @@ async function findBalls(env, fetchFn, said) {
   const brandSaid = ws.find((w) => brands.has(w)) || "";
   const nameOnly = ws.filter((w) => w !== brandSaid).join(" ");
   const scored = balls.map((b, i) => {
-    let score = Math.max(itemScore(nameOnly || query, b.name), itemScore(query, `${b.brand} ${b.name}`));
+    // The brand said is checked separately: it mustn't count as a matched name word.
+    const name = nameKey(b.name).startsWith(nameKey(b.brand)) ? squash(b.name).slice(squash(b.brand).length) : b.name;
+    let score = brandSaid ? itemScore(nameOnly, name) : Math.max(itemScore(query, name), itemScore(query, `${b.brand} ${name}`));
     if (brandSaid && nameKey(b.brand) !== brandSaid) score -= 0.5;
     return { b, score, i };
   }).filter((x) => x.score >= 0.6);
@@ -878,7 +880,7 @@ Be brief: under 20 words when you can, never more than one short sentence plus o
 
 Customers: look them up with find_customer. If there's one match, use it without comment. Never say phone digits back. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once about the single closest: "Did you mean John Jablonski?"; if they then say something close to it, take it. If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once.
 
-Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
+Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. If they don't know the customer yet, leave customer_name empty and put "Customer to fill in" in details. Titles hold only the job and the ball, never filler words from the transcript. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
 
 Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
 
@@ -888,7 +890,7 @@ Changing work orders: "change that one", "make it a bake and resurface", "mark t
 
 Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. The customer's 10-digit phone is needed to find them in Square (if none, ask for it). Search every item, the ball too, with search_square_items in one step, and make the invoice only after all the results are back. To add or change items on an invoice you just made, make it again with every line and replaces set to the earlier draft_invoice id. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
 
-Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
+Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). The wake word sometimes fires by mistake: if what you hear isn't a request for you (chatter, TV, "I didn't say anything", "shut up"), just speak "Okay." with done true; don't chat. Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
 
 // Only what the API needs back: text and tool calls.
@@ -951,7 +953,9 @@ async function runTool(name, input, ctx) {
     const key = JSON.stringify(input);
     if (state.done.includes(key)) return { error: "That exact work order was already added in this conversation." };
     const place = PLACES.includes(input.location) ? input.location : ctx.place;
-    const row = ticketRow({ ...input, name: squash(input.customer_name), phone: input.phone ? formatPhone(input.phone) : "",
+    // "<UNKNOWN>" or "TBD" is no customer, not a customer by that name.
+    const who = /^<.*>$|^(unknown|tbd|n\/?a|none|no customer|customer tbd)$/i.test(squash(input.customer_name)) ? "" : squash(input.customer_name);
+    const row = ticketRow({ ...input, name: who, phone: input.phone ? formatPhone(input.phone) : "",
       work: input.title }, place, now);
     const created = await insertTicket(env, fetchFn, row);
     state.done.push(key);

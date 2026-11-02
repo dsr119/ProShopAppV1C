@@ -99,6 +99,8 @@ DEFAULTS = {
     "location": "Valley",
     "wake_word": "hey_jarvis",
     "wake_threshold": 0.5,
+    "wake_vad": 0.5,     # 0 to 1: how sure it must be that a person is talking
+    "wake_frames": 2,    # wake word heard this many 80 ms frames in a row
     "whisper_model": "base.en",
     "mic": None,
     "silence_seconds": 1.0,
@@ -397,7 +399,9 @@ class Shop:
             except Exception as err:
                 print("Online voice not installed (pip install -r requirements.txt):", err)
         download_models([cfg["wake_word"]])
-        self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx")
+        # The voice check (Silero VAD) stops TV, music and machines waking it up.
+        self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx",
+                          vad_threshold=cfg["wake_vad"])
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
         self.refresh_hints()
         self.frames = queue.Queue()
@@ -430,7 +434,7 @@ class Shop:
         self.wake.reset()
 
     def wait_for_wake(self):
-        heard = 0
+        heard, run = 0, 0
         while True:
             frame = self.next_frame()
             if heard % 1000 == 999 and time.time() - self.hints_at > HINTS_SECONDS:
@@ -442,7 +446,9 @@ class Shop:
                 print("The mic is sending silence. Windows: Settings > Privacy > Microphone, "
                       "turn on 'Let desktop apps access your microphone'. Or pick another mic in config.json.")
             scores = self.wake.predict(frame)
-            if max(scores.values()) >= self.cfg["wake_threshold"]:
+            # One loud frame isn't enough: the score has to hold for a moment.
+            run = run + 1 if max(scores.values()) >= self.cfg["wake_threshold"] else 0
+            if run >= self.cfg["wake_frames"]:
                 return
 
     def mic_check(self, seconds=20):
@@ -494,8 +500,12 @@ class Shop:
         resume = bool(state) and time.time() - saved_at < MEMORY_SECONDS
         if not resume:
             state = None
-        for _ in range(MAX_TURNS):
+        for turn in range(MAX_TURNS):
             text = self.listen()
+            if not text and turn == 0 and not resume:
+                # Probably woken by something that wasn't the wake word: back to sleep quietly.
+                print("Nothing said; going back to sleep.")
+                return
             if not text:
                 # One more chance before giving up: often they were still thinking.
                 beep(self.sd, 660, 0.15)
