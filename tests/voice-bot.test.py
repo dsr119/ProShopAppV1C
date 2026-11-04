@@ -238,7 +238,8 @@ class MiscTests(unittest.TestCase):
         speaker.voice = type('V', (), {'synthesize': lambda self, text: [Chunk(3), Chunk(2)]})()
         speaker.sd = type('SD', (), {'play': lambda self, audio, rate, blocking: played.append((len(audio), rate))})()
         speaker('Work order added. Thanks.')
-        self.assertEqual(played, [(5, 22050)])
+        # One sentence at a time, so talking starts before the rest is made.
+        self.assertEqual(played, [(3, 22050), (2, 22050)])
 
     def test_online_voice_plays_each_sentence_and_falls_back(self):
         played, backup = [], []

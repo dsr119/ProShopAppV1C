@@ -763,8 +763,24 @@ test('each reply carries a short trace of what the AI looked up, for the laptop 
   const fn = edgeFunction();
   const out = await say(fn, fakeShop(), 'work order for Doug Smith', undefined,
     fakeClaude([[use('find_customer', { name: 'Doug Smith' })], [speak('What are we doing?', false)]]));
-  assert.equal(out.trace.length, 1);
+  assert.equal(out.trace.length, 2);
   assert.match(out.trace[0], /^find_customer \{"name":"Doug Smith"\} -> \{/);
+  // Where the seconds went: each AI step and each round of lookups.
+  assert.match(out.trace[1], /^time: AI \d+\.\ds, tools \d+\.\ds, AI \d+\.\ds$/);
+});
+
+test('the same lookup twice in one turn is only looked up once', async () => {
+  const fn = edgeFunction();
+  let lookups = 0;
+  const shop = fakeShop();
+  const counting = (url, opts) => {
+    if (String(url).includes('customer_directory')) lookups += 1;
+    return shop.fetch(url, opts);
+  };
+  const out = await say(fn, { fetch: counting }, 'work order for Doug Smith', undefined,
+    fakeClaude([[use('find_customer', { name: 'Doug Smith' })], [use('find_customer', { name: 'Doug Smith' })], [speak('What are we doing?', false)]]));
+  assert.equal(out.say, 'What are we doing?');
+  assert.equal(lookups, 1);
 });
 
 test('invoice: adding an item makes a new draft with every line and deletes the earlier one', async () => {
