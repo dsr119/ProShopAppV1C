@@ -216,7 +216,7 @@ It's fine to leave it on for days.
 | `wake_frames` | How many moments in a row (80 ms each) the wake word must be heard; default 2. Raise to 3 if it still wakes on its own. |
 | `whisper_model` | `base.en` (default). `small.en` hears better but is slower; `tiny.en` for a very old laptop. |
 | `mic` | Leave `null` for the default mic. `py -3.12 shop_voice.py --list-mics` lists them; put the number here. |
-| `silence_seconds` | How long a pause ends your sentence. Raise to 1.5 if it cuts you off. |
+| `silence_seconds` | How long a pause ends your sentence. Raise to 1.5 if it cuts you off; 0.8 answers a little quicker. |
 | `max_seconds` | Longest single answer. |
 
 `py -3.12 shop_voice.py --mic-check` shows the mic level and the wake word

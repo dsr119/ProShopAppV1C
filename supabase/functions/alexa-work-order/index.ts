@@ -58,7 +58,9 @@ const SQUARE_VERSION = "2026-09-16";
 const SPECCY_URL = "https://bkvijjqhyiyfkuavmerh.supabase.co";
 const SPECCY_KEY = "sb_publishable_Vba54XSri6vewRcBO8qDXQ_uinwbMOy";
 const MAX_TURNS = 8;        // things said in one conversation
-const MAX_STEPS = 6;        // Claude calls for one thing said
+const MAX_STEPS = 6;
+// Lookups that change nothing, so a repeat in the same turn can reuse the answer.
+const LOOKUPS = new Set(["find_customer", "find_ball", "search_square_items"]);        // Claude calls for one thing said
 
 const CATEGORIES = ["Equipment", "Building", "Supplies", "Customer", "Computer", "Other"];
 const PRIORITIES = ["low", "normal", "high", "urgent"];
@@ -151,7 +153,9 @@ async function customerRows(name, env, fetchFn) {
   if (!pieces.length) return { rows: [], speccy: "not searched" };
   const or = (col) => `or=(${pieces.map((p) => `${col}.ilike.*${p}*`).join(",")})`;
   const tables = ["customer_directory", "orders", "appointments"];
-  const lists = await Promise.all(tables.map(async (table) => {
+  const key = env.SPECCY_KEY || SPECCY_KEY;
+  // All four lists are asked for at the same time.
+  const app = Promise.all(tables.map(async (table) => {
     try {
       const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${table}?select=customer_name,phone` +
         `&${or("customer_name")}&deleted_at=is.null&limit=300`, { headers: dbHeaders(env) });
@@ -160,18 +164,19 @@ async function customerRows(name, env, fetchFn) {
       return [];
     }
   }));
-  const key = env.SPECCY_KEY || SPECCY_KEY;
-  let speccy = "read", fromSpeccy = [];
-  try {
-    const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone,phone_mobile` +
-      `&${or("name")}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } });
-    if (res.ok) fromSpeccy = (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone || r.phone_mobile }));
-    else speccy = `could not be read (error ${res.status})`;
-  } catch (err) {
-    speccy = `could not be read (${err && err.message})`;
-  }
-  return { rows: [...lists.flat(), ...fromSpeccy], speccy };
+  const fromSpeccy = (async () => {
+    try {
+      const res = await fetchFn(`${env.SPECCY_URL || SPECCY_URL}/rest/v1/customers?select=name,phone,phone_mobile` +
+        `&${or("name")}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`,
+        { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      if (!res.ok) return { rows: [], speccy: `could not be read (error ${res.status})` };
+      return { rows: (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone || r.phone_mobile })), speccy: "read" };
+    } catch (err) {
+      return { rows: [], speccy: `could not be read (${err && err.message})` };
+    }
+  })();
+  const [lists, sp] = await Promise.all([app, fromSpeccy]);
+  return { rows: [...lists.flat(), ...sp.rows], speccy: sp.speccy };
 }
 
 // For Claude: who fits the spoken name (same name, or "Doug" for "Douglas"),
@@ -1023,7 +1028,7 @@ function traceOf(messages) {
 }
 
 // One thing said. Returns { done, say, state? }.
-async function agentTurn(body, state, env, fetchFn, claude, now) {
+async function agentTurn(body, state, env, fetchFn, claude, now, timing = []) {
   const text = squash(body.text);
   state.turns += 1;
   if (text) state.heard.push(text);
@@ -1036,7 +1041,9 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
   const place = pickLocation(state.heard.join(" "), body.location);
   const ctx = { env, fetchFn, state, now, place };
   const model = pickModel(body, env);
+  const seen = new Map();
   for (let step = 0; step < MAX_STEPS; step++) {
+    const asked = Date.now();
     const response = await claude.messages.create({
       model: MODELS[model],
       max_tokens: 1024,
@@ -1046,6 +1053,7 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
       tool_choice: { type: "any" },
       messages: state.messages,
     }, { timeout: model === "haiku" ? 8000 : 25000 });
+    timing.push(`AI ${((Date.now() - asked) / 1000).toFixed(1)}s`);
     if (response.stop_reason === "refusal") throw new Error("Claude declined");
     const content = response.content.map(keepBlock).filter(Boolean);
     state.messages.push({ role: "assistant", content });
@@ -1058,13 +1066,18 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
     // The tools in one step run at the same time, so an invoice made alongside
     // its item searches would miss what they find.
     const searching = calls.some((c) => c.name === "search_square_items");
+    const toolsAt = Date.now();
     const outs = await Promise.all(calls.map(async (call) => {
       if (call.name === "speak") return null;
       if (call.name === "create_draft_invoice" && searching) {
         return { error: "Not made: search every item first, then make the invoice in a later step with what the searches found." };
       }
       try {
-        return await runTool(call.name, call.input, ctx);
+        if (!LOOKUPS.has(call.name)) return await runTool(call.name, call.input, ctx);
+        // The same lookup twice in one turn is answered from the first one.
+        const memo = `${call.name} ${JSON.stringify(call.input || {})}`;
+        if (!seen.has(memo)) seen.set(memo, runTool(call.name, call.input, ctx));
+        return await seen.get(memo);
       } catch (err) {
         console.log(`${call.name} failed:`, err && err.message);
         const out = { error: String((err && err.message) || err) };
@@ -1072,6 +1085,7 @@ async function agentTurn(body, state, env, fetchFn, claude, now) {
         return out;
       }
     }));
+    if (calls.some((c) => c.name !== "speak")) timing.push(`tools ${((Date.now() - toolsAt) / 1000).toFixed(1)}s`);
     // speak alongside actions saves a round trip, but only counts if they all went through.
     const others = calls.map((c, i) => ({ c, out: outs[i] })).filter((x) => x.c.name !== "speak");
     const speakCall = calls.find((c) => c.name === "speak");
@@ -1217,8 +1231,9 @@ async function handle(req, env, fetchFn, claude) {
     const state = existing ? (body.resume ? resumeState(existing) : existing) : { v: 2, messages: [], heard: [], turns: 0, done: [], review: [] };
     let turn;
     const before = state.messages.length;
+    const timing = [];
     try {
-      turn = await agentTurn(body, state, env, fetchFn, claude, now);
+      turn = await agentTurn(body, state, env, fetchFn, claude, now, timing);
     } catch (err) {
       console.log("AI step failed:", err && err.message);
       if (state.turns <= 1 && !state.done.length) {
@@ -1238,7 +1253,7 @@ async function handle(req, env, fetchFn, claude) {
       state.review = [];
     }
     // The state comes back even when done, for the laptop to resume with.
-    return reply(200, { done, say: turn.say, state: JSON.stringify(state), trace: traceOf(state.messages.slice(before)) });
+    return reply(200, { done, say: turn.say, state: JSON.stringify(state), trace: [...traceOf(state.messages.slice(before)), ...(timing.length ? [`time: ${timing.join(", ")}`] : [])] });
   }
 
   try {

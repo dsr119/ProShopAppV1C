@@ -305,10 +305,33 @@ class PiperSpeaker:
         self.voice = PiperVoice.load(folder / f"{name}.onnx")
 
     def __call__(self, text):
-        print("Says:", text)
-        chunks = list(self.voice.synthesize(text))
-        audio = np.concatenate([c.audio_int16_array for c in chunks])
-        self.sd.play(audio, chunks[0].sample_rate, blocking=True)
+        # Piper makes the voice one sentence at a time. The first sentence
+        # plays as soon as it's ready while the rest are made in the background.
+        started = time.time()
+        ready = queue.Queue()
+
+        def make():
+            try:
+                for chunk in self.voice.synthesize(text):
+                    ready.put(chunk)
+            except Exception as err:
+                ready.put(err)
+            ready.put(None)
+
+        threading.Thread(target=make, daemon=True).start()
+        first = True
+        while True:
+            chunk = ready.get()
+            if chunk is None:
+                break
+            if isinstance(chunk, Exception):
+                raise chunk
+            if first:
+                print(f"Says ({time.time() - started:.1f}s):", text)
+                first = False
+            self.sd.play(chunk.audio_int16_array, chunk.sample_rate, blocking=True)
+        if first:
+            print("Says:", text)
 
 
 class EdgeSpeaker:

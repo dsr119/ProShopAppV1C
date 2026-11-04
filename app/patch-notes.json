@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.1",
+    "date": "2026-11-04",
+    "notes": [
+      "Faster: the shop laptop starts talking as soon as the first sentence is ready, and customer lookups search every list at once."
+    ]
+  },
+  {
     "version": "1.10",
     "date": "2026-11-02",
     "notes": [
