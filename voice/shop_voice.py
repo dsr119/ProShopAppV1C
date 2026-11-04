@@ -142,7 +142,17 @@ def load_config(path=os.path.join(HERE, "config.json")):
                 print("Usually a missing comma at the end of the line above, or a missing quote.")
                 print("Compare it with config.example.json.")
                 sys.exit(CONFIG_PROBLEM)
+    cfg["wake_word"] = wake_word_name(cfg["wake_word"])
     return cfg
+
+
+def wake_word_name(word):
+    """Turns "Alexa" or "Hey Jarvis" into the built-in names alexa and hey_jarvis.
+    A path to a custom model file is left as it is."""
+    word = str(word or "").strip()
+    if word.lower().endswith((".onnx", ".tflite")):
+        return word
+    return re.sub(r"[\s-]+", "_", word.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -423,8 +433,13 @@ class Shop:
                 print("Online voice not installed (pip install -r requirements.txt):", err)
         download_models([cfg["wake_word"]])
         # The voice check (Silero VAD) stops TV, music and machines waking it up.
-        self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx",
-                          vad_threshold=cfg["wake_vad"])
+        try:
+            self.wake = Model(wakeword_models=[cfg["wake_word"]], inference_framework="onnx",
+                              vad_threshold=cfg["wake_vad"])
+        except ValueError as err:
+            print(f'config.json: there is no wake word "{cfg["wake_word"]}" ({err}).')
+            print("Use alexa, hey_jarvis, hey_mycroft or hey_rhasspy.")
+            sys.exit(CONFIG_PROBLEM)
         self.whisper = WhisperModel(cfg["whisper_model"], device="cpu", compute_type="int8")
         self.refresh_hints()
         self.frames = queue.Queue()
