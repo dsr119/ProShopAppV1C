@@ -18,6 +18,7 @@ Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 | `website/` | The pages embedded in the public Google Sites site |
 | `apps-script/` | Google Form → Supabase trigger (the Drive backup script is retired) |
 | `voice/`, `supabase/functions/` | Voice work orders and draft Square invoices on the shop laptop ("Hey Jarvis", then just talk) — see [voice/README.md](voice/README.md) |
+| `g2/` | The Even G2 glasses app: the day board and Jarvis on your glasses — see [g2/README.md](g2/README.md) |
 | `scraper/` | Daily ball catalog scraper and weekly backup, run by GitHub Actions — see [scraper/README.md](scraper/README.md) |
 
 Start with [migration/README.md](migration/README.md).
