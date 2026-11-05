@@ -8,7 +8,7 @@ const path = require('node:path');
 function edgeFunction() {
   const src = fs.readFileSync(
     path.join(__dirname, '..', 'supabase', 'functions', 'alexa-work-order', 'index.ts'), 'utf8');
-  const ctx = vm.createContext({ Response, Error, Date, JSON, String, Map, Set, Promise, Math, console, encodeURIComponent });
+  const ctx = vm.createContext({ Response, Error, Date, JSON, String, Map, Set, Promise, Math, console, encodeURIComponent, atob, URLSearchParams, Uint8Array });
   vm.runInContext(src, ctx);
   return ctx;
 }
@@ -868,4 +868,97 @@ test('invoice: no phone on file uses the stand-in number, matching the full name
   const created = shop.calls.find((c) => c.path === '/customers').body;
   assert.deepEqual([created.given_name, created.family_name, created.phone_number], ['Ann', 'Lee', '+15555555555']);
   assert.equal(shop.calls.filter((c) => c.path === '/orders').at(-1).body.order.customer_id, 'CNEW');
+});
+
+// --- G2 glasses -----------------------------------------------------------------
+
+test('glasses: CORS preflight is answered, and replies carry the CORS header', async () => {
+  const fn = edgeFunction();
+  const pre = await fn.handle(new Request('https://fn.test', { method: 'OPTIONS' }), env, fakeShop().fetch, null);
+  assert.equal(pre.status, 204);
+  assert.match(pre.headers.get('access-control-allow-headers'), /x-alexa-secret/);
+  const res = await fn.handle(post({ text: '' }, 'wrong'), env, fakeShop().fetch, null);
+  assert.equal(res.status, 401);
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+});
+
+// One second of silence-shaped audio, base64, as the glasses send it.
+const AUDIO = Buffer.alloc(32000).toString('base64');
+
+function withDeepgram(shop, transcript, sent = []) {
+  const inner = shop.fetch;
+  shop.fetch = async (url, init = {}) => {
+    if (url.startsWith('https://api.deepgram.com/')) {
+      sent.push({ url, init });
+      return new Response(JSON.stringify({ results: { channels: [{ alternatives: [{ transcript }] }] } }));
+    }
+    if (url.includes('/rest/v1/balls')) return new Response(JSON.stringify([{ brand: 'Storm', name: 'Phaze 6', is_recent_release: true }]));
+    return inner(url, init);
+  };
+  return shop;
+}
+
+test('glasses: audio is transcribed, run as the words, and the words come back as heard', async () => {
+  const fn = edgeFunction();
+  const sent = [];
+  const shop = withDeepgram(fakeShop(), 'What does Tuesday look like?', sent);
+  const seen = [];
+  const claude = fakeClaude([[speak('Nothing booked Tuesday.', true)]], seen);
+  const res = await fn.handle(post({ audio: AUDIO, location: 'Valley' }), { ...env, DEEPGRAM_API_KEY: 'dg' }, shop.fetch, claude);
+  const out = await res.json();
+  assert.deepEqual([out.heard, out.say, out.done], ['What does Tuesday look like?', 'Nothing booked Tuesday.', true]);
+  assert.equal(seen[0].messages[0].content.at(-1).text ?? seen[0].messages[0].content, 'What does Tuesday look like?');
+  assert.equal(sent[0].init.headers.Authorization, 'Token dg');
+  assert.equal(sent[0].init.body.length, 32000);
+  assert.match(sent[0].url, /encoding=linear16&sample_rate=16000/);
+  assert.match(sent[0].url, /keyterm=Storm\+Phaze\+6/);
+});
+
+test('glasses: nothing heard asks again without starting the conversation', async () => {
+  const fn = edgeFunction();
+  const seen = [];
+  const res = await fn.handle(post({ audio: AUDIO, state: 'keep' }), { ...env, DEEPGRAM_API_KEY: 'dg' }, withDeepgram(fakeShop(), '').fetch, fakeClaude([], seen));
+  const out = await res.json();
+  assert.deepEqual([out.done, out.say, out.state, out.heard], [false, "I didn't catch that. Try again?", 'keep', '']);
+  assert.equal(seen.length, 0);
+});
+
+test('glasses: without a Deepgram key, audio gets a plain explanation', async () => {
+  const fn = edgeFunction();
+  const res = await fn.handle(post({ audio: AUDIO }), env, fakeShop().fetch, null);
+  assert.match((await res.json()).say, /DEEPGRAM_API_KEY is not set/);
+});
+
+test('orders: a new order goes into the order book, one row per item, not yet ordered', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop();
+  const inserted = [];
+  const inner = shop.fetch;
+  shop.fetch = async (url, init = {}) => {
+    if (url.startsWith('https://db.test/rest/v1/orders') && init.method === 'POST') {
+      const rows = JSON.parse(init.body);
+      inserted.push(...rows);
+      return new Response(JSON.stringify(rows.map((r, i) => ({ id: `o${i}`, ...r }))), { status: 201 });
+    }
+    return inner(url, init);
+  };
+  const seen = [];
+  const order = { customer_name: 'Mike Jones', phone: '5705551234', items: [{ item: 'Storm Phaze 6 15 lb' }, { item: 'Dexter shoes size 11', quantity: 2 }] };
+  const claude = fakeClaude([[use('create_order', order)], [use('create_order', order)], [speak('Ordered for Mike Jones.', true)]], seen);
+  const out = await say(fn, shop, 'order a 15 pound phaze 6 and two pair of dexter shoes size 11 for mike jones', undefined, claude);
+  assert.equal(out.done, true);
+  assert.equal(inserted.length, 2);
+  assert.deepEqual(inserted.map((r) => [r.customer_name, r.phone, r.item, r.quantity, r.shop_order_date, r.source, r.pickup_location]),
+    [['Mike Jones', '570-555-1234', 'Storm Phaze 6 15 lb', 1, null, 'in_shop', 'Valley'], ['Mike Jones', '570-555-1234', 'Dexter shoes size 11', 2, null, 'in_shop', 'Valley']]);
+  assert.deepEqual(results(seen[1])[0].items, ['Storm Phaze 6 15 lb', '2 x Dexter shoes size 11']);
+  assert.match(results(seen[2])[0].error, /already added/);
+});
+
+test('glasses: transcribe_only returns the words and runs nothing', async () => {
+  const fn = edgeFunction();
+  const seen = [];
+  const res = await fn.handle(post({ audio: AUDIO, transcribe_only: true }), { ...env, DEEPGRAM_API_KEY: 'dg' },
+    withDeepgram(fakeShop(), 'work order for Joe Sutton').fetch, fakeClaude([], seen));
+  assert.deepEqual(await res.json(), { ok: true, heard: 'work order for Joe Sutton' });
+  assert.equal(seen.length, 0);
 });

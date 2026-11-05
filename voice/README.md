@@ -124,6 +124,12 @@ be in open-link mode, or see below), that's noted in the review list.
   outside shop hours, or the shop shows closed, it asks before booking anyway.
 - "What's the status on Jim Curtis's shoes?" reads the order book: ordered, arrived, drilled,
   contacted, paid, picked up.
+- "Order a 15 pound Phaze 6 for Mike Jones" adds it to the order book, not yet ordered from a
+  distributor, so it sits at the top of the orders page like one taken at the counter. Each row
+  is marked "Added by voice" in the internal notes.
+
+The same function also serves the Even G2 glasses app (`g2/`), which sends recorded audio
+instead of words; it's turned into words with Deepgram (`DEEPGRAM_API_KEY` secret).
 
 Customer names are looked up in both the app's customers and Speccy.
 

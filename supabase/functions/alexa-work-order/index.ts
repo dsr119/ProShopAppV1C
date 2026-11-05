@@ -645,6 +645,46 @@ async function findOrders(env, fetchFn, { customer_name, item }) {
   };
 }
 
+// Add a customer's order to the order book, one row per item, the same rows
+// the counter's "New order" form writes: not yet ordered from a distributor
+// (shop_order_date null), which pins them to the top of the orders page.
+async function createOrder(env, fetchFn, input, place, now) {
+  const name = squash(input.customer_name);
+  const stock = /^(shop )?stock$/i.test(name);
+  const items = (Array.isArray(input.items) ? input.items : [])
+    .map((i) => ({ item: squash(i && i.item), quantity: Math.max(1, Math.floor(Number(i && i.quantity) || 1)) }))
+    .filter((i) => i.item);
+  if (!name) return { error: "Need customer_name (or Stock for shop stock)." };
+  if (!items.length) return { error: "Need at least one item." };
+  const phone = stock ? null : formatPhone(input.phone);
+  const where = (v) => (PLACES.includes(v) ? v : PLACES.includes(place) ? place : null);
+  const notes = squash(input.notes);
+  const rows = items.map(({ item, quantity }) => ({
+    customer_name: stock ? "Stock" : name,
+    is_stock: stock,
+    phone: /^\d{3}-\d{3}-\d{4}$/.test(phone || "") ? phone : null,
+    item,
+    quantity,
+    fitting: stock ? null : (["Specs on file", "Need appointment"].includes(input.fitting) ? input.fitting : null),
+    order_location: where(input.order_location),
+    pickup_location: where(input.pickup_location || input.order_location),
+    notes: notes || null,
+    internal_notes: "Added by voice",
+    source: "in_shop",
+    shop_order_date: null,
+    submitted_at: now.toISOString(),
+  }));
+  // One request for all the items, so a split order lands whole or not at all.
+  const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/orders`, {
+    method: "POST",
+    headers: { ...dbHeaders(env), "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify(rows),
+  });
+  if (!res.ok) throw new Error(`Database said ${res.status}: ${await res.text()}`);
+  const created = await res.json();
+  return { ok: true, orders: (created || []).map((o) => o.id), items: rows.map((r) => `${r.quantity > 1 ? `${r.quantity} x ` : ""}${r.item}`), pickup: rows[0].pickup_location };
+}
+
 // ---------------------------------------------------------------------------
 // Tickets and review notes
 // ---------------------------------------------------------------------------
@@ -805,6 +845,23 @@ const TOOLS = [
     input_schema: { type: "object", properties: { customer_name: { type: "string" }, item: { type: "string" } }, required: ["customer_name"] },
   },
   {
+    name: "create_order",
+    description: "Add an order to the order book: something a customer wants the shop to order for them (a ball, shoes, a bag, accessories), or shop stock (customer_name 'Stock'). One entry per different item; check every ball with find_ball first and use the catalog's name plus the weight, e.g. 'Storm Phaze 6 15 lb'. The shop places it with a distributor later.",
+    input_schema: {
+      type: "object",
+      properties: {
+        customer_name: { type: "string" },
+        phone: { type: "string", description: "From find_customer, or empty if not known." },
+        items: { type: "array", items: { type: "object", properties: { item: { type: "string" }, quantity: { type: "integer" } }, required: ["item"] } },
+        fitting: { type: "string", enum: ["Specs on file", "Need appointment"], description: "Only if they said: specs on file, or they need a fitting appointment." },
+        order_location: { type: "string", enum: PLACES },
+        pickup_location: { type: "string", enum: PLACES },
+        notes: { type: "string", description: "Usually empty. Customer-facing details the item leaves out (color, size, deadline)." },
+      },
+      required: ["customer_name", "items"],
+    },
+  },
+  {
     name: "find_ball",
     description: "Look up a bowling ball by name in the shop's ball catalog (every current and past ball from the major brands). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
     input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
@@ -885,7 +942,7 @@ const TOOLS = [
 ];
 
 // Tools that do something; a speak given with only these is said once they succeed.
-const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "note_for_review"]);
+const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "create_order", "note_for_review"]);
 const CACHED_TOOLS = TOOLS.map((t, i) => (i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t));
 
 function systemPrompt(now, location) {
@@ -903,7 +960,7 @@ Work orders: need who (or a shop job: lanes, machines, building, supplies) and w
 
 Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
 
-Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet."
+Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet." To take a new order ("order a 15 pound Phaze 6 for Mike Jones", "put in an order for shoes, size 11"), look up the customer and check any ball with find_ball in the same step, then create_order. A ball needs its weight; ask if they didn't say. Confirm in a few words: "Ordered for Mike Jones: Storm Phaze 6, 15 pound."
 
 Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
 
@@ -934,6 +991,13 @@ async function runTool(name, input, ctx) {
   if (name === "find_openings") return await findOpenings(env, fetchFn, input);
   if (name === "book_appointment") return await bookAppointment(env, fetchFn, { ...input, location: input.location || hoursPlace(ctx.place) });
   if (name === "order_status") return await findOrders(env, fetchFn, input);
+  if (name === "create_order") {
+    const key = JSON.stringify(input);
+    if (state.done.includes(key)) return { error: "That exact order was already added in this conversation." };
+    const out = await createOrder(env, fetchFn, input, ctx.place, now);
+    if (out.ok) state.done.push(key);
+    return out;
+  }
   if (name === "find_ball") {
     const balls = await findBalls(env, fetchFn, input.said);
     if (!balls.length) state.review.push(`Ball not in the catalog: "${squash(input.said)}"`);
@@ -1180,10 +1244,49 @@ function sameSecret(a, b) {
   return diff === 0;
 }
 
-async function handle(req, env, fetchFn, claude) {
-  const reply = (status, obj) =>
-    new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
+// The G2 glasses app runs in a WebView inside the Even Realities phone app,
+// which enforces CORS like any browser. The password header is still the check.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, x-alexa-secret",
+  "Access-Control-Max-Age": "86400",
+};
 
+// Speech to text for callers that send audio rather than words (the G2
+// glasses: 16 kHz, 16-bit little-endian mono PCM, base64). Deepgram, with
+// ball names as key terms so "fays 6" comes back as Phaze 6.
+const MAX_AUDIO_BYTES = 30 * 32000;   // 30 seconds
+function base64Bytes(b64) {
+  const bin = atob(String(b64 || ""));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function transcribe(env, fetchFn, audio) {
+  if (!env.DEEPGRAM_API_KEY) throw new Error("DEEPGRAM_API_KEY is not set, so audio can't be turned into words.");
+  const pcm = base64Bytes(audio);
+  if (pcm.length > MAX_AUDIO_BYTES) throw new Error("That was too long; keep it under 30 seconds.");
+  const params = new URLSearchParams({ model: "nova-3", encoding: "linear16", sample_rate: "16000", channels: "1", smart_format: "true" });
+  try {
+    for (const term of (await ballHints(env, fetchFn, 40))) params.append("keyterm", term);
+  } catch { /* hints are a nicety */ }
+  const res = await fetchFn(`https://api.deepgram.com/v1/listen?${params}`, {
+    method: "POST",
+    headers: { Authorization: `Token ${env.DEEPGRAM_API_KEY}`, "Content-Type": "application/octet-stream" },
+    body: pcm,
+  });
+  if (!res.ok) throw new Error(`Speech to text said ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const out = await res.json();
+  return squash((((out.results || {}).channels || [])[0]?.alternatives || [])[0]?.transcript);
+}
+
+async function handle(req, env, fetchFn, claude) {
+  let heard;   // set when the words came from audio, so the caller can show them
+  const reply = (status, obj) =>
+    new Response(JSON.stringify(heard === undefined ? obj : { ...obj, heard }), { status, headers: { "Content-Type": "application/json", ...CORS } });
+
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return reply(405, { error: "POST only" });
   // Trimmed, and stray quotes dropped: both get pasted by hand into web forms.
   const clean = (v) => String(v || "").trim().replace(/^["']|["']$/g, "");
@@ -1202,6 +1305,18 @@ async function handle(req, env, fetchFn, claude) {
     return reply(400, { error: "Send JSON: { text, state?, location? }" });
   }
   const now = new Date();
+  if (body.audio && !squash(body.text)) {
+    try {
+      heard = await transcribe(env, fetchFn, body.audio);
+    } catch (err) {
+      return reply(200, { done: false, say: `Sorry, I couldn't hear that. ${err.message}`, state: body.state || "" });
+    }
+    // Nothing caught: ask again without spending a turn of the conversation.
+    if (!heard) return reply(200, { done: false, say: "I didn't catch that. Try again?", state: body.state || "" });
+    // The glasses show the words first and send them only once confirmed.
+    if (body.transcribe_only) return reply(200, { ok: true });
+    body.text = heard;
+  }
   const text = squash(body.text);
 
   // The laptop pings when it hears the wake word, so the function and the
