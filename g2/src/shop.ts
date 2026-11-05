@@ -113,36 +113,66 @@ function ticketDetail(t: Ticket, today: string): string {
   ].filter(Boolean).join("\n");
 }
 
-// The home list: appointments (today first, then the next few days), then
-// open tickets. Headers are rows too, with no detail. Fits the 20-item list.
-export function homeRows(appts: Appointment[], tickets: Ticket[], place: Place, today: string): Row[] {
-  const mine = appts
-    .filter((a) => inHouse(a.location, place) && !a.completed)
-    .sort((a, b) => (a.appt_date + (a.appt_time || "99")).localeCompare(b.appt_date + (b.appt_time || "99")));
+const upcoming = (appts: Appointment[], place: Place) => appts
+  .filter((a) => inHouse(a.location, place) && !a.completed)
+  .sort((a, b) => (a.appt_date + (a.appt_time || "99")).localeCompare(b.appt_date + (b.appt_time || "99")));
+
+const openTickets = (tickets: Ticket[], place: Place, today: string) =>
+  sortTickets(tickets.filter((t) => t.status !== "done" && inHouse(t.location, place)), today);
+
+const ticketFlag = (t: Ticket, today: string) =>
+  t.priority === "urgent" ? "!! " : t.priority === "high" || (t.due_date && t.due_date <= today) ? "! " : "";
+
+// "Today", "Tmrw", "Mon", "Mon 11/16" for the short labels.
+function shortDay(day: string, today: string): string {
+  if (day === today) return "Today";
+  if (day === addDays(today, 1)) return "Tmrw";
+  const d = new Date(`${day}T12:00:00Z`);
+  const wd = WEEKDAYS[d.getUTCDay()];
+  return day <= addDays(today, 6) ? wd : `${wd} ${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+
+const BOX = 27;   // characters across one half of the dashboard
+
+// The dashboard's left box: today's bookings, then the next one after today.
+export function dashAppointments(appts: Appointment[], place: Place, today: string): string {
+  const mine = upcoming(appts, place);
   const todays = mine.filter((a) => a.appt_date === today);
-  const later = mine.filter((a) => a.appt_date > today);
-  const open = sortTickets(tickets.filter((t) => t.status !== "done" && inHouse(t.location, place)), today);
+  const lines = [`APPOINTMENTS · ${todays.length || "none"} today`];
+  for (const a of todays.slice(0, 4)) lines.push(clip(`${shortTime(a.appt_time) || "—"} ${a.customer_name}`, BOX));
+  if (todays.length > 4) lines.push(`+${todays.length - 4} more today`);
+  const next = mine.find((a) => a.appt_date > today);
+  if (next && lines.length < 6) lines.push(clip(`Next: ${shortDay(next.appt_date, today)} ${shortTime(next.appt_time)} ${next.customer_name}`.replace(/\s+/g, " "), BOX));
+  return lines.join("\n");
+}
 
-  const rows: Row[] = [{ label: `── Today: ${todays.length || "no"} appointment${todays.length === 1 ? "" : "s"} ──` }];
-  for (const a of todays) rows.push({ label: clip(`${shortTime(a.appt_time) || "—"} ${a.customer_name}: ${a.service}`), detail: apptDetail(a, today) });
+// The dashboard's right box: open tickets, urgent and overdue first.
+export function dashTickets(tickets: Ticket[], place: Place, today: string): string {
+  const open = openTickets(tickets, place, today);
+  const urgent = open.filter((t) => t.priority === "urgent").length;
+  const lines = [`TICKETS · ${open.length} open${urgent ? ` · ${urgent} urgent` : ""}`];
+  for (const t of open.slice(0, 4)) lines.push(clip(`${ticketFlag(t, today)}${t.title}`, BOX));
+  if (open.length > 4) lines.push(`+${open.length - 4} more`);
+  return lines.join("\n");
+}
 
-  // Leave room for the tickets: at most half the list goes to later appointments.
-  const ticketRoom = Math.min(open.length + 1, Math.floor(LIST_MAX / 2));
-  const laterRoom = Math.max(0, LIST_MAX - rows.length - ticketRoom - 1);
-  if (later.length && laterRoom > 0) {
-    rows.push({ label: "── Coming up ──" });
-    for (const a of later.slice(0, laterRoom)) {
-      const when = `${dayLabel(a.appt_date, today).replace(/ \w+ \d+$/, "")} ${shortTime(a.appt_time)}`.trim();
-      rows.push({ label: clip(`${when} ${a.customer_name}: ${a.service}`), detail: apptDetail(a, today) });
-    }
-  }
+// "All appointments": everything booked from today on, a line each.
+export function appointmentRows(appts: Appointment[], place: Place, today: string): Row[] {
+  const mine = upcoming(appts, place);
+  if (!mine.length) return [{ label: "Nothing booked" }];
+  const rows = mine.map((a) => ({
+    label: clip(`${shortDay(a.appt_date, today)} ${shortTime(a.appt_time)} ${a.customer_name}: ${a.service}`.replace(/\s+/g, " ")),
+    detail: apptDetail(a, today),
+  }));
+  return rows.length <= LIST_MAX ? rows : [...rows.slice(0, LIST_MAX - 1), { label: `…${rows.length - LIST_MAX + 1} more in the app` }];
+}
 
-  rows.push({ label: `── Open tickets: ${open.length} ──` });
-  for (const t of open.slice(0, LIST_MAX - rows.length)) {
-    const flag = t.priority === "urgent" ? "!! " : t.priority === "high" || (t.due_date && t.due_date <= today) ? "! " : "";
-    rows.push({ label: clip(`${flag}${t.title}`), detail: ticketDetail(t, today) });
-  }
-  return rows.slice(0, LIST_MAX);
+// "All tickets": every open ticket, urgent and overdue first.
+export function ticketRows(tickets: Ticket[], place: Place, today: string): Row[] {
+  const open = openTickets(tickets, place, today);
+  if (!open.length) return [{ label: "No open tickets" }];
+  const rows = open.map((t) => ({ label: clip(`${ticketFlag(t, today)}${t.title}`), detail: ticketDetail(t, today) }));
+  return rows.length <= LIST_MAX ? rows : [...rows.slice(0, LIST_MAX - 1), { label: `…${rows.length - LIST_MAX + 1} more in the app` }];
 }
 
 // Base64 of the recorded PCM, in chunks so a 30 second clip doesn't blow the stack.

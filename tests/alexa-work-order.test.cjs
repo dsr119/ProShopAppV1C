@@ -630,7 +630,7 @@ function scheduleShop() {
     if (url.startsWith('https://db.test/rest/v1/hours?')) { shop.urls.push(url); return json(HOURS.filter((h) => url.includes(`date=gte.${h.date}`) || url.includes(`lte.${h.date}`))); }
     if (url.startsWith('https://db.test/rest/v1/appointments') && init.method === 'POST') { shop.booked.push(JSON.parse(init.body)); return json([{ id: 'new1' }], 201); }
     if (url.startsWith('https://db.test/rest/v1/appointments?select=id')) { shop.urls.push(url); return json(APPTS); }
-    if (url.startsWith('https://db.test/rest/v1/orders?select=customer_name,item')) { shop.urls.push(url); return json(ORDERS); }
+    if (url.startsWith('https://db.test/rest/v1/orders?select=id,customer_name,item')) { shop.urls.push(url); return json(ORDERS); }
     return inner(url, init);
   };
   return shop;
@@ -911,7 +911,7 @@ test('glasses: audio is transcribed, run as the words, and the words come back a
   assert.equal(sent[0].init.headers.Authorization, 'Token dg');
   assert.equal(sent[0].init.body.length, 32000);
   assert.match(sent[0].url, /encoding=linear16&sample_rate=16000/);
-  assert.match(sent[0].url, /keyterm=Storm\+Phaze\+6/);
+  assert.match(sent[0].url, /keyterm=EDITH&keyterm=Storm\+Phaze\+6/);
 });
 
 test('glasses: nothing heard asks again without starting the conversation', async () => {
@@ -961,4 +961,130 @@ test('glasses: transcribe_only returns the words and runs nothing', async () => 
     withDeepgram(fakeShop(), 'work order for Joe Sutton').fetch, fakeClaude([], seen));
   assert.deepEqual(await res.json(), { ok: true, heard: 'work order for Joe Sutton' });
   assert.equal(seen.length, 0);
+});
+
+// --- Editing and deleting orders, work orders and invoices -----------------------
+
+const OID = '11111111-2222-4333-8444-555555555555';
+
+function patchShop(rows = [{ id: OID }]) {
+  const shop = fakeShop();
+  shop.patched = [];
+  const inner = shop.fetch;
+  shop.fetch = async (url, init = {}) => {
+    if (init.method === 'PATCH' && /\/rest\/v1\/(orders|tickets)\?id=eq\./.test(url)) {
+      shop.patched.push({ table: url.split('/rest/v1/')[1].split('?')[0], url, body: JSON.parse(init.body) });
+      return new Response(JSON.stringify(rows), { status: 200 });
+    }
+    return inner(url, init);
+  };
+  return shop;
+}
+
+test('orders: update changes only what was said', async () => {
+  const fn = edgeFunction();
+  const shop = patchShop();
+  const seen = [];
+  const claude = fakeClaude([[use('update_order', { id: OID, item: 'Storm Phaze 6 16 lb', paid: true, pickup_location: 'Mars' })], [speak('Changed to 16 pound.', true)]], seen);
+  await say(fn, shop, 'make mike jones phaze a 16 pounder, he paid', undefined, claude);
+  assert.equal(shop.patched.length, 1);
+  const { body, url } = shop.patched[0];
+  assert.match(url, new RegExp(`orders\\?id=eq\\.${OID}&deleted_at=is\\.null`));
+  assert.equal(body.item, 'Storm Phaze 6 16 lb');
+  assert.equal(body.paid, true);
+  assert.equal(body.pickup_location, undefined);   // not a real place
+  assert.deepEqual(results(seen[1])[0].changed, ['item', 'paid']);
+});
+
+test('deleting an order or a work order needs a yes, then only hides it', async () => {
+  const fn = edgeFunction();
+  const shop = patchShop();
+  const seen = [];
+  const claude = fakeClaude([
+    [use('delete_order', { id: OID })],
+    [speak('Delete Mike Jones\'s Phaze 6 order?')],
+    [use('delete_order', { id: OID, confirmed: true })],
+    [speak('Deleted.', true)],
+  ], seen);
+  let out = await say(fn, shop, 'delete mike jones phaze order', undefined, claude);
+  assert.equal(results(seen[1])[0].needs_ok, true);
+  assert.equal(shop.patched.length, 0);
+  out = await say(fn, shop, 'yes', out.state, claude);
+  assert.equal(shop.patched.length, 1);
+  assert.deepEqual(Object.keys(shop.patched[0].body), ['deleted_at']);
+
+  const shop2 = patchShop();
+  const claude2 = fakeClaude([[use('delete_work_order', { id: OID, confirmed: true })], [speak('Deleted.', true)]]);
+  await say(fn, shop2, 'yes delete it', undefined, claude2);
+  assert.equal(shop2.patched[0].table, 'tickets');
+});
+
+test('deleting something already gone says so', async () => {
+  const fn = edgeFunction();
+  const shop = patchShop([]);
+  const out = plain(await fn.softDelete(env, shop.fetch, 'orders', { id: OID, confirmed: true }, 'order'));
+  assert.match(out.error, /No order with that id/);
+});
+
+function invoiceShop(invoices) {
+  const shop = fakeShop({ squareCustomers: [{ id: 'C1', given_name: 'Doug', family_name: 'Smith', phone: '5707668210' }] });
+  const inner = shop.fetch;
+  shop.fetch = async (url, init = {}) => {
+    const p = url.replace('https://connect.squareup.com/v2', '');
+    const body = init.body ? JSON.parse(init.body) : null;
+    if (p === '/invoices/search') { shop.calls.push({ path: p, body }); return new Response(JSON.stringify({ invoices })); }
+    if (p === '/orders/batch-retrieve') return new Response(JSON.stringify({ orders: [{ id: 'O1', total_money: { amount: 21995 }, line_items: [{ name: 'Storm Phaze 6', variation_name: '15 lb', quantity: '1' }] }] }));
+    if (/\/cancel$/.test(p)) { shop.calls.push({ path: p, body }); return new Response(JSON.stringify({ invoice: {} })); }
+    return inner(url, init);
+  };
+  return shop;
+}
+
+test('invoices: found by customer, and a draft is deleted after a yes', async () => {
+  const fn = edgeFunction();
+  const shop = invoiceShop([{ id: 'INV1', version: 3, status: 'DRAFT', order_id: 'O1', created_at: '2026-11-01T10:00:00Z' }]);
+  const seen = [];
+  const claude = fakeClaude([
+    [use('find_invoices', { customer_name: 'Doug Smith', phone: '570-766-8210' })],
+    [use('delete_invoice', { invoice_id: 'INV1' })],
+    [speak('Delete the $219.95 draft for Doug Smith?')],
+    [use('delete_invoice', { invoice_id: 'INV1', confirmed: true })],
+    [speak('Deleted.', true)],
+  ], seen);
+  let out = await say(fn, shop, 'delete doug smiths invoice', undefined, claude);
+  const found = results(seen[1])[0];
+  assert.deepEqual(found.invoices[0], { invoice_id: 'INV1', status: 'DRAFT', made: '2026-11-01', total: '$219.95', items: ['Storm Phaze 6 15 lb'] });
+  assert.deepEqual(shop.calls.find((c) => c.path === '/invoices/search').body.query.filter, { location_ids: ['LS', 'LV'], customer_ids: ['C1'] });
+  assert.equal(results(seen[2])[0].needs_ok, true);
+  out = await say(fn, shop, 'yes', out.state, claude);
+  assert.ok(shop.calls.some((c) => c.path === '/invoices/INV1?version=3'));
+});
+
+test('invoices: a sent unpaid one is cancelled, a paid one is left alone, and a sent one can\'t be changed', async () => {
+  const fn = edgeFunction();
+  const shop = invoiceShop([
+    { id: 'SENT', version: 2, status: 'UNPAID', order_id: 'O1', created_at: '2026-11-01T10:00:00Z' },
+    { id: 'PAID', version: 5, status: 'PAID', order_id: 'O1', created_at: '2026-10-01T10:00:00Z' },
+  ]);
+  const seen = [];
+  const claude = fakeClaude([
+    [use('find_invoices', { customer_name: 'Doug Smith', phone: '5707668210' })],
+    [use('create_draft_invoice', { customer_name: 'Doug Smith', phone: '5707668210', lines: [{ variation_id: 'drill1' }], replaces: 'SENT' }),
+      use('delete_invoice', { invoice_id: 'PAID', confirmed: true })],
+    [use('delete_invoice', { invoice_id: 'SENT', confirmed: true })],
+    [speak('Cancelled it.', true)],
+  ], seen);
+  await say(fn, shop, 'cancel doug smiths invoice', undefined, claude);
+  const [replace, paid] = results(seen[2]);
+  assert.match(replace.error, /sent already, so it can't be changed/);
+  assert.match(paid.error, /paid, so it can't be deleted/);
+  assert.equal(results(seen[3])[0].cancelled, 'SENT');
+  assert.deepEqual(shop.calls.find((c) => c.path === '/invoices/SENT/cancel').body, { version: 2 });
+  assert.equal(shop.calls.filter((c) => c.path === '/invoices').length, 0);
+});
+
+test('invoices: one not found in this conversation can\'t be deleted', async () => {
+  const fn = edgeFunction();
+  const out = plain(await fn.deleteInvoice(env, fakeShop().fetch, { invoice_id: 'X', confirmed: true }, { invoices: [] }));
+  assert.match(out.error, /must come from find_invoices/);
 });

@@ -1,19 +1,36 @@
 # Pro Shop on the Even G2
 
-Jarvis and the day board, on your glasses.
+The day board and EDITH (the shop's voice assistant, Jarvis on the shop
+laptop) on your glasses.
 
-- **Home** shows today's appointments, the next few days, and open tickets for
-  your house, the same as the wall board. Swipe to move, press to open one,
-  double press to leave the app.
-- **Hold to talk to Jarvis.** Release, and the glasses show what they heard.
-  Press to send it, hold to say it again, double press to drop it. Nothing
-  reaches Jarvis until you've seen the words. Jarvis is the same assistant as the shop
-  laptop, so anything it can do there works here: book or check appointments,
-  check an order, **add an order**, add or change a work order, make a draft
-  Square invoice.
-- **Menu** (tap, then long press): Talk to Jarvis (press to stop instead of
-  holding), Refresh, Switch house (Valley, South Side, Both).
-- **Phone screen:** the Jarvis password and the house. Fill them in once.
+- **Dashboard** (the main screen): the time and date, today's appointments
+  and the next one coming, and open tickets with the urgent and overdue ones
+  first. Below that: **All appointments**, **All tickets**, **Talk to EDITH**.
+  Swipe to move, press to open. Double press here exits the app.
+- **All appointments** lists every booking from today out two weeks;
+  **All tickets** lists every open ticket. Press one for its details. Double
+  press goes back.
+- **Talk to EDITH from any screen.** Hold, talk, release. The glasses show
+  what they heard: press to send, hold to say it again, double press to drop it.
+  EDITH can:
+  - check, book and change appointments
+  - check, **add, change and delete orders**
+  - add, change and **delete work orders**
+  - make, **find, change and delete Square invoices** (drafts are deleted,
+    sent unpaid ones are cancelled, paid ones are left alone)
+
+  Every delete is read back to you first and needs a "yes". Deleted orders and
+  work orders are only hidden (`deleted_at`), so they can be brought back.
+- **Hands-free** (menu → Start hands-free): the mic stays open while the app
+  is open. Say "Hey EDITH, make a work order for…". The words show with a 3
+  second countdown, then send. Double press stops it, and press sends it right
+  away. When EDITH asks you something, just answer within 30 seconds; you don't
+  need the wake word. Each phrase is only sent for transcription when someone
+  is actually talking, which costs about 25¢ an hour of real speech and uses
+  more glasses battery.
+- **Menu** (tap, then long press): Talk to EDITH, Start/Stop hands-free,
+  Refresh, Switch house (Valley, South Side, Both).
+- **Phone screen:** the EDITH password (the `ALEXA_SHARED_SECRET`) and the house. Fill them in once.
 
 ## How it fits together
 

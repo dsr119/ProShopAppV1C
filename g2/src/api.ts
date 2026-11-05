@@ -54,7 +54,7 @@ async function jarvis(password: string, body: Record<string, unknown>): Promise<
 
 // Step 1: audio to words, nothing done yet.
 export async function transcribe(password: string, audio: string): Promise<JarvisReply> {
-  if (isDemo()) return { ok: true, heard: "Work order for Sample Bowler to plug his thumb on the NU Blue" };
+  if (isDemo()) return { ok: true, heard: "Hey EDITH, work order for Sample Bowler to plug his thumb on the NU Blue" };
   return jarvis(password, { audio, transcribe_only: true });
 }
 
