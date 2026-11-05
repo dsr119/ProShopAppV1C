@@ -1,7 +1,9 @@
 // Pro Shop on the Even G2.
 //
-//   Home      today's appointments, what's coming up, and open tickets.
-//             Swipe to move, press to open one, double press to exit.
+//   Dashboard the time, today's appointments, open tickets. Below them:
+//             All appointments, All tickets, Talk to EDITH. Double press exits.
+//   Lists     every booking from today on / every open ticket. Press one
+//             for its details; double press goes back.
 //   Hold      talk to EDITH (the shop's voice assistant, Jarvis on the
 //             laptop). Release, and the glasses show what was heard: press
 //             to send it, hold to say it again, double press to drop it.
@@ -23,25 +25,30 @@ import {
 import { ask, loadAppointments, loadTickets, transcribe } from "./api";
 import { isDemo } from "./demo";
 import { PhraseCatcher, wakeSplit } from "./listen";
-import { fitPage, homeRows, shopToday, longDate, toBase64, type Place, type Row } from "./shop";
+import { appointmentRows, dashAppointments, dashTickets, fitPage, longDate, shopToday, ticketRows, toBase64,
+  type Appointment, type Place, type Row, type Ticket } from "./shop";
 
 const W = 576, H = 288;
 const MAX_AUDIO_BYTES = 30 * 32000;   // 30 seconds of 16 kHz 16-bit mono
 const COUNTDOWN = 3;                  // seconds before a hands-free command is sent
 const WAKE_WAIT_MS = 8000;            // after a bare "Hey EDITH", how long to wait for the rest
 const ANSWER_WAIT_MS = 30000;         // after EDITH asks something, how long an answer needs no wake word
-const BACK_HOME_MS = 20000;           // hands-free: an answer stays up this long, then home
+const BACK_HOME_MS = 20000;           // hands-free: an answer stays up this long, then back
 
 const PLACES: Place[] = ["Valley", "South Side", "Both"];
 
-type Page = "home" | "detail" | "voice";
+type Page = "dash" | "appts" | "tickets" | "detail" | "voice";
+type ListPage = "appts" | "tickets";
 type VoiceStep = "listening" | "hearing" | "waiting" | "confirm" | "thinking" | "answer" | "error";
 
 const app = {
   bridge: null as EvenAppBridge | null,
-  page: "home" as Page,
+  page: "dash" as Page,
+  back: "dash" as Page,     // where press / double press returns from details or EDITH
   detail: "",
-  rows: [] as Row[],
+  appts: [] as Appointment[],
+  tickets: [] as Ticket[],
+  rows: [] as Row[],        // the list on screen, for picking the pressed one
   updated: "Loading…",
   password: "",
   place: "Valley" as Place,
@@ -86,23 +93,48 @@ function text(id: number, name: string, y: number, h: number, content: string, c
   return { xPosition: 0, yPosition: y, width: W, height: h, containerID: id, containerName: name, content, isEventCapture: capture, paddingLength: 4, ...extra };
 }
 
-function footer(): string {
-  if (!hasPassword()) return "Set the EDITH password on your phone";
-  return `${app.updated} · ${app.handsFree ? 'Say "Hey EDITH"' : "Hold to talk to EDITH"}`;
+const NAV = ["▶ All appointments", "▶ All tickets", "▶ Talk to EDITH"];
+
+function headLine(): string {
+  const now = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+  const hint = !hasPassword() ? "Set password on phone" : app.handsFree ? '● Say "Hey EDITH"' : "Hold: EDITH";
+  return `${now} · ${longDate(shopToday())} · ${app.place}   ${hint}`;
 }
 
-function homePage() {
-  const head = `PRO SHOP · ${app.place} · ${longDate(shopToday())}`;
-  const items = app.rows.length ? app.rows.map((r) => r.label) : [app.updated];
+function dashPage() {
+  const today = shopToday();
+  const box = (id: number, name: string, x: number, content: string) => ({
+    xPosition: x, yPosition: 34, width: 286, height: 168, containerID: id, containerName: name, content,
+    isEventCapture: 0, borderWidth: 1, borderColor: 6, borderRadius: 6, paddingLength: 6,
+  });
+  const loading = app.updated === "Loading…";
   return {
-    containerTotalNum: 3,
+    containerTotalNum: 4,
     textObject: [
-      text(1, "head", 0, 36, head, 0, { textColor: 3 }),
-      text(3, "foot", 252, 36, footer(), 0, { textColor: 2 }),
+      text(1, "head", 0, 32, headLine(), 0, { textColor: 4 }),
+      box(2, "appts", 0, loading ? "Loading…" : dashAppointments(app.appts, app.place, today)),
+      box(3, "tickets", 290, loading ? "" : dashTickets(app.tickets, app.place, today)),
     ],
     listObject: [{
-      xPosition: 0, yPosition: 36, width: W, height: 216,
-      containerID: 2, containerName: "home", isEventCapture: 1,
+      xPosition: 0, yPosition: 206, width: W, height: 82,
+      containerID: 4, containerName: "nav", isEventCapture: 1,
+      itemContainer: { itemCount: NAV.length, itemName: NAV, isItemSelectBorderEn: 1 },
+    }],
+    menuObject: menu(),
+  };
+}
+
+function listPage(which: ListPage) {
+  const today = shopToday();
+  app.rows = which === "appts" ? appointmentRows(app.appts, app.place, today) : ticketRows(app.tickets, app.place, today);
+  const title = which === "appts" ? `ALL APPOINTMENTS · ${app.place} · next 2 weeks` : `ALL OPEN TICKETS · ${app.place}`;
+  const items = app.rows.map((r) => r.label);
+  return {
+    containerTotalNum: 2,
+    textObject: [text(1, "title", 0, 32, title, 0, { textColor: 3 })],
+    listObject: [{
+      xPosition: 0, yPosition: 32, width: W, height: H - 32,
+      containerID: 2, containerName: "list", isEventCapture: 1,
       itemContainer: { itemCount: items.length, itemName: items, isItemSelectBorderEn: 1 },
     }],
     menuObject: menu(),
@@ -125,8 +157,8 @@ function voiceText(): string {
     thinking: `"${app.heard}"\n\nEDITH is on it…`,
     answer: !app.done
       ? (app.handsFree ? "Just answer, or hold to talk" : "Hold to answer")
-      : (app.handsFree ? 'Press: back to today · "Hey EDITH" for more' : "Press: back to today · Hold: something else"),
-    error: "Press: back to today · Hold: try again",
+      : (app.handsFree ? 'Press: back · "Hey EDITH" for more' : "Press: back · Hold: something else"),
+    error: "Press: back · Hold: try again",
   }[app.step];
   return fitPage(convo ? `${convo}\n\n${prompt}` : prompt);
 }
@@ -138,8 +170,11 @@ function voicePage() {
 async function show(page: Page) {
   if (!app.bridge) return;
   if (page !== "voice") clearHomeTimer();
+  // Details and EDITH go back to wherever they were opened from.
+  if ((page === "voice" || page === "detail") && app.page !== "voice" && app.page !== "detail") app.back = app.page;
   app.page = page;
-  const layout = page === "home" ? homePage() : page === "detail" ? detailPage() : voicePage();
+  const layout = page === "dash" ? dashPage() : page === "appts" || page === "tickets" ? listPage(page)
+    : page === "detail" ? detailPage() : voicePage();
   await app.bridge.rebuildPageContainer(layout as never);
 }
 
@@ -150,26 +185,33 @@ async function refreshVoice() {
   await app.bridge.textContainerUpgrade({ containerID: 5, containerName: "voice", content: voiceText() } as never);
 }
 
-async function refreshFooter() {
-  if (app.bridge && app.page === "home") {
-    await app.bridge.textContainerUpgrade({ containerID: 3, containerName: "foot", content: footer() } as never);
-  }
+// The dashboard updates in place every minute: the clock and both boxes.
+async function refreshDash() {
+  if (!app.bridge || app.page !== "dash") return;
+  const today = shopToday();
+  const up = (id: number, name: string, content: string) =>
+    app.bridge!.textContainerUpgrade({ containerID: id, containerName: name, content } as never);
+  await up(1, "head", headLine());
+  await up(2, "appts", dashAppointments(app.appts, app.place, today));
+  await up(3, "tickets", dashTickets(app.tickets, app.place, today));
 }
 
 // ---------------------------------------------------------------------------
 // Data
 // ---------------------------------------------------------------------------
 
-async function loadHome(redraw = true) {
+async function loadData(redraw = true) {
   const today = shopToday();
   try {
-    const [appts, tickets] = await Promise.all([loadAppointments(today), loadTickets()]);
-    app.rows = homeRows(appts, tickets, app.place, today);
+    [app.appts, app.tickets] = await Promise.all([loadAppointments(today, 14), loadTickets()]);
     app.updated = `Updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
   } catch (err) {
     app.updated = `Couldn't load: ${(err as Error).message}`;
+    console.warn(app.updated);
   }
-  if (redraw && app.page === "home") await show("home");
+  if (!redraw) return;
+  if (app.page === "dash") await refreshDash();
+  else if (app.page === "appts" || app.page === "tickets") await show(app.page);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +249,7 @@ async function stopRecording() {
   app.catcher.reset();
   if (app.bytes < 8000 && !isDemo()) {   // under a quarter second: a slip, not speech
     app.step = "answer";
-    return app.log.length ? refreshVoice() : show("home");
+    return app.log.length ? refreshVoice() : show(app.back);
   }
   app.step = "hearing";
   await refreshVoice();
@@ -243,7 +285,7 @@ async function sendHeard() {
     app.done = out.done !== false;
     app.step = "answer";
     // Whatever was booked or added shows on the home list when we go back.
-    if (app.done) loadHome(false);
+    if (app.done) loadData(false);
     if (app.handsFree) {
       if (!app.done) app.awaitUntil = Date.now() + ANSWER_WAIT_MS;
       else armHomeTimer();
@@ -275,7 +317,7 @@ function armHomeTimer() {
   clearHomeTimer();
   app.homeTimer = setTimeout(() => {
     app.homeTimer = 0;
-    if (app.page === "voice" && app.step === "answer" && app.done) show("home");
+    if (app.page === "voice" && app.step === "answer" && app.done) show(app.back);
   }, BACK_HOME_MS);
 }
 
@@ -379,16 +421,13 @@ async function onMenu(id: number) {
     await show("voice");
     return startRecording(false);
   }
-  if (id === 2) {
-    app.updated = "Refreshing…";
-    await refreshFooter();
-    return loadHome();
-  }
+  if (id === 2) return loadData();
   if (id === 3) {
     app.place = PLACES[(PLACES.indexOf(app.place) + 1) % PLACES.length];
     await app.bridge?.setLocalStorage("place", app.place);
     syncPhone();
-    return loadHome(app.page === "home");
+    if (app.page === "dash") await refreshDash();
+    return loadData();
   }
   if (id === 4) return setHandsFree(!app.handsFree);
 }
@@ -406,14 +445,22 @@ async function onEvent(ev: EvenHubEvent) {
   if (g === "release") return app.holdToTalk ? stopRecording() : undefined;
   if (app.recording) return g === "press" ? stopRecording() : undefined;
 
-  if (app.page === "home") {
+  if (app.page === "dash") {
     if (g === "double") return app.bridge?.shutDownPageContainer(1);   // the system's exit dialog
-    const i = ev.listEvent?.currentSelectItemIndex ?? -1;
-    const row = app.rows[i];
+    if (g !== "press") return;
+    const i = ev.listEvent?.currentSelectItemIndex ?? 0;
+    if (i === 0) return show("appts");
+    if (i === 1) return show("tickets");
+    await show("voice");
+    return startRecording(false);
+  }
+  if (app.page === "appts" || app.page === "tickets") {
+    if (g === "double") return show("dash");
+    const row = app.rows[ev.listEvent?.currentSelectItemIndex ?? -1];
     if (g === "press" && row?.detail) { app.detail = row.detail; return show("detail"); }
     return;
   }
-  if (app.page === "detail") return show("home");
+  if (app.page === "detail") return show(app.back);
 
   // Voice page.
   if (app.step === "confirm") {
@@ -422,17 +469,17 @@ async function onEvent(ev: EvenHubEvent) {
       stopCountdown();
       app.heard = "";
       app.step = "answer";
-      return app.log.length ? refreshVoice() : show("home");
+      return app.log.length ? refreshVoice() : show(app.back);
     }
     return;
   }
   if (app.step === "waiting") {
-    if (g === "double" || g === "press") { app.awaitUntil = 0; app.step = "answer"; return app.log.length ? refreshVoice() : show("home"); }
+    if (g === "double" || g === "press") { app.awaitUntil = 0; app.step = "answer"; return app.log.length ? refreshVoice() : show(app.back); }
     return;
   }
   if (app.step === "thinking" || app.step === "hearing") return;
-  if (g === "press" && (app.done || app.step === "error")) return show("home");
-  if (g === "double") { app.awaitUntil = 0; return show("home"); }   // the conversation waits; holding again carries on
+  if (g === "press" && (app.done || app.step === "error")) return show(app.back);
+  if (g === "double") { app.awaitUntil = 0; return show(app.back); }   // the conversation waits; holding again carries on
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +503,8 @@ function wirePhone() {
     await app.bridge?.setLocalStorage("password", app.password);
     await app.bridge?.setLocalStorage("place", app.place);
     if (note) note.textContent = "Saved. The glasses are updated.";
-    await loadHome();
+    await show(app.page === "voice" || app.page === "detail" ? app.back : app.page);
+    await loadData();
   });
 }
 
@@ -472,13 +520,13 @@ async function main() {
   app.handsFree = (await bridge.getLocalStorage("handsfree")) === "1" && hasPassword();
   syncPhone();
 
-  await bridge.createStartUpPageContainer(homePage() as never);
+  await bridge.createStartUpPageContainer(dashPage() as never);
   bridge.onEvenHubEvent((ev) => { onEvent(ev).catch((err) => console.error(err)); });
   // The glasses mic can only open once the startup page exists.
   if (app.handsFree) await bridge.audioControl(true, AudioInputSource.Glasses);
-  await loadHome();
-  // Keep the list fresh while the app is open, the way the wall board does.
-  setInterval(() => { if (app.page === "home" && !app.recording) loadHome(); }, 60000);
+  await loadData();
+  // The clock and the boxes stay fresh while the app is open, like the wall board.
+  setInterval(() => { if (!app.recording) loadData(); }, 60000);
 }
 
 main().catch((err) => console.error("Pro Shop failed to start:", err));

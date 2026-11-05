@@ -18,8 +18,15 @@ Say "never mind" at any point to stop without adding anything.
 **Changing work orders:** "change Joe DeGrazia's to a bake and resurface",
 "mark the Special Effect done but not picked up", "put a note on John Doe's".
 It finds the work order by customer or ball and changes only what you said
-(title, customer and phone, status, due date, priority, a note). It can't
-delete; do that in the app.
+(title, customer and phone, status, due date, priority, a note). "Delete
+John Doe's work order" reads back which one and waits for a yes; it's hidden
+(`deleted_at`), not erased.
+
+**Orders and invoices** can be changed and deleted the same way: "make Mike's
+Phaze a 16 pounder", "delete Ann Lee's shoe order", "take the drill off Doug
+Smith's invoice", "delete Doug Smith's invoice". Only draft invoices can be
+changed. Deleting a sent, unpaid invoice cancels it, and a paid one is left
+alone. Every delete needs a yes.
 
 **Ball names:** every ball mentioned is checked against the ball catalog (the
 `balls` table the website's scraper keeps current), so "fays 6" becomes
