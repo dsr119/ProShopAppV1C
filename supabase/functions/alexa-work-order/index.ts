@@ -31,7 +31,8 @@
 // minutes posts the last state with resume: true, so "change that one" still
 // works. This function is the only thing that holds a database key; it reads
 // customer names and phones, adds and changes tickets, and adds review notes.
-// It never deletes anything.
+// Deleting (orders, work orders, Square invoices) always needs a spoken yes;
+// orders and work orders are only soft-deleted (deleted_at), as in the app.
 //
 // Deploy with "Enforce JWT verification" OFF: the laptop has no Supabase
 // login, the password is the check. Secrets: ALEXA_SHARED_SECRET (set by hand;
@@ -625,7 +626,7 @@ function orderStatus(o) {
 async function findOrders(env, fetchFn, { customer_name, item }) {
   const pieces = namePieces(customer_name);
   if (!pieces.length) return { error: "Need a customer name." };
-  const rows = await dbGet(env, fetchFn, `orders?select=customer_name,item,quantity,submitted_at,shop_order_date,supplier,checked_in_at,` +
+  const rows = await dbGet(env, fetchFn, `orders?select=id,customer_name,item,quantity,submitted_at,shop_order_date,supplier,checked_in_at,` +
     `drilled,has_been_called,time_called,last_contacted_at,paid,out_the_door,pickup_location,notes` +
     `&or=(${pieces.map((p) => `customer_name.ilike.*${p}*`).join(",")})&deleted_at=is.null&order=submitted_at.desc.nullslast&limit=200`);
   const want = nameWords(customer_name);
@@ -638,7 +639,7 @@ async function findOrders(env, fetchFn, { customer_name, item }) {
   const byItem = ws.length ? fits.filter((o) => ws.some((w) => words(o.item).some((h) => wordLike(w, h) >= 0.75 || sound(w) === sound(h)))) : fits;
   return {
     orders: (byItem.length ? byItem : fits).slice(0, 6).map((o) => ({
-      customer: o.customer_name, item: o.item, ordered_by_customer: String(o.submitted_at || "").slice(0, 10),
+      id: o.id, customer: o.customer_name, item: o.item, quantity: o.quantity, ordered_by_customer: String(o.submitted_at || "").slice(0, 10),
       status: orderStatus(o), pickup: o.pickup_location, ...(o.notes ? { notes: o.notes } : {}),
     })),
     ...(ws.length && !byItem.length && fits.length ? { note: "Nothing matched that item; these are all their recent orders." } : {}),
@@ -683,6 +684,96 @@ async function createOrder(env, fetchFn, input, place, now) {
   if (!res.ok) throw new Error(`Database said ${res.status}: ${await res.text()}`);
   const created = await res.json();
   return { ok: true, orders: (created || []).map((o) => o.id), items: rows.map((r) => `${r.quantity > 1 ? `${r.quantity} x ` : ""}${r.item}`), pickup: rows[0].pickup_location };
+}
+
+// Change an order book row by id (from order_status or create_order). Only
+// what was said changes; the shop's own fields (supplier, invoice number,
+// when it was placed) stay with the counter.
+async function updateOrder(env, fetchFn, input) {
+  if (!UUID.test(String(input.id || ""))) return { error: "Need the order's id (from order_status or create_order)." };
+  const changes = {};
+  const has = (k) => typeof input[k] === "string" && input[k].trim();
+  if (has("item")) changes.item = squash(input.item);
+  if (Number.isInteger(input.quantity) && input.quantity > 0) changes.quantity = input.quantity;
+  if (has("customer_name")) { changes.customer_name = squash(input.customer_name); changes.is_stock = /^(shop )?stock$/i.test(changes.customer_name); }
+  if (has("phone")) changes.phone = /^\d{3}-\d{3}-\d{4}$/.test(formatPhone(input.phone)) ? formatPhone(input.phone) : null;
+  if (has("pickup_location") && PLACES.includes(input.pickup_location)) changes.pickup_location = input.pickup_location;
+  if (has("notes")) changes.notes = squash(input.notes);
+  if (has("due_date")) changes.due_date = isoDate(input.due_date) ? input.due_date : null;
+  if (typeof input.paid === "boolean") changes.paid = input.paid;
+  if (typeof input.picked_up === "boolean") changes.out_the_door = input.picked_up;
+  if (!Object.keys(changes).length) return { error: "Nothing to change." };
+  return patchRow(env, fetchFn, "orders", input.id, { ...changes, updated_at: new Date().toISOString() }, "order");
+}
+
+// Deleting is a soft delete everywhere in the app (deleted_at), so anything
+// removed by voice can be brought back in the Table Editor.
+async function softDelete(env, fetchFn, table, input, what) {
+  if (!UUID.test(String(input.id || ""))) return { error: `Need the ${what}'s id.` };
+  if (!input.confirmed) return { needs_ok: true, note: `Say exactly which ${what} will be deleted and ask; call again with confirmed: true only after they say yes.` };
+  return patchRow(env, fetchFn, table, input.id, { deleted_at: new Date().toISOString() }, what);
+}
+
+async function patchRow(env, fetchFn, table, id, changes, what) {
+  const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/${table}?id=eq.${id}&deleted_at=is.null`, {
+    method: "PATCH",
+    headers: { ...dbHeaders(env), "Content-Type": "application/json", Prefer: "return=representation" },
+    body: JSON.stringify(changes),
+  });
+  if (!res.ok) throw new Error(`Database said ${res.status}: ${await res.text()}`);
+  const rows = await res.json();
+  if (!rows.length) return { error: `No ${what} with that id.` };
+  return { ok: true, changed: Object.keys(changes).filter((k) => k !== "updated_at") };
+}
+
+// A customer's recent Square invoices, newest first, with what's on each.
+async function findInvoices(env, fetchFn, input, state) {
+  const name = squash(input.customer_name);
+  const temp = digits(input.phone).length < 10;
+  const customer = await findSquareCustomer(env, fetchFn, name, temp ? TEMP_PHONE : input.phone, temp);
+  if (!customer) return { error: `${name || "That customer"} isn't in Square${temp ? " (no phone given; use find_customer first)" : ""}.` };
+  const { locations } = await square(env, fetchFn, "GET", "/locations");
+  const ids = (locations || []).filter((l) => l.status !== "INACTIVE").map((l) => l.id);
+  const found = await square(env, fetchFn, "POST", "/invoices/search", {
+    query: { filter: { location_ids: ids, customer_ids: [customer.id] }, sort: { field: "INVOICE_SORT_DATE", order: "DESC" } },
+    limit: 5,
+  });
+  const invoices = (found.invoices || []).slice(0, 5);
+  const orderIds = invoices.map((i) => i.order_id).filter(Boolean);
+  const orders = orderIds.length ? (await square(env, fetchFn, "POST", "/orders/batch-retrieve", { order_ids: orderIds })).orders || [] : [];
+  state.invoices = state.invoices || [];
+  return {
+    customer_in_square: [customer.given_name, customer.family_name].filter(Boolean).join(" ") || name,
+    invoices: invoices.map((inv) => {
+      if (!state.invoices.some((i) => i.id === inv.id)) state.invoices.push({ id: inv.id, version: inv.version, status: inv.status });
+      const order = orders.find((o) => o.id === inv.order_id) || {};
+      return {
+        invoice_id: inv.id, status: inv.status, made: String(inv.created_at || "").slice(0, 10),
+        total: money(order.total_money), items: (order.line_items || []).map((l) => `${l.quantity !== "1" ? `${l.quantity} x ` : ""}${l.name}${l.variation_name ? ` ${l.variation_name}` : ""}`),
+        ...(inv.status === "DRAFT" ? {} : { note: "Sent already: can't be changed, only cancelled if unpaid." }),
+      };
+    }),
+  };
+}
+
+// Delete a draft, or cancel a sent invoice that hasn't been paid. Only ones
+// made or found in this conversation, and only once they've said yes.
+async function deleteInvoice(env, fetchFn, input, state) {
+  const inv = (state.invoices || []).find((i) => i.id === input.invoice_id);
+  if (!inv) return { error: "invoice_id must come from find_invoices or create_draft_invoice in this conversation." };
+  if (!input.confirmed) return { needs_ok: true, note: "Say which invoice (who, what, total) will be deleted and ask; call again with confirmed: true only after they say yes." };
+  if (!inv.status || inv.status === "DRAFT") {
+    await square(env, fetchFn, "DELETE", `/invoices/${encodeURIComponent(inv.id)}?version=${inv.version}`);
+    state.invoices = state.invoices.filter((i) => i !== inv);
+    return { ok: true, deleted: inv.id };
+  }
+  if (["UNPAID", "SCHEDULED", "PARTIALLY_PAID"].includes(inv.status)) {
+    if (inv.status === "PARTIALLY_PAID") return { error: "Part of it is paid already; that has to be sorted out in Square." };
+    await square(env, fetchFn, "POST", `/invoices/${encodeURIComponent(inv.id)}/cancel`, { version: inv.version });
+    inv.status = "CANCELED";
+    return { ok: true, cancelled: inv.id, note: "It was already sent, so it's cancelled rather than deleted." };
+  }
+  return { error: `It's ${inv.status.toLowerCase().replace("_", " ")}, so it can't be deleted from here.` };
 }
 
 // ---------------------------------------------------------------------------
@@ -862,6 +953,46 @@ const TOOLS = [
     },
   },
   {
+    name: "update_order",
+    description: "Change an order in the order book by id (from order_status or create_order). Only include what changes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        item: { type: "string", description: "The whole new item, e.g. 'Storm Phaze 6 16 lb'." },
+        quantity: { type: "integer" },
+        customer_name: { type: "string" },
+        phone: { type: "string" },
+        pickup_location: { type: "string", enum: PLACES },
+        notes: { type: "string", description: "Replaces the customer-facing notes." },
+        due_date: { type: "string", description: "YYYY-MM-DD when the customer needs it, or 'none'." },
+        paid: { type: "boolean" },
+        picked_up: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "delete_order",
+    description: "Delete an order from the order book by id. First call without confirmed: say which order and ask. Only with confirmed: true after they say yes. It can be restored in the database if needed.",
+    input_schema: { type: "object", properties: { id: { type: "string" }, confirmed: { type: "boolean" } }, required: ["id"] },
+  },
+  {
+    name: "delete_work_order",
+    description: "Delete a work order by id (from find_work_orders or create_work_order). First call without confirmed: say which one and ask. Only with confirmed: true after they say yes. For finished work, mark it done instead.",
+    input_schema: { type: "object", properties: { id: { type: "string" }, confirmed: { type: "boolean" } }, required: ["id"] },
+  },
+  {
+    name: "find_invoices",
+    description: "A customer's recent Square invoices (newest first): invoice_id, status (DRAFT, UNPAID, PAID, CANCELED...), date, total, items. Give the phone from find_customer; with no phone, the shop's stand-in number is searched by full name. Use it before changing or deleting an invoice made in an earlier conversation.",
+    input_schema: { type: "object", properties: { customer_name: { type: "string" }, phone: { type: "string" } }, required: ["customer_name"] },
+  },
+  {
+    name: "delete_invoice",
+    description: "Delete a DRAFT invoice, or cancel a sent one that's unpaid. invoice_id from find_invoices or create_draft_invoice. First call without confirmed: say which invoice and ask. Only with confirmed: true after they say yes.",
+    input_schema: { type: "object", properties: { invoice_id: { type: "string" }, confirmed: { type: "boolean" } }, required: ["invoice_id"] },
+  },
+  {
     name: "find_ball",
     description: "Look up a bowling ball by name in the shop's ball catalog (every current and past ball from the major brands). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
     input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
@@ -942,7 +1073,7 @@ const TOOLS = [
 ];
 
 // Tools that do something; a speak given with only these is said once they succeed.
-const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "create_order", "note_for_review"]);
+const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "create_order", "update_order", "delete_order", "delete_work_order", "delete_invoice", "note_for_review"]);
 const CACHED_TOOLS = TOOLS.map((t, i) => (i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t));
 
 function systemPrompt(now, location) {
@@ -960,11 +1091,11 @@ Work orders: need who (or a shop job: lanes, machines, building, supplies) and w
 
 Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
 
-Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet." To take a new order ("order a 15 pound Phaze 6 for Mike Jones", "put in an order for shoes, size 11"), look up the customer and check any ball with find_ball in the same step, then create_order. A ball needs its weight; ask if they didn't say. Confirm in a few words: "Ordered for Mike Jones: Storm Phaze 6, 15 pound."
+Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet." To take a new order ("order a 15 pound Phaze 6 for Mike Jones", "put in an order for shoes, size 11"), look up the customer and check any ball with find_ball in the same step, then create_order. A ball needs its weight; ask if they didn't say. Confirm in a few words: "Ordered for Mike Jones: Storm Phaze 6, 15 pound." To change or delete an order, order_status finds it (with its id); update_order changes only what they said; delete_order needs a yes first, the same as work orders.
 
-Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. You can't delete work orders; say to do that in the app.
+Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. To delete one, find it, say which and ask; delete_work_order with confirmed: true only after a yes. Finished work is marked done, not deleted.
 
-Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. Use the phone from find_customer. If there's none, don't ask for one: leave phone empty and the shop's stand-in number is used (say "no phone on file"). Search every item, the ball too, with search_square_items in one step, and make the invoice only after all the results are back. To add or change items on an invoice you just made, make it again with every line and replaces set to the earlier draft_invoice id. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer.
+Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. Use the phone from find_customer. If there's none, don't ask for one: leave phone empty and the shop's stand-in number is used (say "no phone on file"). Search every item, the ball too, with search_square_items in one step, and make the invoice only after all the results are back. To add or change items on an invoice you just made, make it again with every line and replaces set to the earlier draft_invoice id. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer. To change or delete an invoice from earlier, find_invoices first. Only drafts can be changed (make it again with every line and replaces set to its invoice_id). delete_invoice deletes a draft or cancels a sent unpaid one; always say which (who, what, total) and get a yes first.
 
 Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). The wake word sometimes fires by mistake: if what you hear isn't a request for you (chatter, TV, "I didn't say anything", "shut up"), just speak "Okay." with done true; don't chat. Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
@@ -991,6 +1122,17 @@ async function runTool(name, input, ctx) {
   if (name === "find_openings") return await findOpenings(env, fetchFn, input);
   if (name === "book_appointment") return await bookAppointment(env, fetchFn, { ...input, location: input.location || hoursPlace(ctx.place) });
   if (name === "order_status") return await findOrders(env, fetchFn, input);
+  if (name === "update_order") return await updateOrder(env, fetchFn, input);
+  if (name === "delete_order") return await softDelete(env, fetchFn, "orders", input, "order");
+  if (name === "delete_work_order") return await softDelete(env, fetchFn, "tickets", input, "work order");
+  if (name === "find_invoices") {
+    if (!env.SQUARE_ACCESS_TOKEN) return { error: "Square isn't connected (no SQUARE_ACCESS_TOKEN), so invoices can't be looked up." };
+    return await findInvoices(env, fetchFn, input, state);
+  }
+  if (name === "delete_invoice") {
+    if (!env.SQUARE_ACCESS_TOKEN) return { error: "Square isn't connected (no SQUARE_ACCESS_TOKEN)." };
+    return await deleteInvoice(env, fetchFn, input, state);
+  }
   if (name === "create_order") {
     const key = JSON.stringify(input);
     if (state.done.includes(key)) return { error: "That exact order was already added in this conversation." };
@@ -1014,6 +1156,7 @@ async function runTool(name, input, ctx) {
     state.invoices = state.invoices || [];
     const old = input.replaces ? state.invoices.find((i) => i.id === input.replaces) : null;
     if (input.replaces && !old) return { error: "replaces must be a draft_invoice id from this conversation." };
+    if (old && old.status && old.status !== "DRAFT") return { error: "That invoice was sent already, so it can't be changed. It can only be cancelled (delete_invoice) if unpaid." };
     const { version, ...out } = await draftInvoice(env, fetchFn, input, ctx.place);
     if (out.ok) {
       state.done.push(key);
