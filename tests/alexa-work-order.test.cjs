@@ -911,7 +911,7 @@ test('glasses: audio is transcribed, run as the words, and the words come back a
   assert.equal(sent[0].init.headers.Authorization, 'Token dg');
   assert.equal(sent[0].init.body.length, 32000);
   assert.match(sent[0].url, /encoding=linear16&sample_rate=16000/);
-  assert.match(sent[0].url, /keyterm=Storm\+Phaze\+6/);
+  assert.match(sent[0].url, /keyterm=EDITH&keyterm=Storm\+Phaze\+6/);
 });
 
 test('glasses: nothing heard asks again without starting the conversation', async () => {

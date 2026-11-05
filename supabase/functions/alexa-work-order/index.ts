@@ -1268,6 +1268,7 @@ async function transcribe(env, fetchFn, audio) {
   const pcm = base64Bytes(audio);
   if (pcm.length > MAX_AUDIO_BYTES) throw new Error("That was too long; keep it under 30 seconds.");
   const params = new URLSearchParams({ model: "nova-3", encoding: "linear16", sample_rate: "16000", channels: "1", smart_format: "true" });
+  params.append("keyterm", "EDITH");   // the glasses' wake word
   try {
     for (const term of (await ballHints(env, fetchFn, 40))) params.append("keyterm", term);
   } catch { /* hints are a nicety */ }
