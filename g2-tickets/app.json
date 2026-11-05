@@ -1,0 +1,20 @@
+{
+  "package_id": "com.perfexxxxion.worktickets",
+  "edition": "202601",
+  "name": "Work Tickets",
+  "version": "0.1.0",
+  "min_sdk_version": "0.0.16",
+  "entrypoint": "index.html",
+  "permissions": [
+    {
+      "name": "network",
+      "desc": "Reads your helpdesk ticket emails and sends your replies, through your own Supabase function.",
+      "whitelist": ["https://ngghyuvykqqklztvvmld.supabase.co"]
+    },
+    {
+      "name": "g2-microphone",
+      "desc": "Hold to talk: what you say becomes your reply to the ticket."
+    }
+  ],
+  "supported_languages": ["en"]
+}
