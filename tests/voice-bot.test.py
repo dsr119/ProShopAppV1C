@@ -228,6 +228,11 @@ class MiscTests(unittest.TestCase):
         for said in ['Hey Jarvis, work order for Doug', 'Jarvis. work order for Doug', 'work order for Doug']:
             self.assertEqual(voice.WAKE_WORDS.sub('', said).strip(), 'work order for Doug')
 
+    def test_wake_word_spelling_is_forgiven(self):
+        for said, name in [('Alexa', 'alexa'), (' Hey Jarvis ', 'hey_jarvis'), ('hey-mycroft', 'hey_mycroft'),
+                           ('hey_rhasspy', 'hey_rhasspy'), ('C:\\words\\Shop.onnx', 'C:\\words\\Shop.onnx')]:
+            self.assertEqual(voice.wake_word_name(said), name)
+
     def test_piper_voice_plays_every_sentence(self):
         class Chunk:
             def __init__(self, n):
