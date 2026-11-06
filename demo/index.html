@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orders — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="../app/style.css?v=32">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html" class="active">Orders</a>
+    <a href="check-in.html">Order Check In</a>
+    <a href="drilling.html">Drilling</a>
+    <a href="appointments.html">Appointments</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search customer, item, order # …">
+    <select id="quarter"><option value="">All quarters</option></select>
+    <select id="location">
+      <option value="">All locations</option>
+      <option>Valley</option>
+      <option>South Side</option>
+      <option>Both</option>
+    </select>
+    <select id="source">
+      <option value="">Any source</option>
+      <option value="website">Website</option>
+      <option value="google_form">Google Form</option>
+      <option value="in_shop">Manual entry</option>
+      <option value="import">Imported</option>
+    </select>
+    <select id="status">
+      <option value="">Any status</option>
+      <option value="pending">Not ordered yet</option>
+      <option value="ordered">Ordered, not checked in</option>
+      <option value="received">Checked in</option>
+      <option value="unpaid">Unpaid</option>
+      <option value="done">Out the door</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button id="hoursbtn" disabled title="Loading hours…">Hours</button>
+    <button id="export">Export CSV</button>
+    <button class="primary" id="neworder">New order</button>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="checkall" title="Select all"></th>
+          <th>Status</th>
+          <th class="col-name">Customer</th>
+          <th class="col-item">Item</th>
+          <th class="num">Qty</th>
+          <th class="nowrap">Phone</th>
+          <th>Order&nbsp;loc</th>
+          <th>Pickup</th>
+          <th class="nowrap">Came&nbsp;in</th>
+          <th>From</th>
+          <th class="nowrap">Shop&nbsp;ordered</th>
+          <th>Supplier</th>
+          <th>Order&nbsp;#</th>
+          <th>Invoice&nbsp;#</th>
+          <th class="num">Price</th>
+          <th>Paid</th>
+          <th>Out</th>
+          <th class="col-notes">Notes</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="empty" class="empty-state hidden">No orders match those filters.</div>
+  </div>
+
+  <div class="bulkbar hidden" id="bulkbar">
+    <strong><span id="selcount">0</span> selected</strong>
+    <span>→ mark as ordered:</span>
+    <input type="date" id="b_date" title="Shop order date">
+    <input type="text" id="b_supplier" list="suppliers" placeholder="Supplier">
+    <input type="text" id="b_order" placeholder="Order #">
+    <input type="text" id="b_invoice" placeholder="Invoice #">
+    <button class="primary" id="b_apply">Apply to selected</button>
+    <span class="spacer"></span>
+    <button id="b_clear">Clear</button>
+  </div>
+
+  <datalist id="suppliers"></datalist>
+  <datalist id="items"></datalist>
+</main>
+
+<!-- Taking an order at the counter. A dialog rather than a page of its own:
+     you are already looking at the book you are adding to, and saving
+     refreshes the table underneath. -->
+<dialog id="orderdlg" class="wide">
+  <h3>
+    New order
+    <button type="button" id="o_close" class="xclose" aria-label="Close">&times;</button>
+  </h3>
+  <div class="body">
+    <div class="modeswitch">
+      <button type="button" id="o_mode_customer" class="on">Customer order</button>
+      <button type="button" id="o_mode_stock">Shop stock</button>
+    </div>
+
+    <form class="formgrid" id="orderform">
+      <div id="o_customerfields">
+        <div class="pair">
+          <label><span>Name <span class="req">*</span></span>
+            <input type="text" id="f_name" autocomplete="off">
+          </label>
+          <label>Phone
+            <input type="tel" id="f_phone" autocomplete="off" placeholder="570-555-1234">
+          </label>
+        </div>
+      </div>
+
+      <label><span>Item <span class="req">*</span></span>
+        <input type="text" id="f_item" list="items" autocomplete="off"
+               placeholder="Start typing — past orders will suggest">
+      </label>
+      <!-- Shown once the item has a comma: each comma-separated item becomes
+           its own order with the same name, phone and locations. -->
+      <div id="o_split" class="splitnote hidden" aria-live="polite">
+        <span id="o_splitmsg"></span>
+        <ul id="o_splitlist"></ul>
+        <label class="keepone"><input type="checkbox" id="f_keepone"> Keep as one item — the comma is part of the name</label>
+      </div>
+
+      <div class="pair">
+        <label>Quantity
+          <input type="number" id="f_qty" value="1" min="1" step="1">
+        </label>
+        <label id="o_lbl_fitting">Fitting
+          <select id="f_fitting">
+            <option value="">—</option>
+            <option>Specs on file</option>
+            <option>Need appointment to be fitted</option>
+            <option>N/A</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="pair">
+        <label>Order location
+          <select id="f_orderloc">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+            <option>Both</option>
+          </select>
+        </label>
+        <label>Pickup location
+          <select id="f_pickuploc">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+            <option>Both</option>
+          </select>
+        </label>
+      </div>
+
+      <label>Notes
+        <textarea id="f_notes" placeholder="Rebates, colours, who it's for…"></textarea>
+      </label>
+    </form>
+
+    <div class="saved hidden" id="o_savedwrap">
+      <h3>Added just now</h3>
+      <div id="o_savedlist"></div>
+    </div>
+  </div>
+  <div class="foot">
+    <span id="o_status" class="hstatus"></span>
+    <span class="spacer"></span>
+    <button type="button" id="f_saveanother">Save &amp; add another</button>
+    <button type="submit" form="orderform" class="primary" id="f_save">Save order</button>
+  </div>
+</dialog>
+
+<!-- Sunday's hours confirmation. Opens by itself on Sunday; the Hours button
+     in the toolbar reopens it any other day. -->
+<dialog id="hoursdlg" class="hoursdlg">
+  <h3>
+    Opening hours
+    <button type="button" id="hoursx" class="xclose" title="Close without saving">&times;</button>
+  </h3>
+  <div class="body">
+    <div class="weektabs" id="hourstabs"></div>
+    <div id="hoursgrid"></div>
+  </div>
+  <div class="foot">
+    <span id="hoursstatus" class="hstatus"></span>
+    <span class="spacer"></span>
+    <button type="button" class="primary" id="hourssave">Save hours</button>
+  </div>
+</dialog>
+
+<script src="demo-db.js"></script>
+<script src="../app/customers.js?v=25"></script>
+<script src="../app/receiving.js?v=30"></script>
+<script src="../app/orders.js?v=30"></script>
+<script src="../app/hours.js?v=22"></script>
+<script src="../app/order.js?v=27"></script>
+<script src="../app/whats-new.js?v=32"></script>
+</body>
+</html>

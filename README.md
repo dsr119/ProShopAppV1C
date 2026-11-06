@@ -2,6 +2,8 @@
 
 Replaces the Perfexxxxion Pro Shop order-book spreadsheet with a web app.
 
+**[Try the demo](https://dsr119.github.io/ProShopAppV1C/demo/)** — the real app on made-up sample data, no backend ([how it works](demo/README.md)).
+
 - **Hosting** — GitHub Pages (static)
 - **Database** — Supabase
 - **Intake** — the existing Google Form via an Apps Script trigger, plus the

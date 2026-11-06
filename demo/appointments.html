@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appointments — Perfexxxxion Pro Shop</title>
+<!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
+     cache life, so bump this on every deploy or browsers keep the old copy. -->
+<link rel="stylesheet" href="../app/style.css?v=32">
+</head>
+<body>
+
+<header>
+  <h1>Perfexxxxion Pro Shop</h1>
+  <nav>
+    <a href="index.html">Orders</a>
+    <a href="check-in.html">Order Check In</a>
+    <a href="drilling.html">Drilling</a>
+    <a href="appointments.html" class="active">Appointments</a>
+    <a href="tickets.html">Tickets</a>
+    <a href="board.html">Day Board</a>
+  </nav>
+</header>
+
+<main>
+  <div id="error" class="error hidden"></div>
+
+  <div class="calhead">
+    <button id="prev" title="Previous month">&larr;</button>
+    <button id="next" title="Next month">&rarr;</button>
+    <button id="today">Today</button>
+    <h2 id="monthlabel"></h2>
+    <select id="location">
+      <option value="">Both locations</option>
+      <option>Valley</option>
+      <option>South Side</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="count" id="count"></span>
+    <button class="primary" id="add">New appointment</button>
+  </div>
+
+  <div class="cal">
+    <div class="calgrid" id="grid"></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="swatch valley"></i> Valley</span>
+    <span><i class="swatch south"></i> South Side</span>
+    <span>Click any day to book. Click an appointment to edit.</span>
+    <span>Unpaid appointments carry a dot; today's list is on the <a href="board.html">day board</a>.</span>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="apptform">
+    <h3 id="dlgtitle">New appointment</h3>
+    <div class="body">
+      <label>Name
+        <input type="text" id="f_name" required autocomplete="off">
+      </label>
+      <div class="row2">
+        <label>Date
+          <input type="date" id="f_date" required>
+        </label>
+        <label>Time
+          <input type="time" id="f_time" step="900">
+        </label>
+      </div>
+      <label>Location
+        <select id="f_location">
+          <option value="">—</option>
+          <option>Valley</option>
+          <option>South Side</option>
+        </select>
+      </label>
+      <label>Linked order (optional)
+        <select id="f_order"><option value="">No linked order</option></select>
+      </label>
+      <label>What are we doing
+        <textarea id="f_service" required></textarea>
+      </label>
+      <div class="row2">
+        <label>Phone (optional)
+          <input type="text" id="f_phone" autocomplete="off">
+        </label>
+        <label>Assigned to
+          <select id="f_staff"></select>
+        </label>
+      </div>
+      <div class="checkrow">
+        <label class="checkline">
+          <input type="checkbox" id="f_paid"> Paid
+        </label>
+        <label class="checkline">
+          <input type="checkbox" id="f_completed"> Completed
+        </label>
+      </div>
+    </div>
+    <div class="foot">
+      <button type="button" class="danger hidden" id="f_delete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="f_cancel">Cancel</button>
+      <button type="submit" class="primary" id="f_save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="demo-db.js"></script>
+<script src="../app/customers.js?v=25"></script>
+<script src="../app/staff.js?v=22"></script>
+<script src="../app/appointments.js?v=24"></script>
+<script src="../app/whats-new.js?v=32"></script>
+</body>
+</html>

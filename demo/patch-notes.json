@@ -1,0 +1,112 @@
+[
+  {
+    "version": "2.1",
+    "date": "2026-11-04",
+    "notes": [
+      "Faster: the shop laptop starts talking as soon as the first sentence is ready, and customer lookups search every list at once."
+    ]
+  },
+  {
+    "version": "1.10",
+    "date": "2026-11-02",
+    "notes": [
+      "Fixed: the shop laptop wakes up on its own much less, and goes back to sleep quietly when it does.",
+      "Changed: voice invoices for a customer with no phone on file use the 555-555-5555 stand-in number instead of asking for one."
+    ]
+  },
+  {
+    "version": "2.0",
+    "date": "2026-11-02",
+    "notes": [
+      "New: the Day Board has Valley / South / Both buttons at the top. It remembers your pick on that computer.",
+      "New: tickets with plug work have a button: Prepped, then At Keiths, then Plugged in shop.",
+      "New: Schedule button on tickets to book an appointment for that customer.",
+      "Changed: no more \"To review\" step. All open tickets are in one Queue."
+    ]
+  },
+  {
+    "version": "1.9",
+    "date": "2026-10-28",
+    "notes": [
+      "Fixed: the shop laptop checks ball names against the ball catalog again.",
+      "New: the shop laptop saves each day's conversations to a file (voice/logs) for review.",
+      "Changed: adding an item to a voice invoice replaces the draft instead of leaving two; ball names run together (\"Jackalovinx\") are recognized."
+    ]
+  },
+  {
+    "version": "1.8",
+    "date": "2026-10-27",
+    "notes": [
+      "New: the shop laptop can change work orders by voice, like \"make that a bake and resurface\" or \"mark the Special Effect done but not picked up\".",
+      "Changed: the laptop finds customers even when it mishears the name, and asks \"Did you mean...?\"",
+      "Changed: shorter answers, and it no longer asks for due dates.",
+      "Changed: say the wake word again within 5 minutes and it remembers what you were just doing.",
+      "Changed: voice work orders are short: \"Joe Sutton - Plug thumb, NU Blue\", the phone if known, and only details that matter.",
+      "Changed: the shop laptop checks ball names against the ball catalog (the one behind the website's Bowling Balls page), so it spells them right and hears the newest ones better.",
+      "New: ask the shop laptop about appointments (\"what does Tuesday look like?\", \"any openings this week for a drill?\") and book one (\"make an appointment Monday at 6:30\").",
+      "New: ask the shop laptop about an order, like \"what's the status on Jim Curtis's shoes?\"",
+      "Changed: the shop laptop has a more natural voice, and can be switched to a smarter AI in its settings.",
+      "Changed: the shop laptop answers faster: it starts talking after the first sentence, and doesn't offer appointment times that have already passed.",
+      "Changed: voice invoices use the closest Square item without asking about each one, and the laptop gives you a second chance if it didn't hear you.",
+      "Changed: the shop laptop is quicker between question and answer, and keeps itself running for days (it restarts itself and waits for the mic if it drops).",
+      "Changed: voice invoices know the shop's words for common items, like \"standard drill\", \"slombo\" and \"Jopo outer\"."
+    ]
+  },
+  {
+    "version": "1.7",
+    "date": "2026-10-24",
+    "notes": [
+      "Changed: voice invoices find the closest item in Square when the name isn't exact, and say which item they used.",
+      "Changed: when more than one customer has the name, the laptop asks for the last four digits of their phone number.",
+      "New: anything the laptop didn't understand or had to guess is saved for review.",
+      "Changed: the shop laptop now talks like a person instead of following a script. It asks when it isn't sure, like \"Did you mean the Game Breaker 5 Solid?\", and copes with answers like \"either one\"."
+    ]
+  },
+  {
+    "version": "1.6",
+    "date": "2026-10-23",
+    "notes": [
+      "New: the shop laptop can make draft invoices in Square. Say \"Hey Jarvis, create an invoice for\" the customer and what they're buying. It can also add a new customer to Square from their spec sheet."
+    ]
+  },
+  {
+    "version": "1.5",
+    "date": "2026-10-21",
+    "notes": [
+      "New: voice work orders on the shop laptop. Say \"Hey Jarvis\", then who it's for and what we're doing (or both at once). The customer's phone number is filled in from the customer list, and the ticket lands in To review."
+    ]
+  },
+  {
+    "version": "1.4",
+    "date": "2026-10-08",
+    "notes": [
+      "New: Drilling shows when the customer ordered next to when the shop ordered, and lists the longest-waiting customers first.",
+      "New: a Texted button on Drilling records when someone last texted the customer.",
+      "New: Drilling shows how many days ago the shop ordered each item.",
+      "New: Drilling has an appointment filter to show only orders that need scheduling (or only ones with an appointment).",
+      "Changed: Drilling buttons are back to Drilled, No drill, Schedule for every order.",
+      "Fixed: the \"waiting to drill\" count on Drilling now matches the search, location and assignee filters."
+    ]
+  },
+  {
+    "version": "1.1",
+    "date": "2026-10-02",
+    "notes": [
+      "New: the What's new button (top right) lists recent fixes and features.",
+      "New: orders where the customer needs a fitting show a purple \"Needs fitting\" badge, and Drilling offers Book fitting first.",
+      "New: typing several items separated by commas in New order saves one order per item.",
+      "Fixed: last quarter's unfinished drilling and open customer orders no longer disappear when a new quarter starts.",
+      "Fixed: the Drilling location filter now includes orders set to Both.",
+      "Fixed: both locations fit inside the Opening hours popup.",
+      "Fixed: a failed form order or weekly backup now sends an email alert."
+    ]
+  },
+  {
+    "version": "1.0",
+    "date": "2026-09-17",
+    "notes": [
+      "New: Order Check In page for marking orders as arrived.",
+      "New: customer name and phone suggestions from the Square customer list."
+    ]
+  }
+]
