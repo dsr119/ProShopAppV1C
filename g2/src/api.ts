@@ -3,7 +3,8 @@
 // real key and does all the writing.
 import type { Appointment, Place, Ticket } from "./shop";
 import { addDays } from "./shop";
-import { demoAppointments, demoTickets, isDemo } from "./demo";
+import { demoAppointments, demoBowlers, demoSheet, demoTickets, isDemo } from "./demo";
+import { upgradeSnapshot, type Snapshot, type SpecSheet } from "./spec";
 
 export const SUPABASE_URL = "https://ngghyuvykqqklztvvmld.supabase.co";
 const SUPABASE_KEY = "sb_publishable_X-ZHYha1P8FPVL2rvAk-bA_CdXD8g-g";
@@ -54,7 +55,8 @@ async function jarvis(password: string, body: Record<string, unknown>): Promise<
 
 // Step 1: audio to words, nothing done yet.
 export async function transcribe(password: string, audio: string): Promise<JarvisReply> {
-  if (isDemo()) return { ok: true, heard: "Hey EDITH, work order for Sample Bowler to plug his thumb on the NU Blue" };
+  if (isDemo()) return { ok: true, heard: new URLSearchParams(location.search).get("heard")
+    || "Hey EDITH, work order for Sample Bowler to plug his thumb on the NU Blue" };
   return jarvis(password, { audio, transcribe_only: true });
 }
 
@@ -62,4 +64,50 @@ export async function transcribe(password: string, audio: string): Promise<Jarvi
 export async function ask(password: string, text: string, state: string, location: Place): Promise<JarvisReply> {
   if (isDemo()) return { done: true, say: "Done: plug thumb on Sample Bowler's Storm NU Blue.", state: "" };
   return jarvis(password, { text, state, location: location === "Both" ? "Valley" : location });
+}
+
+// ---------------------------------------------------------------------------
+// Spec sheets: read-only from ProshopSpeccy, its own Supabase project. Its
+// shop is in open-link mode, so the publishable key its web app ships (in the
+// GitHub Pages build) can read sheets; nothing here can change one.
+// ---------------------------------------------------------------------------
+
+export const SPECCY_URL = "https://bkvijjqhyiyfkuavmerh.supabase.co";
+const SPECCY_KEY = "sb_publishable_Vba54XSri6vewRcBO8qDXQ_uinwbMOy";
+
+async function speccy<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${SPECCY_URL}/rest/v1/${path}`, {
+    method: body ? "POST" : "GET",
+    headers: { apikey: SPECCY_KEY, Authorization: `Bearer ${SPECCY_KEY}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Spec sheets said ${res.status}`);
+  return res.json();
+}
+
+export interface SpecBowler {
+  id: string;
+  name: string;
+  phone: string | null;
+  last_spec_at: string | null;
+  has_specs: boolean;
+}
+
+/** Bowlers whose name has every word of the query, last names A to Z. */
+export async function findBowlers(query: string): Promise<SpecBowler[]> {
+  if (isDemo()) return demoBowlers(query);
+  return speccy<SpecBowler[]>("rpc/search_customers", { p_query: query, p_limit: 20, p_offset: 0, p_sort: "last_name" });
+}
+
+/** A bowler's current digital sheet, or null when there isn't one. */
+export async function loadSpecSheet(bowler: SpecBowler): Promise<SpecSheet | null> {
+  if (isDemo()) return demoSheet(bowler);
+  const fits = await speccy<Array<{ current_revision_id: string | null }>>(
+    `fits?select=current_revision_id&customer_id=eq.${bowler.id}&is_primary=eq.true&limit=1`);
+  const rev = fits[0]?.current_revision_id;
+  if (!rev) return null;
+  const rows = await speccy<Array<{ snapshot: Snapshot; created_at: string }>>(
+    `fit_revisions?select=snapshot,created_at&id=eq.${rev}&limit=1`);
+  if (!rows[0]) return null;
+  return { name: bowler.name, snapshot: upgradeSnapshot(rows[0].snapshot), saved: rows[0].created_at.slice(0, 10) };
 }

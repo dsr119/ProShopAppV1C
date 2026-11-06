@@ -21,6 +21,23 @@ laptop) on your glasses.
 
   Every delete is read back to you first and needs a "yes". Deleted orders and
   work orders are only hidden (`deleted_at`), so they can be brought back.
+- **Spec sheets.** Hold and say "pull up the spec sheet for Joe Sutton" (or
+  "show me Joe Sutton's specs", or menu → **Spec sheet** and just say the
+  name). The app finds the bowler in ProshopSpeccy; if more than one matches,
+  pick from the list. The sheet shows in three parts:
+  1. **Fingers:** reverse, lateral and forward pitch for each finger on the
+     outside, grip size (with grip number), hole size, grip brand and inserts
+     in the middle, grips and bridge underneath. Middle finger on the left,
+     ring on the right, like the paper sheet.
+  2. **Span:** middle and ring. **Swipe** to switch between **F**ull, **C**ut
+     to cut and **CTO** (cut to outer); only the ones measured are offered,
+     and it opens on the one the sheet shows.
+  3. **Thumb:** forward, reverse, left and right pitch around the slug and
+     hole size, with the insert type.
+
+  **Press** for the next part, **double press** to go back to the dashboard.
+  No-thumb sheets only have the fingers. Sheets are read-only here. They're
+  looked up directly, not by EDITH, so they don't use Claude at all.
 - **Hands-free** (menu → Start hands-free): the mic stays open while the app
   is open. Say "Hey EDITH, make a work order for…". The words show with a 3
   second countdown, then send. Double press stops it, and press sends it right
@@ -28,7 +45,7 @@ laptop) on your glasses.
   need the wake word. Each phrase is only sent for transcription when someone
   is actually talking, which costs about 25¢ an hour of real speech and uses
   more glasses battery.
-- **Menu** (tap, then long press): Talk to EDITH, Start/Stop hands-free,
+- **Menu** (tap, then long press): Talk to EDITH, Spec sheet, Start/Stop hands-free,
   Refresh, Switch house (Valley, South Side, Both).
 - **Phone screen:** the EDITH password (the `ALEXA_SHARED_SECRET`) and the house. Fill them in once.
 
@@ -38,7 +55,13 @@ laptop) on your glasses.
 G2 mic → phone (this app) → alexa-work-order (Supabase): Deepgram turns the audio into words
        → you confirm on the glasses → alexa-work-order again: Claude does it, says what it did
 Home list ← Supabase REST, read-only, with the web app's publishable key
+Spec sheets ← ProshopSpeccy's Supabase REST, read-only, with its publishable key
 ```
+
+Spec sheets only load while the Pro Shop in ProshopSpeccy is in open-link
+mode (`shops.open_access`), the same setting that lets its web app work
+without signing in. Turn that off and the glasses get "Couldn't reach the
+spec sheets".
 
 The app holds no secret of its own: the Jarvis password is typed on the phone
 and kept in the Even app's storage for this app. The Deepgram, Anthropic and
@@ -65,7 +88,8 @@ evenhub-simulator "http://localhost:5173/?demo"   # made-up data, no network nee
 ```
 
 `?demo` fills the list with sample rows and fakes Jarvis, so the screens and
-gestures can be tried anywhere. Without it the app reads the real shop data.
+gestures can be tried anywhere. Add `&heard=spec+sheet+for+sample` and hold
+to talk to try the spec sheet with two made-up bowlers. Without it the app reads the real shop data.
 
 **On the glasses** (phone and computer on the same Wi-Fi):
 

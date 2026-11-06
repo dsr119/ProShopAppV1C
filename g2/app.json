@@ -8,8 +8,8 @@
   "permissions": [
     {
       "name": "network",
-      "desc": "Reads today's appointments and open tickets, and talks to the shop's Jarvis assistant.",
-      "whitelist": ["https://ngghyuvykqqklztvvmld.supabase.co"]
+      "desc": "Reads today's appointments, open tickets and bowlers' spec sheets, and talks to the shop's Jarvis assistant.",
+      "whitelist": ["https://ngghyuvykqqklztvvmld.supabase.co", "https://bkvijjqhyiyfkuavmerh.supabase.co"]
     },
     {
       "name": "g2-microphone",
