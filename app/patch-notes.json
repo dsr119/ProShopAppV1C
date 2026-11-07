@@ -1,5 +1,12 @@
 [
   {
+    "version": "2.2",
+    "date": "2026-11-07",
+    "notes": [
+      "New: the Edit button on a ticket lets you change what it says: the job, customer, phone, details, location and category, along with who has it and its status."
+    ]
+  },
+  {
     "version": "2.1",
     "date": "2026-11-04",
     "notes": [

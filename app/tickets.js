@@ -326,7 +326,7 @@ function card(t) {
   }
 
   const open = document.createElement("button");
-  open.textContent = "Details";
+  open.textContent = "Edit";
   open.addEventListener("click", () => openDialog(t));
   foot.appendChild(open);
 
@@ -385,19 +385,52 @@ async function assignTo(t, sel) {
 }
 
 // ---------------------------------------------------------------------------
-// Details dialog
+// Edit dialog
 // ---------------------------------------------------------------------------
+
+// Tickets keep the customer at the top of the details as "Customer: ..." and
+// "Phone: ..." lines (the form and the voice bot both write it that way).
+// The edit dialog shows those as their own fields and the rest as details.
+function splitDetails(details) {
+  let rest = details || "";
+  const name = (/^Customer:[ \t]*(.*)$/m.exec(rest) || [])[1] || "";
+  const phone = (/^Phone:[ \t]*(.*)$/m.exec(rest) || [])[1] || "";
+  rest = rest.replace(/^Customer:.*(\r?\n|$)/m, "").replace(/^Phone:.*(\r?\n|$)/m, "");
+  return { name: name.trim(), phone: phone.trim(), rest: rest.trim() };
+}
+
+function joinDetails(name, phone, rest) {
+  const contact = name
+    ? `Customer: ${name}${phone ? `\nPhone: ${phone}` : ""}`
+    : phone ? `Phone: ${phone}` : "";
+  return [contact, rest].filter(Boolean).join("\n\n") || null;
+}
+
+// A value the dropdown does not list (an old or voice-made ticket) still has
+// to show, or saving would quietly blank it.
+function setSelect(sel, value) {
+  value = value || "";
+  if (value && ![...sel.options].some((o) => o.value === value)) {
+    const o = document.createElement("option");
+    o.value = o.textContent = value;
+    sel.appendChild(o);
+  }
+  sel.value = value;
+}
 
 function openDialog(t) {
   editing = t;
-  $("dlgtitle").textContent = "Ticket";
-  $("t_title").textContent = t.title;
   $("t_meta").textContent =
-    [`from ${t.submitted_by}`, ago(t.submitted_at), t.category, t.location]
-      .filter(Boolean).join(" · ");
+    [`from ${t.submitted_by}`, ago(t.submitted_at)].filter(Boolean).join(" · ");
 
-  $("t_details").textContent = t.details || "No further details given.";
-  $("t_details").classList.toggle("muted", !t.details);
+  const parts = splitDetails(t.details);
+  editing.parts = parts;
+  $("t_title").value = t.title || "";
+  $("t_customer").value = parts.name;
+  $("t_phone").value = parts.phone;
+  $("t_details").value = parts.rest;
+  setSelect($("t_location"), t.location);
+  setSelect($("t_category"), t.category);
 
   $("t_status").value = t.status;
   $("t_priority").value = t.priority;
@@ -419,7 +452,16 @@ async function saveDialog(e) {
   const name = $("t_staff").value || null;
   const status = $("t_status").value;
 
+  const title = $("t_title").value.trim();
+  if (!title) {
+    $("t_title").focus();
+    return showError(new Error("A ticket needs a one-line summary."));
+  }
+
   const changes = {
+    title,
+    location: $("t_location").value || null,
+    category: $("t_category").value || null,
     assigned_to: name,
     status,
     priority: $("t_priority").value,
@@ -432,6 +474,16 @@ async function saveDialog(e) {
       : null,
   };
 
+  // Rewrite the details only if something in them changed, so an untouched
+  // ticket keeps exactly what was typed.
+  const cust = $("t_customer").value.trim();
+  const phone = $("t_phone").value.trim();
+  const rest = $("t_details").value.trim();
+  const p = editing.parts || splitDetails(editing.details);
+  if (cust !== p.name || phone !== p.phone || rest !== p.rest) {
+    changes.details = joinDetails(cust, phone, rest);
+  }
+
   // Only send plug_state when it changed, so saving a ticket still works
   // before the migration has been run.
   const plug = $("t_plug").value || null;
@@ -443,6 +495,8 @@ async function saveDialog(e) {
   try {
     await db.update("tickets", `id=eq.${editing.id}`, changes);
     Object.assign(editing, changes);
+    delete editing.parts;
+    customers.invalidate();
     $("dlg").close();
     render();
   } catch (err) {
@@ -681,6 +735,7 @@ $("s_thisweek").addEventListener("click", () => {
 $("s_cancel").addEventListener("click", () => $("scheddlg").close());
 $("schedform").addEventListener("submit", bookAppointment);
 customers.attach("s_name", "s_phone");
+customers.attach("t_customer", "t_phone");
 
 // ---------------------------------------------------------------------------
 // Staff roster editor

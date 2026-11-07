@@ -6,7 +6,7 @@
 <title>Tickets — Perfexxxxion Pro Shop</title>
 <!-- The ?v= query is a cache buster. GitHub Pages serves static assets with a long
      cache life, so bump this on every deploy or browsers keep the old copy. -->
-<link rel="stylesheet" href="style.css?v=32">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 
@@ -57,17 +57,54 @@
   <div id="empty" class="empty-state hidden">Nothing here.</div>
 </main>
 
-<!-- Assign / edit -->
+<!-- Edit a ticket: everything that was typed in, plus who has it and where
+     it stands. -->
 <dialog id="dlg" class="wide">
   <form method="dialog" id="ticketform">
-    <h3 id="dlgtitle">Ticket</h3>
+    <h3 id="dlgtitle">Edit ticket</h3>
     <div class="body">
       <div class="forwhom">
-        <div class="nm" id="t_title"></div>
         <div class="it" id="t_meta"></div>
       </div>
 
-      <div class="ticketdetails" id="t_details"></div>
+      <label>What is it
+        <input type="text" id="t_title" autocomplete="off" required>
+      </label>
+
+      <div class="row2">
+        <label>Customer
+          <input type="text" id="t_customer" autocomplete="off">
+        </label>
+        <label>Phone
+          <input type="tel" id="t_phone" autocomplete="off">
+        </label>
+      </div>
+
+      <label>Details
+        <textarea id="t_details" rows="4"></textarea>
+      </label>
+
+      <div class="row2">
+        <label>Location
+          <select id="t_location">
+            <option value="">—</option>
+            <option>Valley</option>
+            <option>South Side</option>
+            <option>Both</option>
+          </select>
+        </label>
+        <label>Category
+          <select id="t_category">
+            <option value="">—</option>
+            <option>Equipment</option>
+            <option>Building</option>
+            <option>Supplies</option>
+            <option>Customer</option>
+            <option>Computer</option>
+            <option>Other</option>
+          </select>
+        </label>
+      </div>
 
       <div class="row2">
         <label>Assign to
@@ -202,7 +239,7 @@
 <script src="db.js?v=21"></script>
 <script src="customers.js?v=25"></script>
 <script src="staff.js?v=21"></script>
-<script src="tickets.js?v=22"></script>
+<script src="tickets.js?v=23"></script>
 <script src="whats-new.js?v=32"></script>
 </body>
 </html>
