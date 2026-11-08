@@ -25,7 +25,8 @@ export function retailRows(rows, matches, now) {
       consumer_price: p && p.price !== '' ? p.price : null,
       retail_name: p ? p.name : null,
       retail_url: p ? p.url : null,
-      retail_image: p ? p.image || null : null,
+      // A same-model match in another color keeps the price but not the picture.
+      retail_image: p && m.samePicture !== false ? p.image || null : null,
       retail_checked_at: now,
     };
   });
@@ -41,6 +42,19 @@ async function main() {
   if (!retail.length) throw new Error('No products read from bowling.com; the page layout may have changed.');
 
   const items = rows.map((r) => ({ name: styleName(r), category: r.category }));
+
+  // DUMP=1 prints both lists as JSON lines, for tuning the matcher offline.
+  if (process.env.DUMP === '1') {
+    const stocked = new Map();
+    for (const r of rows) {
+      const k = styleName(r);
+      const s = stocked.get(k) || { name: k, category: r.category, qty: 0, sized: false };
+      s.qty += r.qty_total; s.sized = s.sized || / \d{3}$/.test(r.item_code);
+      stocked.set(k, s);
+    }
+    for (const s of stocked.values()) console.log('DUMP_ACE ' + JSON.stringify(s));
+    for (const p of retail) console.log('DUMP_RETAIL ' + JSON.stringify({ name: p.name, category: p.category, price: p.price, url: p.url }));
+  }
   const matches = matchNames(items, retail);
 
   const inStock = new Set(rows.filter((r) => r.qty_total > 0).map(styleName));

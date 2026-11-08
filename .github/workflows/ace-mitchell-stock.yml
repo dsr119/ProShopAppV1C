@@ -57,4 +57,5 @@ jobs:
           SUPABASE_URL: https://ngghyuvykqqklztvvmld.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          DUMP: ${{ inputs.dry_run && '1' || '0' }}
         run: node scraper/bowling-prices.mjs
