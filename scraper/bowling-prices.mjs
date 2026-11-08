@@ -25,7 +25,8 @@ export function retailRows(rows, matches, now) {
       consumer_price: p && p.price !== '' ? p.price : null,
       retail_name: p ? p.name : null,
       retail_url: p ? p.url : null,
-      retail_image: p ? p.image || null : null,
+      // A same-model match in another color keeps the price but not the picture.
+      retail_image: p && m.samePicture !== false ? p.image || null : null,
       retail_checked_at: now,
     };
   });

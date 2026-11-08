@@ -41,7 +41,7 @@ test('matches by name, keeps gender, hand and width apart', () => {
 
 test('a near tie is not trusted', () => {
   const m = matchNames([{ name: 'Spark Single Tote', category: 'Bags' }],
-    [P('Storm Spark Single Tote Red', 'Bags'), P('Storm Spark Single Tote Blue', 'Bags')]);
+    [P('Storm Spark Single Tote Red', 'Bags', 30), P('Storm Spark Single Tote Blue', 'Bags', 35)]);
   assert.equal(m.get('Spark Single Tote').ok, false);
 });
 
@@ -92,4 +92,52 @@ test('brands must agree when both names have one; typos and NFL extras are forgi
   assert.equal(m.get('Buffalo Bills Single').product.price, 59.99);
   assert.equal(m.get('Buffalo Bills Single').ok, true);
   assert.equal(m.get('Kicks II Lavendar Ladies Size').ok, true);
+});
+
+test('either-hand shoes, C-9, ExJ, Sing, colorless listings, and Almost New', () => {
+  const retail = [
+    P('Dexter Mens SST 8 Power Frame BOA ExJ Grey Right Hand or Left Hand', 'Shoes', 239.95),
+    P('Dexter Mens THE C9 Knit BOA Black/Gold Right or Left Hand', 'Shoes', 229.95),
+    P('Dexter Mens THE C9 Knit BOA Black/Gold Right or Left Hand-ALMOST NEW', 'Shoes', 150),
+    P('KR Strikeforce Cruiser Single Roller Teal', 'Bags', 80.99),
+    P('Ebonite Backpack', 'Bags', 59.99),
+    P('Storm Rascal 1 Ball Roller Dye-Sub', 'Bags', 67.99),
+    P('Storm Rascal 1 Ball Roller Black/Silver', 'Bags', 76.99),
+  ];
+  const m = matchNames([
+    { name: 'SST 8 Power-Frame Boa EJ Grey', category: 'Shoes' },
+    { name: 'THE C-9 Knit Boa Blk/Gld Mens Size', category: 'Shoes' },
+    { name: 'Cruiser Sing Roller Teal', category: 'Bags' },
+    { name: 'Ebonite Backpack Blue', category: 'Bags' },
+    { name: 'Rascal Sing Roller Blk/Amethyst', category: 'Bags' },
+  ], retail);
+  assert.equal(m.get('SST 8 Power-Frame Boa EJ Grey').product.price, 239.95);
+  assert.equal(m.get('THE C-9 Knit Boa Blk/Gld Mens Size').product.price, 229.95);
+  assert.equal(m.get('Cruiser Sing Roller Teal').product.price, 80.99);
+  assert.equal(m.get('Ebonite Backpack Blue').product.price, 59.99);
+  assert.equal(m.get('Ebonite Backpack Blue').samePicture, false);
+  const rascal = m.get('Rascal Sing Roller Blk/Amethyst');
+  assert.notEqual(rascal.product.price, 67.99); // never the dye-sub pattern
+  assert.equal(rascal.samePicture, false);
+});
+
+test('a model sold only in other colors takes its price when every color costs the same', () => {
+  const retail = [
+    P('KR Strikeforce Mens Summit Black/Royal', 'Shoes', 66.99),
+    P('KR Strikeforce Mens Summit Grey/Red', 'Shoes', 66.99),
+    P('Dexter Womens Kerrie Light Grey', 'Shoes', 79.95),
+    P('Dexter Womens Kerrie Black', 'Shoes', 84.95),
+    P('CtD XL Accessory Bag', 'Bags', 49.99),
+  ];
+  const m = matchNames([
+    { name: 'KR Summit Grey/Navy Mens', category: 'Shoes' },
+    { name: 'Kerrie Cream/Plaid Ladies', category: 'Shoes' },
+    { name: 'Hammer Accessory Bag XL Black/Orange', category: 'Bags' },
+  ], retail);
+  const summit = m.get('KR Summit Grey/Navy Mens');
+  assert.equal(summit.ok, true);
+  assert.equal(summit.product.price, 66.99);
+  assert.equal(summit.samePicture, false); // keep Ace Mitchell's picture
+  assert.notEqual(m.get('Kerrie Cream/Plaid Ladies').ok, true); // two prices, no guess
+  assert.notEqual(m.get('Hammer Accessory Bag XL Black/Orange').ok, true); // other brand
 });
