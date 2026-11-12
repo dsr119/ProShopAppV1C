@@ -1,0 +1,5 @@
+node_modules/
+dist/
+release/
+# From the MemoMind SDK (its own terms): node memomind/get-sdk.mjs
+common/vendor/

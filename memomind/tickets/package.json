@@ -1,0 +1,15 @@
+{
+  "name": "work-tickets-memomind",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "pack": "npm run build && node ../pack.mjs dist ../release/work-tickets-0.1.0.mmpkg"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.12"
+  }
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://ngghyuvykqqklztvvmld.supabase.co; object-src 'none'; base-uri 'none';" />
+  <title>Work Tickets</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --line: #ccc; --accent: #1a7f37; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; --line: #333; --accent: #4cc26a; } }
+    body { margin: 0; padding: 20px 16px; font: 16px/1.45 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 17px; margin: 28px 0 4px; }
+    p { color: var(--muted); margin: 0 0 16px; }
+    label { display: block; font-weight: 600; margin: 16px 0 6px; }
+    label.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+    input[type=password] { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+    button { margin-top: 16px; width: 100%; padding: 12px; font-size: 16px; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fff; }
+    #note, #code { margin-top: 12px; min-height: 1.4em; }
+    #note { color: var(--accent); }
+    ul { color: var(--muted); padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Work Tickets on your MemoMind glasses</h1>
+  <p>Your helpdesk tickets as a to-do list. Settings live here.</p>
+  <form id="settings">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="off" placeholder="The TICKETS_SECRET from Supabase" />
+    <label class="check"><input id="demo" type="checkbox" /> Demo mode (made-up tickets, for trying it out)</label>
+    <button type="submit">Save</button>
+  </form>
+  <h2>Outlook</h2>
+  <p>Once, after saving the password: connect your work mailbox.</p>
+  <button id="connect" type="button">Connect Outlook</button>
+  <div id="code"></div>
+  <button id="done" type="button" hidden>Done</button>
+  <div id="note"></div>
+  <ul>
+    <li>Look up or down to move, tap the glasses button to open a ticket, double tap to go back.</li>
+    <li>On a ticket: Check off, or hold the button and talk to reply, then tap when done. The reply goes on the ticket.</li>
+    <li>Refresh and Undo check-off are at the bottom of the list.</li>
+  </ul>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
