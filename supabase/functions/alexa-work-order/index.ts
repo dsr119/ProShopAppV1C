@@ -61,7 +61,7 @@ const SPECCY_KEY = "sb_publishable_Vba54XSri6vewRcBO8qDXQ_uinwbMOy";
 const MAX_TURNS = 8;        // things said in one conversation
 const MAX_STEPS = 6;
 // Lookups that change nothing, so a repeat in the same turn can reuse the answer.
-const LOOKUPS = new Set(["find_customer", "find_ball", "search_square_items"]);        // Claude calls for one thing said
+const LOOKUPS = new Set(["find_customer", "find_ball", "search_square_items", "spec_sheet"]);        // Claude calls for one thing said
 
 const CATEGORIES = ["Equipment", "Building", "Supplies", "Customer", "Computer", "Other"];
 const PRIORITIES = ["low", "normal", "high", "urgent"];
@@ -171,13 +171,62 @@ async function customerRows(name, env, fetchFn) {
         `&${or("name")}&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`,
         { headers: { apikey: key, Authorization: `Bearer ${key}` } });
       if (!res.ok) return { rows: [], speccy: `could not be read (error ${res.status})` };
-      return { rows: (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone || r.phone_mobile })), speccy: "read" };
+      return { rows: (await res.json()).map((r) => ({ customer_name: r.name, phone: r.phone })), speccy: "read" };
     } catch (err) {
       return { rows: [], speccy: `could not be read (${err && err.message})` };
     }
   })();
   const [lists, sp] = await Promise.all([app, fromSpeccy]);
   return { rows: [...lists.flat(), ...sp.rows], speccy: sp.speccy };
+}
+
+// A bowler's current spec sheet from Speccy: only the boxes filled in, as
+// entered ("4 7/16"), with pitch directions. Picks the bowler whose name fits.
+const SPEC_LABELS = {
+  hand: "hand", span_type: "span type", thumb_mode: "thumb", finger_grips: "finger grips", grip_type: "grip type",
+  middle_grip_size: "middle grip size", ring_grip_size: "ring grip size", middle_grip_brand: "middle grip brand", ring_grip_brand: "ring grip brand",
+  middle_inserts: "middle inserts", ring_inserts: "ring inserts", finger_insert_details: "finger insert details",
+  middle_hole: "middle hole", ring_hole: "ring hole", thumb_hole: "thumb hole", middle_oval: "middle oval", ring_oval: "ring oval",
+  thumb_oval: "thumb oval", thumb_oval_angle: "thumb oval angle", thumb_insert_type: "thumb insert", thumb_system_details: "thumb system", thumb_od: "thumb OD",
+  middle_full_span: "middle span (full)", ring_full_span: "ring span (full)", middle_cut_to_cut: "middle span (cut to cut)", ring_cut_to_cut: "ring span (cut to cut)",
+  middle_cut_to_outer: "middle span (cut to outer)", ring_cut_to_outer: "ring span (cut to outer)", middle_actual_cut: "middle actual cut", ring_actual_cut: "ring actual cut",
+  bridge: "bridge", middle_fr_pitch: "middle forward/reverse pitch", ring_fr_pitch: "ring forward/reverse pitch", thumb_fr_pitch: "thumb forward/reverse pitch",
+  middle_lateral_pitch: "middle lateral pitch", ring_lateral_pitch: "ring lateral pitch", thumb_lateral_pitch: "thumb lateral pitch",
+  pap_horizontal: "PAP over", pap_vertical: "PAP up", axis_tilt: "axis tilt", axis_rotation: "axis rotation", rev_rate: "rev rate", speed: "speed",
+  fitting_notes: "notes",
+};
+function specValue(v) {
+  if (v === null || v === undefined || v === "") return "";
+  if (typeof v === "object") return squash(`${v.entered || ""}${v.dir && v.dir !== "none" ? ` ${v.dir}` : ""}`);
+  return squash(String(v).replace(/_/g, " "));
+}
+async function specSheet(env, fetchFn, name) {
+  const pieces = namePieces(name);
+  if (!pieces.length) return { error: "Need a name." };
+  const key = env.SPECCY_KEY || SPECCY_KEY, base = env.SPECCY_URL || SPECCY_URL;
+  const get = async (path) => {
+    const res = await fetchFn(`${base}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    if (!res.ok) throw new Error(`Spec sheets said ${res.status}`);
+    return res.json();
+  };
+  const people = await get(`customers?select=id,name&or=(${pieces.map((p) => `name.ilike.*${p}*`).join(",")})&removed_at=is.null&order=last_spec_at.desc.nullslast&limit=100`);
+  const found = findCustomers(name, people.map((p) => ({ customer_name: p.name, phone: "" })));
+  if (found.matches.length > 1) return { several: found.matches.map((m) => m.name) };
+  // "John Chaco" was heard for John Chacko: the closest name is most likely them.
+  const pick = found.matches[0] || found.close[0];
+  if (!pick) return { not_found: true };
+  const person = people.find((p) => nameKey(p.name) === nameKey(pick.name));
+  const [fit] = await get(`fits?select=current_revision_id&customer_id=eq.${person.id}&order=is_primary.desc&limit=1`);
+  if (!fit || !fit.current_revision_id) return { name: person.name, sheet: "No digital spec sheet yet." };
+  const [rev] = await get(`fit_revisions?select=snapshot,created_at&id=eq.${fit.current_revision_id}&limit=1`);
+  const snap = (rev && rev.snapshot) || {};
+  const sheet = {};
+  for (const [k, label] of Object.entries(SPEC_LABELS)) {
+    const v = specValue(snap[k]);
+    if (v) sheet[label] = v;
+  }
+  return { name: person.name, ...(found.matches.length ? {} : { note: "Closest name to what was said; say whose sheet it is." }),
+    saved: String((rev && rev.created_at) || "").slice(0, 10), sheet };
 }
 
 // For Claude: who fits the spoken name (same name, or "Doug" for "Douglas"),
@@ -422,11 +471,17 @@ async function loadBalls(env, fetchFn) {
   // Five pages at a time rather than one after another.
   for (let start = 0; start < 10000; start += 5000) {
     const pages = await Promise.all([0, 1000, 2000, 3000, 4000].map(async (o) => {
-      const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/balls?select=brand,name,release_month,discontinued,is_recent_release` +
-        `&order=release_month.desc.nullslast&offset=${start + o}&limit=1000`, { headers: dbHeaders(env) });
+      const url = `${env.SUPABASE_URL}/rest/v1/balls?select=brand,name,release_month,discontinued,is_recent_release` +
+        `&order=release_month.desc.nullslast&offset=${start + o}&limit=1000`;
+      let res = await fetchFn(url, { headers: dbHeaders(env) });
+      // The catalog is public: if the server key is turned away (the laptop's
+      // nightly refresh got 401 every few days), read it with the public key.
+      if ((res.status === 401 || res.status === 403) && env.SUPABASE_ANON_KEY) {
+        res = await fetchFn(url, { headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_ANON_KEY}` } });
+      }
       // Past the last ball the database answers 416 rather than an empty page.
       if (res.status === 416) return [];
-      if (!res.ok) throw new Error(`Ball catalog said ${res.status}`);
+      if (!res.ok) throw new Error(`Ball catalog said ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`);
       return res.json();
     }));
     for (const page of pages) list.push(...page);
@@ -582,7 +637,7 @@ async function bookAppointment(env, fetchFn, input) {
     const warnings = [];
     if (input.date < todayInShop()) warnings.push(`${weekdayOf(input.date)} ${input.date} has already passed.`);
     if (start !== null) {
-      const clash = day.appointments.find((a) => toMinutes(a.time) !== null && Math.abs(toMinutes(a.time) - start) < APPT_MINUTES
+      const clash = day.appointments.find((a) => a.id !== input.ignore && toMinutes(a.time) !== null && Math.abs(toMinutes(a.time) - start) < APPT_MINUTES
         && (!location || !a.location || a.location === location));
       if (clash) warnings.push(`${clash.customer} is already booked at ${clash.time} (${clash.service}).`);
       // Hours are only set two weeks ahead; with none, there's nothing to check against.
@@ -594,8 +649,9 @@ async function bookAppointment(env, fetchFn, input) {
         warnings.push(`That's outside shop hours (${day.hours.map((h) => `${h.location} ${h.open}`).join("; ")}).`);
       }
     }
-    if (warnings.length) return { needs_ok: true, warnings, note: "Tell them, and book with confirmed: true only if they still want it." };
+    if (warnings.length) return { needs_ok: true, warnings, note: "Tell them, and call again with confirmed: true only if they still want it." };
   }
+  if (input.dry_run) return { ok: true };
   const time = start === null ? null : `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
   const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/appointments`, {
     method: "POST",
@@ -606,6 +662,40 @@ async function bookAppointment(env, fetchFn, input) {
   if (!res.ok) throw new Error(`Database said ${res.status}: ${await res.text()}`);
   const [created] = await res.json();
   return { ok: true, appointment: created && created.id, date: input.date, day: weekdayOf(input.date), time: time ? clock(start) : "no time", location };
+}
+
+// Move an appointment, mark it done, or change what it's for. A new time
+// that clashes or falls outside hours needs a yes first, the same as booking.
+async function updateAppointment(env, fetchFn, input) {
+  if (!UUID.test(String(input.id || ""))) return { error: "Need the appointment's id (from check_schedule)." };
+  const [a] = await dbGet(env, fetchFn, `appointments?select=id,customer_name,service,location,appt_date,appt_time,completed,notes&id=eq.${input.id}&deleted_at=is.null`);
+  if (!a) return { error: "No appointment with that id." };
+  const changes = {};
+  const has = (k) => typeof input[k] === "string" && input[k].trim();
+  if (has("date")) {
+    if (!isoDate(input.date)) return { error: "date must be YYYY-MM-DD" };
+    changes.appt_date = input.date;
+  }
+  let start = null;
+  if (has("time")) {
+    start = toMinutes(input.time);
+    if (start === null) return { error: `Couldn't read the time "${input.time}".` };
+    changes.appt_time = `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
+  }
+  if (has("location") && (input.location === "Valley" || input.location === "South Side")) changes.location = input.location;
+  if (has("service")) changes.service = squash(input.service);
+  if (has("add_to_service")) changes.service = `${squash(a.service)}; ${squash(input.add_to_service)}`;
+  if (has("note")) changes.notes = [a.notes, squash(input.note)].filter(Boolean).join("\n");
+  if (typeof input.done === "boolean") changes.completed = input.done;
+  if (!Object.keys(changes).length) return { error: "Nothing to change." };
+  if ((changes.appt_date || changes.appt_time || changes.location) && !input.confirmed) {
+    const date = changes.appt_date || a.appt_date;
+    const time = start !== null ? clock(start) : (a.appt_time ? clock(toMinutes(a.appt_time)) : "");
+    const check = await bookAppointment(env, fetchFn, { customer_name: a.customer_name, service: a.service, date, time,
+      location: changes.location || a.location, dry_run: true, ignore: a.id });
+    if (check.needs_ok) return check;
+  }
+  return patchRow(env, fetchFn, "appointments", a.id, { ...changes, updated_at: new Date().toISOString() }, "appointment");
 }
 
 // Where an order stands, in the order the shop works it.
@@ -625,7 +715,8 @@ function orderStatus(o) {
 // A customer's orders, newest first, optionally narrowed by item words.
 async function findOrders(env, fetchFn, { customer_name, item }) {
   const pieces = namePieces(customer_name);
-  if (!pieces.length) return { error: "Need a customer name." };
+  if (!pieces.length && words(item || "").some((w) => w.length >= 3 && !FILLER.has(w))) return findOrdersByItem(env, fetchFn, item);
+  if (!pieces.length) return { error: "Need a customer name or an item." };
   const rows = await dbGet(env, fetchFn, `orders?select=id,customer_name,item,quantity,submitted_at,shop_order_date,supplier,checked_in_at,` +
     `drilled,has_been_called,time_called,last_contacted_at,paid,out_the_door,pickup_location,notes` +
     `&or=(${pieces.map((p) => `customer_name.ilike.*${p}*`).join(",")})&deleted_at=is.null&order=submitted_at.desc.nullslast&limit=200`);
@@ -643,6 +734,23 @@ async function findOrders(env, fetchFn, { customer_name, item }) {
       status: orderStatus(o), pickup: o.pickup_location, ...(o.notes ? { notes: o.notes } : {}),
     })),
     ...(ws.length && !byItem.length && fits.length ? { note: "Nothing matched that item; these are all their recent orders." } : {}),
+  };
+}
+
+// "Who ordered the blue T-Zone tote?": recent orders whose item has most of the words.
+async function findOrdersByItem(env, fetchFn, item) {
+  const ws = words(item).filter((w) => w.length >= 3 && !FILLER.has(w));
+  const rows = await dbGet(env, fetchFn, `orders?select=id,customer_name,item,quantity,submitted_at,shop_order_date,supplier,checked_in_at,` +
+    `drilled,has_been_called,time_called,last_contacted_at,paid,out_the_door,pickup_location,notes` +
+    `&or=(${ws.map((w) => `item.ilike.*${w.slice(0, 4)}*`).join(",")})&deleted_at=is.null&order=submitted_at.desc.nullslast&limit=300`);
+  const scored = rows.map((o) => ({ o, hits: ws.filter((w) => words(o.item).some((h) => wordLike(w, h) >= 0.75 || sound(w) === sound(h))).length }))
+    .filter((x) => x.hits >= Math.max(1, Math.ceil(ws.length / 2)));
+  scored.sort((x, y) => y.hits - x.hits);
+  return {
+    orders: scored.slice(0, 6).map(({ o }) => ({
+      id: o.id, customer: o.customer_name, item: o.item, quantity: o.quantity, ordered_by_customer: String(o.submitted_at || "").slice(0, 10),
+      status: orderStatus(o), pickup: o.pickup_location, ...(o.notes ? { notes: o.notes } : {}),
+    })),
   };
 }
 
@@ -795,7 +903,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const customerOf = (details) => ((/^Customer: (.*)$/m.exec(details || "") || [])[1] || "").trim();
 
 // Recent work orders, newest first, narrowed by customer and/or title words.
-async function findTickets(env, fetchFn, { customer_name, words: said }) {
+async function findTickets(env, fetchFn, { customer_name, words: said }, limit = 6) {
   const res = await fetchFn(`${env.SUPABASE_URL}/rest/v1/tickets?select=id,title,details,status,due_date,submitted_at` +
     `&deleted_at=is.null&order=submitted_at.desc&limit=200`, { headers: dbHeaders(env) });
   if (!res.ok) throw new Error(`Database said ${res.status}`);
@@ -808,9 +916,33 @@ async function findTickets(env, fetchFn, { customer_name, words: said }) {
       if (ws.length && !ws.some((w) => words(`${t.title} ${t.details}`).some((h) => wordLike(w, h) >= 0.75))) return false;
       return true;
     })
-    .slice(0, 6)
+    .slice(0, limit)
     .map((t) => ({ id: t.id, title: t.title, customer: customerOf(t.details), status: t.status, due_date: t.due_date,
       added: String(t.submitted_at || "").slice(0, 10) }));
+}
+
+// The words of a job that name the thing worked on ("storm concept" in "Plug
+// and redrill, Storm Concept"), without the work itself or grip brands.
+const JOB_WORDS = new Set(("and the for with into onto over his her their a an of to on in ball balls pound pounds lb new old " +
+  "plug plugs plugged plugging redrill redrilled redrilling drill drilled drilling resurface resurfaced resurfacing bake baked baking " +
+  "grip grips thumb thumbs finger fingers insert inserts slug slugs install installing change changing convert converting switch switching " +
+  "make wider widen tighter bigger smaller oval fit fitting layout surface polish sand oil extract extraction call customer come " +
+  "vacu vacuu vise turbo jopo fatue tape two three one both").split(" "));
+const thingWords = (title) => words(title).filter((w) => w.length >= 3 && !JOB_WORDS.has(w));
+
+// A customer's open work orders that look like the same job: either the new
+// one doesn't say which ball ("Plug") and they have one open, or it names
+// the same ball. Joe DeGrazia got a second plug ticket that way.
+async function sameJobOpen(env, fetchFn, name, title) {
+  if (!name || /\b(doe|customer|unknown)\b/i.test(name)) return [];
+  const open = (await findTickets(env, fetchFn, { customer_name: name }, 50)).filter((t) => t.status !== "done");
+  const mine = thingWords(title);
+  return open.filter((t) => {
+    if (!mine.length) return true;
+    const theirs = thingWords(t.title.replace(/^[^-]*-\s*/, ""));
+    const shared = mine.filter((w) => theirs.some((h) => wordLike(w, h) >= 0.8));
+    return shared.length >= Math.ceil(mine.length / 2);
+  });
 }
 
 // Changes only the fields given. The customer lines and notes live in details.
@@ -822,7 +954,15 @@ async function updateTicket(env, fetchFn, input, now) {
   if (!t) return { error: "No work order with that id." };
   const changes = {};
   const has = (k) => typeof input[k] === "string" && input[k].trim();
-  if (has("title")) changes.title = squash(input.title).slice(0, MAX_TITLE);
+  if (has("title")) {
+    // The title is "Customer - job". Claude sometimes sends only the name
+    // ("Steve Johnson"), which would wipe the job out.
+    const who = has("customer_name") ? squash(input.customer_name) : customerOf(t.details);
+    let job = squash(input.title);
+    if (who && nameKey(job).startsWith(nameKey(who))) job = squash(job.slice(who.length).replace(/^\s*[-:,]\s*/, ""));
+    if (!job || nameKey(job) === nameKey(who)) return { error: `title must be the job (like "VACU grips, Columbia 300 Piranha Solid"), not just the name. The title now is "${t.title}".` };
+    changes.title = (who ? `${who} - ${capital(job)}` : capital(job)).slice(0, MAX_TITLE);
+  }
   if (has("priority") && PRIORITIES.includes(input.priority)) changes.priority = input.priority;
   if (has("location") && PLACES.includes(input.location)) changes.location = input.location;
   if (has("due_date")) changes.due_date = /^\d{4}-\d{2}-\d{2}$/.test(input.due_date) ? input.due_date : null;
@@ -841,7 +981,7 @@ async function updateTicket(env, fetchFn, input, now) {
     // The title starts with the customer's name; keep it in step.
     const old = customerOf(t.details);
     const title = changes.title || t.title;
-    if (has("customer_name") && old && title.startsWith(`${old} - `)) changes.title = `${name} - ${title.slice(old.length + 3)}`;
+    if (has("customer_name") && !has("title") && old && title.startsWith(`${old} - `)) changes.title = `${name} - ${title.slice(old.length + 3)}`;
   }
   if (has("note")) details = `${details}\n\nVoice note ${now.toISOString().slice(0, 10)}: ${squash(input.note)}`.trim();
   if (details !== (t.details || "")) changes.details = details;
@@ -903,6 +1043,30 @@ const TOOLS = [
     input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
   },
   {
+    name: "spec_sheet",
+    description: "A bowler's current spec sheet from Speccy: grip sizes (or 'no grips'), holes, ovals, spans, pitches, bridge, thumb, notes. Only filled-in boxes come back.",
+    input_schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+  },
+  {
+    name: "update_appointment",
+    description: "Change an appointment by id (from check_schedule): move it (date, time, location), mark it done, replace what it's for (service) or add a job to it (add_to_service), or add a note. Only include what changes. A new time that clashes or is outside hours gives needs_ok: tell them, and call again with confirmed: true if they still want it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        date: { type: "string", description: "YYYY-MM-DD" },
+        time: { type: "string", description: "like '5:15 PM'" },
+        location: { type: "string", enum: ["Valley", "South Side"] },
+        service: { type: "string" },
+        add_to_service: { type: "string", description: "Another job for the same visit, e.g. 'VACU grips, Columbia 300 Piranha Solid'." },
+        note: { type: "string" },
+        done: { type: "boolean" },
+        confirmed: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
     name: "check_schedule",
     description: "The shop's hours and booked appointments for a day or range of days (YYYY-MM-DD). Use for 'what does Tuesday look like' or 'any appointments Saturday'.",
     input_schema: { type: "object", properties: { from: { type: "string" }, to: { type: "string" }, location: { type: "string", enum: ["Valley", "South Side", "Both"] } }, required: ["from"] },
@@ -932,8 +1096,8 @@ const TOOLS = [
   },
   {
     name: "order_status",
-    description: "A customer's orders and where each stands (not ordered yet, ordered and waiting, arrived, drilled, customer contacted, picked up). item narrows it ('shoes', 'Phaze').",
-    input_schema: { type: "object", properties: { customer_name: { type: "string" }, item: { type: "string" } }, required: ["customer_name"] },
+    description: "Orders and where each stands (not ordered yet, ordered and waiting, arrived, drilled, customer contacted, picked up). With a customer_name: their orders, item narrows it ('shoes', 'Phaze'). With only an item: who ordered it ('blue T-Zone tote').",
+    input_schema: { type: "object", properties: { customer_name: { type: "string" }, item: { type: "string" } } },
   },
   {
     name: "create_order",
@@ -994,7 +1158,7 @@ const TOOLS = [
   },
   {
     name: "find_ball",
-    description: "Look up a bowling ball by name in the shop's ball catalog (every current and past ball from the major brands). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
+    description: "Look up a bowling ball by name in the shop's ball catalog (current balls and many past ones; some older balls are missing). Returns the closest real balls, best first. Use it whenever a ball is mentioned, since speech-to-text often mangles ball names ('nu blue' -> Storm Nu Blue, 'fays 6' -> Storm Phaze 6).",
     input_schema: { type: "object", properties: { said: { type: "string" } }, required: ["said"] },
   },
   {
@@ -1031,6 +1195,7 @@ const TOOLS = [
         priority: { type: "string", enum: PRIORITIES },
         due_date: { type: "string", description: "YYYY-MM-DD, or empty." },
         location: { type: "string", enum: PLACES },
+        confirmed: { type: "boolean", description: "Only after needs_ok, when they said it's a new job." },
       },
       required: ["customer_name", "title", "category", "priority"],
     },
@@ -1047,7 +1212,7 @@ const TOOLS = [
       type: "object",
       properties: {
         id: { type: "string" },
-        title: { type: "string", description: "The whole new title, starting with the customer's name as before." },
+        title: { type: "string", description: "The whole new job, e.g. 'VACU grips, Columbia 300 Piranha Solid'. No customer name (it's added in front). Leave out to keep the job as it is." },
         customer_name: { type: "string" },
         phone: { type: "string" },
         note: { type: "string" },
@@ -1067,13 +1232,13 @@ const TOOLS = [
   },
   {
     name: "speak",
-    description: "Say something to the person. Every turn ends with this. done is true when the job is finished or dropped, false when you asked something and are waiting for the answer.",
-    input_schema: { type: "object", properties: { say: { type: "string" }, done: { type: "boolean" } }, required: ["say", "done"] },
+    description: "Say something to the person. Every turn ends with this. done is true when the job is finished or dropped, false when you asked something and are waiting for the answer. ignore: true (with say empty) when what you heard wasn't meant for you, so nothing is said.",
+    input_schema: { type: "object", properties: { say: { type: "string" }, done: { type: "boolean" }, ignore: { type: "boolean" } }, required: ["say", "done"] },
   },
 ];
 
 // Tools that do something; a speak given with only these is said once they succeed.
-const ACTIONS = new Set(["create_work_order", "update_work_order", "create_draft_invoice", "book_appointment", "create_order", "update_order", "delete_order", "delete_work_order", "delete_invoice", "note_for_review"]);
+const ACTIONS = new Set(["create_work_order", "update_work_order", "update_appointment", "create_draft_invoice", "book_appointment", "create_order", "update_order", "delete_order", "delete_work_order", "delete_invoice", "note_for_review"]);
 const CACHED_TOOLS = TOOLS.map((t, i) => (i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t));
 
 function systemPrompt(now, location) {
@@ -1081,23 +1246,25 @@ function systemPrompt(now, location) {
   const weekday = weekdayOf(today);
   const monday = new Date(Date.parse(`${today}T12:00:00Z`) - ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) * 86400000).toISOString().slice(0, 10);
   const sunday = new Date(Date.parse(`${monday}T12:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
-  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. If the closest balls are quite different from what was said, ask: "The Phaze 6?" If nothing is close, use the name as said; never suggest an unrelated ball. One find_ball per ball (one retry at most), and don't repeat a lookup with the same input. Speech-to-text slips: "in a voice" or "and voice" means invoice; "look order" or "work with" means work order.
+  return `You are the voice assistant at a bowling pro shop, on a laptop at ${location || "the shop"}. Staff talk to you, often while working, to add or change work orders, check and book appointments, check on orders, and make draft invoices in Square. You hear a speech transcript: names and ball names are often misheard. Check every ball name with find_ball (alongside find_customer, in the same step) and use the catalog's spelling in titles and Square searches. The catalog misses many older balls (Quantum Evo, Black Widow Ghost), so if no catalog ball has the words said, use the name as said without asking or commenting; never offer a different ball. Ask only when two catalog balls fit equally ("Nebula or Orion Nebula?") or only the brand was said ("the Storm"). Grip brands (VACU, Vise, Turbo, Jopo) and job words aren't balls: don't look them up. One find_ball per ball, and don't repeat a lookup with the same input. Speech-to-text slips: "in a voice" or "and voice" means invoice; "look order" or "work with" means work order.
 
 Be brief: under 20 words when you can, never more than one short sentence plus one question. Don't list choices or prices unless asked. Confirm with the essentials only: "Done: plug thumb on Joe Sutton's NU Blue." Don't repeat back location, priority or anything they didn't ask about, and don't ask for anything optional (due date, priority, details). No lists or symbols; say "14 pound", not "14 lb"; never read out phone numbers. Every turn ends with the speak tool. To save time, when you have everything needed to create, change or book something, call speak (the confirmation) in the same step as the action; it is only said if the action worked.
 
-Customers: look them up with find_customer. If there's one match, use it without comment. Never say phone digits back. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once about the single closest: "Did you mean John Jablonski?"; if they then say something close to it, take it. If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once.
+Customers: look them up with find_customer. If there's one match, use it without comment. Never say phone digits back. If several, ask for the last four digits of the phone (if they give only some digits, say what you heard and ask for the rest; "either one" means the first). If none match but close names come back, ask once about the single closest: "Did you mean John Jablonski?"; if they then say something close to it, take it. If nothing is close, or they say to just make it or it's a new customer, go ahead without a phone and say "no phone on file". Don't ask them to spell names more than once. Placeholder names (John Doe, Jane Doe) are used exactly as said, without a lookup.
 
-Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. If they don't know the customer yet, leave customer_name empty and put "Customer to fill in" in details. Titles hold only the job and the ball, never filler words from the transcript. As soon as you have both, create it. Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
+Work orders: need who (or a shop job: lanes, machines, building, supplies) and what we're doing. If they don't know the customer yet, leave customer_name empty and put "Customer to fill in" in details. Titles hold only the job and the ball, never filler words from the transcript. As soon as you have both, create it. If the job is on a ball but doesn't say which ("plugging his"), ask which ball first. If create_work_order answers needs_ok because one is already open, ask in a few words whether it's that job or a new one. A due time goes in details as "Due 6:30 PM" (never "tomorrow"). Category Customer for a customer's job. Priority normal unless they say otherwise (urgent for safety or something stopping business, high for today or tonight's league, low if it can wait). Today is ${weekday} ${today}; turn "Friday" or "tomorrow" into a date only if they mention one.
 
-Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked.
+Appointments: this week is Monday ${monday} to Sunday ${sunday}; "Tuesday" means the coming one unless they say last. check_schedule answers what a day looks like (say the hours and each appointment's time, who and what, briefly). find_openings answers availability; give the first few open times, not every slot. If a day has nothing left, just say so. To book, you need who, what, the day and time; the location is ${location || "the shop"} unless they say otherwise; look up the customer for the phone. Read back the day and time in a few words once booked. update_appointment (id from check_schedule) moves one to a new time, marks it done ("Chris Weldon's appointment is done"), or adds a job to it ("add it to that appointment").
+
+Spec sheets: spec_sheet for grip sizes, holes, spans or pitches. Answer only what they asked, briefly: "Middle 11/16, ring 41/64." or "His sheet says no grips; holes 31/32."
 
 Orders: order_status for "what's the status on Jim Curtis's shoes". Answer in one sentence, like "Ordered October 20th from Dexter, not in yet." To take a new order ("order a 15 pound Phaze 6 for Mike Jones", "put in an order for shoes, size 11"), look up the customer and check any ball with find_ball in the same step, then create_order. A ball needs its weight; ask if they didn't say. Confirm in a few words: "Ordered for Mike Jones: Storm Phaze 6, 15 pound." To change or delete an order, order_status finds it (with its id); update_order changes only what they said; delete_order needs a yes first, the same as work orders.
 
-Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. To delete one, find it, say which and ask; delete_work_order with confirmed: true only after a yes. Finished work is marked done, not deleted.
+Changing work orders: "change that one", "make it a bake and resurface", "mark the Special Effect done but not picked up". Use the id from this conversation, or find_work_orders by customer or ball, then update_work_order. If several fit, ask which in a few words. If none exists ("change his Zero Mercy to VACU grips"), just create one with that job; don't ask or argue. To delete one, find it, say which and ask; delete_work_order with confirmed: true only after a yes. Finished work is marked done, not deleted.
 
 Invoices: who and what. Shop words (search Square for the name on the right): "standard drill", "drilling fee" or "35 dollar drill" = Fit & Drill New Ball Purchased at Perfexxxxion Pro Shop; "blank", "external", "outside" or "50 dollar drill" = Fit & Drill New Ball Purchased Elsewhere; "5 dollar grips" = Pair of Grips w/New Ball Purchase; "10 dollar grips" = Pair of Grips; plain "pair of grips" is the 5 dollar one with a drill of a ball bought here and the 10 dollar Pair of Grips with an outside drill (just use it, don't ask); "Jopo outer/sleeve" = Jopo Outer Sleeve Locking System; "Jopo thumb/inner/make thumb" = Jopo/Make Thumb; "Turbo outer/sleeve" = Turbo Outer Sleeve Locking System; "Turbo switch grip/inner/make thumb/thumb" = Turbo Switch Grip/Make Thumb; "slug combo" or "slombo" = Grip/Slug Combo with Purchase; "full plug" = Full Plug & Redrill; "Vise KT tape" = Vise K + Tape. Use the phone from find_customer. If there's none, don't ask for one: leave phone empty and the shop's stand-in number is used (say "no phone on file"). Search every item, the ball too, with search_square_items in one step, and make the invoice only after all the results are back. To add or change items on an invoice you just made, make it again with every line and replaces set to the earlier draft_invoice id. Use the closest item without asking, and name any you weren't sure of in the final confirmation ("used Drilling with purchase for the drilling"). Ask only when nothing is close or two are equally likely, all in one short question. Never leave an item off without asking first. For a ball, pick the variation by weight, asking the weight if there are several. Then create_draft_invoice and say who, what and the total. It is a draft: never say it was sent. If they aren't in Square, ask whether to add them as a new customer. To change or delete an invoice from earlier, find_invoices first. Only drafts can be changed (make it again with every line and replaces set to its invoice_id). delete_invoice deletes a draft or cancels a sent unpaid one; always say which (who, what, total) and get a yes first.
 
-Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). The wake word sometimes fires by mistake: if what you hear isn't a request for you (chatter, TV, "I didn't say anything", "shut up"), just speak "Okay." with done true; don't chat. Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
+Earlier messages may be from a few minutes ago; use them for "that one" or "the last one". Use note_for_review when you couldn't understand something, had to guess, or were asked for something you can't do. If they say never mind, cancel or we're done, stop (done). The wake word often fires by mistake on shop talk, customers or TV. If what you hear isn't clearly a request for you (chatter, half sentences, "shut up", "turn off", "I didn't say anything"), call speak with ignore true, say empty and done true; never answer chatter or ask what they need. Never say you did something (booked, added, moved, changed) unless a tool did it. Never invent customers, phone numbers, items, prices or work orders: only use what the tools return. Never talk about the tools themselves.`;
 }
 
 // Only what the API needs back: text and tool calls.
@@ -1120,6 +1287,8 @@ async function runTool(name, input, ctx) {
     return out;
   }
   if (name === "find_openings") return await findOpenings(env, fetchFn, input);
+  if (name === "update_appointment") return await updateAppointment(env, fetchFn, input);
+  if (name === "spec_sheet") return await specSheet(env, fetchFn, input.name);
   if (name === "book_appointment") return await bookAppointment(env, fetchFn, { ...input, location: input.location || hoursPlace(ctx.place) });
   if (name === "order_status") return await findOrders(env, fetchFn, input);
   if (name === "update_order") return await updateOrder(env, fetchFn, input);
@@ -1181,10 +1350,20 @@ async function runTool(name, input, ctx) {
     const place = PLACES.includes(input.location) ? input.location : ctx.place;
     // "<UNKNOWN>" or "TBD" is no customer, not a customer by that name.
     const who = /^<.*>$|^(unknown|tbd|n\/?a|none|no customer|customer tbd)$/i.test(squash(input.customer_name)) ? "" : squash(input.customer_name);
+    if (!input.confirmed && who) {
+      const same = (await sameJobOpen(env, fetchFn, who, input.title)).filter((t) => !(state.tickets || []).includes(t.id));
+      if (same.length) {
+        return { needs_ok: true, already_open: same.slice(0, 3).map((t) => ({ id: t.id, title: t.title, added: t.added })),
+          note: thingWords(input.title).length
+            ? "They already have an open work order for this. Ask whether it's the same job (then change that one) or a new one (call again with confirmed: true)."
+            : "The job doesn't say which ball, and they have open work orders. Ask which ball, or whether it's one of these." };
+      }
+    }
     const row = ticketRow({ ...input, name: who, phone: input.phone ? formatPhone(input.phone) : "",
       work: input.title }, place, now);
     const created = await insertTicket(env, fetchFn, row);
     state.done.push(key);
+    state.tickets = [...(state.tickets || []), created && created.id].filter(Boolean).slice(-20);
     return { ok: true, ticket: created && created.id, location: place };
   }
   if (name === "note_for_review") {
@@ -1301,7 +1480,12 @@ async function agentTurn(body, state, env, fetchFn, claude, now, timing = []) {
       ? { type: "tool_result", tool_use_id: call.id, content: sayNow ? "said" : "Not said: check the results above, then speak." }
       : { type: "tool_result", tool_use_id: call.id, content: JSON.stringify(outs[i]), ...(outs[i].error ? { is_error: true } : {}) }));
     state.messages.push({ role: "user", content: results });
-    if (sayNow) return { say: squash(speakCall.input && speakCall.input.say) || "Okay.", done: !!(speakCall.input && speakCall.input.done) };
+    if (sayNow) {
+      const sp = speakCall.input || {};
+      // Not for us (chatter, TV, "shut up"): the laptop stays silent.
+      if (sp.ignore) return { say: "", done: true, quiet: true };
+      return { say: squash(sp.say) || "Okay.", done: !!sp.done };
+    }
   }
   state.review.push("Got stuck (too many steps)");
   return { done: true, say: "Sorry, I got stuck on that one. Please add it in the app or Square." };
@@ -1512,7 +1696,7 @@ async function handle(req, env, fetchFn, claude) {
       state.review = [];
     }
     // The state comes back even when done, for the laptop to resume with.
-    return reply(200, { done, say: turn.say, state: JSON.stringify(state), trace: [...traceOf(state.messages.slice(before)), ...(timing.length ? [`time: ${timing.join(", ")}`] : [])] });
+    return reply(200, { done, say: turn.say, ...(turn.quiet ? { quiet: true } : {}), state: JSON.stringify(state), trace: [...traceOf(state.messages.slice(before)), ...(timing.length ? [`time: ${timing.join(", ")}`] : [])] });
   }
 
   try {

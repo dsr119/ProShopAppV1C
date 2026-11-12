@@ -131,6 +131,10 @@ be in open-link mode, or see below), that's noted in the review list.
   outside shop hours, or the shop shows closed, it asks before booking anyway.
 - "What's the status on Jim Curtis's shoes?" reads the order book: ordered, arrived, drilled,
   contacted, paid, picked up.
+- "Move Chris Weldon's appointment to 5:15", "Chris Weldon's appointment is done" or "add the
+  Piranha to that appointment" changes the appointment (it asks first if a new time clashes).
+- "Who ordered the blue T-Zone tote?" searches the order book by item when no name is given.
+- "Check John Chacko's grip sizes" reads his current spec sheet in Speccy.
 - "Order a 15 pound Phaze 6 for Mike Jones" adds it to the order book, not yet ordered from a
   distributor, so it sits at the top of the orders page like one taken at the counter. Each row
   is marked "Added by voice" in the internal notes.

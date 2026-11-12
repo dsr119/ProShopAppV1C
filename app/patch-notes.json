@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.3",
+    "date": "2026-11-12",
+    "notes": [
+      "New: the shop laptop can move an appointment, mark it done, or add a job to it, and read grip sizes off a spec sheet.",
+      "Fixed: the shop laptop stays silent when it wakes up on shop talk, keeps the job in a work order's title, and asks before making a second work order for the same ball."
+    ]
+  },
+  {
     "version": "2.2",
     "date": "2026-11-07",
     "notes": [
