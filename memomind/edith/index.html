@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://ngghyuvykqqklztvvmld.supabase.co https://bkvijjqhyiyfkuavmerh.supabase.co; object-src 'none'; base-uri 'none';" />
+  <title>EDITH Pro Shop</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #fff; --fg: #111; --muted: #666; --line: #ccc; --accent: #1a7f37; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #999; --line: #333; --accent: #4cc26a; } }
+    body { margin: 0; padding: 20px 16px; font: 16px/1.45 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p { color: var(--muted); margin: 0 0 16px; }
+    #status { font-size: 14px; }
+    label { display: block; font-weight: 600; margin: 16px 0 6px; }
+    label.check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+    input[type=password], select { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+    button { margin-top: 20px; width: 100%; padding: 12px; font-size: 16px; font-weight: 600; border: 0; border-radius: 8px; background: var(--accent); color: #fff; }
+    #saved { color: var(--accent); margin-top: 12px; min-height: 1.4em; }
+    ul { color: var(--muted); padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>EDITH on your MemoMind glasses</h1>
+  <p>Settings live here; everything else happens on the glasses.</p>
+  <p id="status">Starting…</p>
+  <form id="settings">
+    <label for="password">EDITH password</label>
+    <input id="password" type="password" autocomplete="off" placeholder="The ALEXA_SHARED_SECRET from Supabase" />
+    <label for="place">House</label>
+    <select id="place">
+      <option>Valley</option>
+      <option>South Side</option>
+      <option value="Both">Both</option>
+    </select>
+    <label class="check"><input id="demo" type="checkbox" /> Demo mode (made-up data, for trying it out)</label>
+    <button type="submit">Save</button>
+    <div id="saved"></div>
+  </form>
+  <ul>
+    <li>Look up or down to move, tap the glasses button to open, double tap to go back.</li>
+    <li>Hold the button to talk to EDITH, and tap when you're done. Check what it heard, then tap to send.</li>
+    <li>Say "pull up the spec sheet for" a bowler's name. Tap for fingers, span, thumb; on the span, turn your head for Full, Cut to Cut, Cut to Outer.</li>
+  </ul>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "memomind-apps",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sdk": "node get-sdk.mjs",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "pack": "cd edith && npm run pack && cd ../tickets && npm run pack"
+  }
+}
