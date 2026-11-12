@@ -477,7 +477,8 @@ test('editing: find a work order by customer or ball, then change only what was 
   assert.deepEqual(byBall.work_orders.map((t) => t.title), ['Bake and resurface Hammer Special Effect']);
   assert.deepEqual(results(seen[2]).map((r) => r.changed), [['title'], ['status', 'resolution']]);
   assert.match(shop.patches[0].url, /id=eq\.22222222-2222-4222-8222-222222222222&deleted_at=is\.null$/);
-  assert.deepEqual(shop.patches[0].body, { title: 'Bake and resurface Bionic' });
+  // The customer's name stays in front of the new job.
+  assert.deepEqual(shop.patches[0].body, { title: 'Joe DeGrazia - Bake and resurface Bionic' });
   assert.equal(shop.patches[1].body.status, 'done');
   assert.equal(shop.patches[1].body.resolution, 'Done, not picked up yet');
   assert.ok(shop.patches[1].body.completed_at);
@@ -1087,4 +1088,135 @@ test('invoices: one not found in this conversation can\'t be deleted', async () 
   const fn = edgeFunction();
   const out = plain(await fn.deleteInvoice(env, fakeShop().fetch, { invoice_id: 'X', confirmed: true }, { invoices: [] }));
   assert.match(out.error, /must come from find_invoices/);
+});
+
+// --- From the Nov 2-11 shop logs -------------------------------------------------
+
+test('editing: a title that is only the name is refused, so the job is never wiped out', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ existing: TICKETS });
+  const out = await fn.updateTicket(env, shop.fetch, { id: TICKETS[1].id, title: 'Joe DeGrazia' }, new Date());
+  assert.match(out.error, /title must be the job/);
+  assert.equal(shop.patches.length, 0);
+  // "Customer - job" given whole is kept as one name in front, not two.
+  await fn.updateTicket(env, shop.fetch, { id: TICKETS[1].id, title: 'Joe DeGrazia - Plug, Storm Concept' }, new Date());
+  assert.equal(shop.patches[0].body.title, 'Joe DeGrazia - Plug, Storm Concept');
+});
+
+test('a second work order for the same ball, or one with no ball, asks first', async () => {
+  const fn = edgeFunction();
+  const open = [{ id: '33333333-3333-4333-8333-333333333333', title: 'Joe Degrazia - Plug and redrill, Storm Concept',
+    details: 'Customer: Joe Degrazia', status: 'new', submitted_at: '2026-11-06T16:00:00Z' }];
+  const ask = async (title, confirmed) => {
+    const shop = fakeShop({ existing: open });
+    const seen = [];
+    await say(fn, shop, 'work order', undefined, fakeClaude([
+      [use('create_work_order', { customer_name: 'Joe Degrazia', title, category: 'Customer', priority: 'normal', ...(confirmed ? { confirmed } : {}) })],
+      [speak('ok', true)]], seen));
+    return { out: results(seen[1])[0], shop };
+  };
+  let { out, shop } = await ask('Plug');
+  assert.equal(out.needs_ok, true);
+  assert.match(out.note, /which ball/);
+  assert.equal(shop.tickets.length, 0);
+  ({ out } = await ask('Plug, Storm Concept'));
+  assert.equal(out.needs_ok, true);
+  assert.equal(out.already_open[0].title, 'Joe Degrazia - Plug and redrill, Storm Concept');
+  // A different ball, or a yes, goes straight through.
+  ({ out, shop } = await ask('Plug and redrill, Motiv Jackal Onyx'));
+  assert.equal(out.ok, true);
+  ({ out, shop } = await ask('Plug, Storm Concept', true));
+  assert.equal(out.ok, true);
+  assert.equal(shop.tickets.length, 1);
+});
+
+function apptShop(appts) {
+  const shop = fakeShop();
+  const base = shop.fetch;
+  shop.appts = appts;
+  shop.apptPatches = [];
+  shop.fetch = async (url, init = {}) => {
+    if (url.includes('/rest/v1/appointments')) {
+      if (init.method === 'PATCH') { shop.apptPatches.push(JSON.parse(init.body)); return new Response(JSON.stringify([{ id: 'a' }]), { status: 200 }); }
+      const id = (/id=eq\.([^&]+)/.exec(url) || [])[1];
+      return new Response(JSON.stringify(id ? appts.filter((a) => a.id === id) : appts), { status: 200 });
+    }
+    if (url.includes('/rest/v1/hours')) return new Response('[]', { status: 200 });
+    return base(url, init);
+  };
+  return shop;
+}
+
+test('appointments: move one (asking on a clash), mark it done, or add a job to it', async () => {
+  const fn = edgeFunction();
+  fn.todayInShop = () => '2026-11-01';
+  const a1 = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', customer_name: 'Chris Weldon', service: 'Eval and PAP', location: 'Valley', appt_date: '2026-11-02', appt_time: '17:45:00', completed: false, notes: null };
+  const a2 = { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', customer_name: 'Michael Dinning', service: 'Drill Bionic', location: 'Valley', appt_date: '2026-11-02', appt_time: '17:30:00', completed: false, notes: null };
+  let shop = apptShop([a1, a2]);
+  let out = await fn.updateAppointment(env, shop.fetch, { id: a1.id, time: '6:15 PM' });
+  assert.deepEqual(JSON.parse(JSON.stringify(out)), { ok: true, changed: ['appt_time'] });
+  assert.equal(shop.apptPatches[0].appt_time, '18:15');
+  out = await fn.updateAppointment(env, shop.fetch, { id: a1.id, time: '5:30 PM' });
+  assert.equal(out.needs_ok, true);
+  assert.match(out.warnings[0], /Michael Dinning/);
+  // Moving an appointment never clashes with itself (it's at 5:45 now).
+  out = await fn.updateAppointment(env, shop.fetch, { id: a1.id, time: '6:00 PM' });
+  assert.equal(out.ok, true);
+  shop = apptShop([a1]);
+  await fn.updateAppointment(env, shop.fetch, { id: a1.id, done: true, add_to_service: 'VACU grips, Columbia 300 Piranha Solid' });
+  assert.equal(shop.apptPatches[0].completed, true);
+  assert.equal(shop.apptPatches[0].service, 'Eval and PAP; VACU grips, Columbia 300 Piranha Solid');
+  assert.match((await fn.updateAppointment(env, shop.fetch, { id: 'nope' })).error, /id/);
+});
+
+test('orders: "who ordered the blue T-Zone tote" works without a customer name', async () => {
+  const fn = edgeFunction();
+  const shop = fakeShop({ orders: [
+    { id: 'o1', customer_name: 'Stock', item: 'Master Giant Rosin Bag', submitted_at: '2026-11-06' },
+    { id: 'o2', customer_name: 'Stock', item: 'Brunswick T-Zone tote blue', submitted_at: '2026-11-01', checked_in_at: '2026-11-03' },
+    { id: 'o3', customer_name: 'Amy Lee', item: 'Brunswick T-Zone tote black', submitted_at: '2026-11-01' },
+  ] });
+  const out = await fn.findOrders(env, shop.fetch, { customer_name: '', item: 'blue T-zone single tote bag' });
+  assert.equal(out.orders[0].id, 'o2');
+  assert.ok(!out.orders.some((o) => o.id === 'o1'));
+  assert.match((await fn.findOrders(env, shop.fetch, { customer_name: '' })).error, /customer name or an item/);
+});
+
+test('spec sheets: the closest bowler\'s filled-in boxes, as entered', async () => {
+  const fn = edgeFunction();
+  const urls = [];
+  const fetchFn = async (url) => {
+    urls.push(url);
+    const body = url.includes('/customers?') ? [{ id: 'c1', name: 'John Chacko' }]
+      : url.includes('/fits?') ? [{ current_revision_id: 'r1' }]
+      : [{ created_at: '2026-10-19T12:00:00Z', snapshot: { hand: 'left', finger_grips: 'no_grips', middle_hole: { entered: '31/32', n: 31, d: 32 },
+        ring_fr_pitch: { entered: '1/8', dir: 'forward' }, ring_grip_size: null, fitting_notes: 'Long fingers' } }];
+    return new Response(JSON.stringify(body), { status: 200 });
+  };
+  const out = JSON.parse(JSON.stringify(await fn.specSheet(env, fetchFn, 'John Chaco')));
+  assert.equal(out.name, 'John Chacko');
+  assert.match(out.note, /Closest name/);
+  assert.deepEqual(out.sheet, { hand: 'left', 'finger grips': 'no grips', 'middle hole': '31/32', 'ring forward/reverse pitch': '1/8 forward', notes: 'Long fingers' });
+  assert.ok(urls.every((u) => u.startsWith('https://speccy.test/')));
+});
+
+test('chatter the wake word fired on gets no answer at all', async () => {
+  const fn = edgeFunction();
+  const out = await say(fn, fakeShop(), 'Shut the fuck up Alexa.', undefined,
+    fakeClaude([[use('speak', { say: '', done: true, ignore: true })]]));
+  assert.deepEqual([out.say, out.done, out.quiet], ['', true, true]);
+});
+
+test('ball catalog: a refused server key falls back to the public key', async () => {
+  const fn = edgeFunction();
+  const seen = [];
+  const fetchFn = async (url, init) => {
+    seen.push(init.headers.apikey);
+    if (init.headers.apikey === 'key') return new Response('{"message":"Invalid API key"}', { status: 401 });
+    return new Response(JSON.stringify(url.includes('offset=0&') ? [{ brand: 'Storm', name: 'Phaze 6', release_month: '2026-01' }] : []), { status: 200 });
+  };
+  const balls = await fn.findBalls({ ...env, SUPABASE_ANON_KEY: 'anon' }, fetchFn, 'phaze 6');
+  assert.equal(balls[0].ball, 'Storm Phaze 6');
+  assert.ok(seen.includes('anon'));
+  await assert.rejects(edgeFunction().findBalls(env, fetchFn, 'phaze 6'), /Ball catalog said 401: \{"message":"Invalid API key"\}/);
 });

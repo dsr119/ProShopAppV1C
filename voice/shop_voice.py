@@ -454,7 +454,8 @@ class Shop:
         balls = fetch_hints(self.cfg)
         print(f"Listening for {min(len(balls), MAX_HINT_BALLS)} of the newest ball names.")
         self.prompt = listening_prompt(balls)
-        self.hints_at = time.time()
+        # If the server couldn't send them, try again in an hour, not tomorrow.
+        self.hints_at = time.time() if balls else time.time() - HINTS_SECONDS + 3600
 
     def next_frame(self):
         try:
@@ -558,6 +559,11 @@ class Shop:
             print(f"Server answered in {time.time() - started:.1f}s")
             for step in reply.get("trace") or []:
                 note(f"   AI: {step}")
+            if reply.get("quiet"):
+                # Woken by chatter or TV: say nothing, back to sleep, and don't
+                # carry the chatter into the next conversation.
+                print("Not for me; going back to sleep.")
+                return
             if reply.get("state"):
                 self.memory = (reply["state"], time.time())
             if reply.get("done") or not reply.get("state"):

@@ -193,6 +193,10 @@ class ConversationTests(unittest.TestCase):
         said, posted = self.run_conversation([''], [])
         self.assertEqual((posted, said), ([], []))
 
+    def test_chatter_gets_no_answer(self):
+        said, posted = self.run_conversation(['shut up Alexa'], [{'done': True, 'say': '', 'quiet': True, 'state': 's1'}])
+        self.assertEqual((len(posted), said), (1, []))
+
     def test_silence_twice_mid_conversation_ends_it(self):
         said, posted = self.run_conversation(['work order', '', ''], [{'done': False, 'say': "Who's it for?", 'state': 's1'}])
         self.assertEqual(len(posted), 1)
