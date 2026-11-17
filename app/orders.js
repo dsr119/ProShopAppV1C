@@ -469,6 +469,15 @@ function editable(order, field, type, opts = {}) {
 function checkbox(order, field) {
   const cb = document.createElement("input");
   cb.type = "checkbox";
+  // Stock has no customer to pay or collect, so Paid and Out show ticked.
+  // Display only: saving out_the_door on stock would drop it from Order
+  // Check In, which still has to record when the stock arrives.
+  if (order.is_stock) {
+    cb.checked = true;
+    cb.disabled = true;
+    cb.title = "Stock: nothing to pay or pick up";
+    return cb;
+  }
   cb.checked = !!order[field];
   cb.addEventListener("change", async () => {
     const value = cb.checked;
