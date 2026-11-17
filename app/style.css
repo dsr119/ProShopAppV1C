@@ -185,6 +185,14 @@ tbody tr.pending:hover { filter: brightness(.98); }
 .col-status { width: 1%; }
 .col-status .badge { display: table; margin: 0 0 3px; border-radius: 8px; }
 .badge.checkin { cursor: pointer; }
+
+/* Orders page: tighter cells so the whole row fits a laptop screen without
+   scrolling sideways. Item and Notes wrap instead of holding the row wide. */
+.ordertable th, .ordertable td { padding-left: 6px; padding-right: 6px; }
+.ordertable .col-item { min-width: 150px; }
+.ordertable .col-name { min-width: 110px; }
+.ordertable .col-notes { min-width: 110px; }
+.ordertable .col-status .badge { font-size: 10px; padding: 1px 5px; }
 .badge.checkin:hover { outline: 1px solid var(--accent); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .nowrap { white-space: nowrap; }

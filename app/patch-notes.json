@@ -4,7 +4,9 @@
     "date": "2026-11-17",
     "notes": [
       "Changed: the Orders page no longer shows the Pickup, Came in and From columns, and the Status column is narrower.",
-      "New: click \"Ordered · not checked in\" on the Orders page to check that order in."
+      "New: click \"Ordered · not checked in\" on the Orders page to check that order in.",
+      "Changed: the Orders page is tighter so a full row fits a laptop screen without scrolling sideways.",
+      "Changed: Stock orders show Paid and Out ticked on the Orders page."
     ]
   },
   {
