@@ -180,6 +180,12 @@ tbody tr.pending:hover { filter: brightness(.98); }
 .col-item { min-width: 220px; }
 .col-name { min-width: 130px; }
 .col-notes { min-width: 160px; }
+/* Narrow status column: badges stack, and "Ordered / not checked in" takes
+   two short lines instead of one long one. */
+.col-status { width: 1%; }
+.col-status .badge { display: table; margin: 0 0 3px; border-radius: 8px; }
+.badge.checkin { cursor: pointer; }
+.badge.checkin:hover { outline: 1px solid var(--accent); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .nowrap { white-space: nowrap; }
 
