@@ -252,7 +252,7 @@ function groupRow(label) {
   const tr = document.createElement("tr");
   tr.className = "grouprow";
   const td = document.createElement("td");
-  td.colSpan = 19;
+  td.colSpan = 16;
   td.textContent = label;
   tr.appendChild(td);
   return tr;
@@ -278,8 +278,8 @@ function orderRow(o) {
   cbCell.appendChild(cb);
 
   // status
-  const st = td(tr, "Status");
-  st.appendChild(receiving.badge(o));
+  const st = td(tr, "Status", "col-status");
+  st.appendChild(status === "ordered" ? checkInButton(o) : receiving.badge(o));
   if (o.out_the_door) {
     const done = document.createElement("span");
     done.className = "badge done";
@@ -291,7 +291,6 @@ function orderRow(o) {
     fit.className = "badge fitting";
     fit.textContent = "Needs fitting";
     fit.title = "The customer asked to be fitted: " + o.fitting;
-    fit.style.marginLeft = "4px";
     st.appendChild(fit);
   }
   if (o.migration_flag) {
@@ -299,7 +298,6 @@ function orderRow(o) {
     f.className = "badge flag";
     f.textContent = "check";
     f.title = o.migration_flag;
-    f.style.marginLeft = "4px";
     st.appendChild(f);
   }
 
@@ -312,14 +310,6 @@ function orderRow(o) {
   td(tr, "Qty", "num").appendChild(editable(o, "quantity", "number"));
   td(tr, "Phone", "nowrap").appendChild(editable(o, "phone", "text"));
   td(tr, "Order loc").appendChild(editable(o, "order_location", "select", { options: LOCATIONS }));
-  td(tr, "Pickup").appendChild(editable(o, "pickup_location", "select", { options: LOCATIONS }));
-
-  // Provenance, not data entry: when the order arrived and by what route are
-  // facts about what already happened, so neither is editable. Sitting them
-  // beside the shop order date makes the wait legible -- "came in 8/1, we
-  // placed it 8/19" is the whole story in two columns.
-  td(tr, "Came in", "nowrap").appendChild(cameIn(o));
-  td(tr, "From").appendChild(sourceBadge(o));
 
   td(tr, "Shop ordered", "nowrap").appendChild(editable(o, "shop_order_date", "date"));
   td(tr, "Supplier").appendChild(editable(o, "supplier", "text", { list: "suppliers" }));
@@ -339,57 +329,38 @@ function orderRow(o) {
   return tr;
 }
 
-// Date on top, time and age underneath. The age is the useful part on the
-// pending queue -- "9 days" is what makes someone go and place the order.
-function cameIn(o) {
-  const wrap = document.createElement("div");
-  if (!o.submitted_at) {
-    wrap.innerHTML = '<span style="color:#c3c8ce">unknown</span>';
-    return wrap;
-  }
-
-  const d = new Date(o.submitted_at);
-  const top = document.createElement("div");
-  top.textContent = `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
-  wrap.appendChild(top);
-
-  const sub = document.createElement("div");
-  sub.className = "sub";
-  sub.textContent = prettyClock(d) + (o.shop_order_date ? "" : " · " + waited(d));
-  wrap.appendChild(sub);
-
-  wrap.title = d.toLocaleString();
-  return wrap;
-}
-
-function prettyClock(d) {
-  let h = d.getHours();
-  const ap = h >= 12 ? "p" : "a";
-  h = h % 12 || 12;
-  const m = String(d.getMinutes()).padStart(2, "0");
-  return m === "00" ? `${h}${ap}` : `${h}:${m}${ap}`;
-}
-
-// Whole days, measured between calendar days rather than instants -- an order
-// taken at 6pm yesterday should read "1 day", not "0".
-function waited(then) {
-  const now = new Date();
-  const a = new Date(then.getFullYear(), then.getMonth(), then.getDate());
-  const b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const days = Math.round((b - a) / 86400000);
-  if (days <= 0) return "today";
-  return `${days} day${days === 1 ? "" : "s"}`;
-}
-
-function sourceBadge(o) {
-  const meta = SOURCES[o.source];
-  const el = document.createElement("span");
-  el.className = "badge src " + (meta ? meta.cls : "src-import");
-  // An unrecognised value is shown as-is rather than swallowed: a new intake
-  // added later should be visible on the page, not silently blank.
-  el.textContent = meta ? meta.label : (o.source || "—");
-  el.title = "Order source: " + el.textContent;
-  return el;
+// "Ordered · not checked in" is a button: one click marks the order as
+// arrived, the same as Check In does. The filter only matches rows still
+// waiting, so a second click or another device can't reset the time.
+function checkInButton(o) {
+  const btn = receiving.badge(o);
+  btn.classList.add("checkin");
+  btn.setAttribute("role", "button");
+  btn.tabIndex = 0;
+  btn.title = "Click to check this order in";
+  btn.innerHTML = "Ordered<br>not checked in";
+  let busy = false;
+  const go = async () => {
+    if (busy) return;
+    busy = true;
+    btn.textContent = "Checking in…";
+    try {
+      const filter = `id=eq.${encodeURIComponent(o.id)}&deleted_at=is.null&shop_order_date=not.is.null&` +
+        "checked_in_at=is.null&out_the_door=is.false";
+      const updated = await db.update("orders", filter, { checked_in_at: new Date().toISOString() });
+      if (updated && updated.length) Object.assign(o, updated[0]);
+      receiving.notify();
+      if (!updated || !updated.length) await load();
+      else render();
+    } catch (err) {
+      busy = false;
+      btn.innerHTML = "Ordered<br>not checked in";
+      showError(err);
+    }
+  };
+  btn.addEventListener("click", go);
+  btn.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  return btn;
 }
 
 function td(tr, label, cls) {

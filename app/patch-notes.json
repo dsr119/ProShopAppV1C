@@ -1,5 +1,13 @@
 [
   {
+    "version": "2.4",
+    "date": "2026-11-17",
+    "notes": [
+      "Changed: the Orders page no longer shows the Pickup, Came in and From columns, and the Status column is narrower.",
+      "New: click \"Ordered · not checked in\" on the Orders page to check that order in."
+    ]
+  },
+  {
     "version": "2.3",
     "date": "2026-11-12",
     "notes": [
