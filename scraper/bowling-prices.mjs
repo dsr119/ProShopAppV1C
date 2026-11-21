@@ -8,14 +8,19 @@
  */
 
 import { pathToFileURL } from 'node:url';
-import { crawlRetail, matchNames } from './bowling-retail.mjs';
+import { crawlRetail, matchNames, RETAIL_CATEGORIES } from './bowling-retail.mjs';
+import { crawlFacets } from './bowling-facets.mjs';
 
 export function styleName(row) {
   return row.site_name || String(row.display_name || '').replace(/\s+(size\s+)?\d+(\.\d)?$/i, '') || row.item_code;
 }
 
-/** vendor_stock rows + match map -> retail columns for every row. */
-export function retailRows(rows, matches, now) {
+/**
+ * vendor_stock rows + match map -> retail columns for every row. attrs is
+ * bowling.com's filter values by product url (bowling-facets.mjs); pass null
+ * to leave retail_attrs out (before that column exists).
+ */
+export function retailRows(rows, matches, now, attrs = null) {
   return rows.map((r) => {
     const m = matches.get(styleName(r));
     const p = m && m.ok ? m.product : null;
@@ -27,8 +32,17 @@ export function retailRows(rows, matches, now) {
       retail_url: p ? p.url : null,
       retail_image: p ? p.image || null : null,
       retail_checked_at: now,
+      ...(attrs ? { retail_attrs: p ? attrsFor(attrs.get(p.url), m) : null } : {}),
     };
   });
+}
+
+function attrsFor(a, m) {
+  if (!a) return null;
+  // A match to the same model in another color (m.samePicture false) keeps
+  // the price, but bowling.com's colors would be the other color's.
+  if (m.samePicture === false) { const { color, ...rest } = a; return rest; }
+  return a;
 }
 
 async function main() {
@@ -61,8 +75,23 @@ async function main() {
     }
   }
 
-  if (process.env.DRY_RUN === '1') { console.log('\nDry run: nothing saved.'); return; }
-  const out = retailRows(rows, matches, new Date().toISOString());
+  // Filter values (type, balls held, gender, width, hand, brand, color...)
+  // for the website. Saved only once the retail_attrs column has been added
+  // (supabase/migrations/20261121_vendor_stock_attrs.sql).
+  const dryRun = process.env.DRY_RUN === '1';
+  const hasColumn = rows.length > 0 && 'retail_attrs' in rows[0];
+  let attrs = null;
+  if (hasColumn || dryRun) {
+    console.log('\nReading bowling.com filters');
+    attrs = await crawlFacets(RETAIL_CATEGORIES);
+    const tagged = new Set(rows.map(styleName).filter((n) => { const m = matches.get(n); return m?.ok && attrs.has(m.product.url); }));
+    console.log(`  ${attrs.size} bowling.com products tagged; ${tagged.size} matched styles have filter values`);
+    for (const n of [...tagged].slice(0, 15)) console.log(`    ${n}  ${JSON.stringify(attrs.get(matches.get(n).product.url))}`);
+  } else {
+    console.log('\nretail_attrs column not there yet, skipping bowling.com filters');
+  }
+  if (dryRun) { console.log('\nDry run: nothing saved.'); return; }
+  const out = retailRows(rows, matches, new Date().toISOString(), hasColumn && attrs?.size ? attrs : null);
   await upsertRows('vendor_stock', out, 'vendor,item_code');
   console.log(`\nSaved bowling.com info on ${out.filter((r) => r.retail_url).length} of ${out.length} rows.`);
 }
