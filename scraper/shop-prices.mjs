@@ -11,7 +11,9 @@
  * Square item applies to an Ace Mitchell style when every word of the Square
  * name is in the Ace name: "Avalanche" covers "Avalanche Black/Gold Mens" in
  * every color. The Square item with the most matching words wins; brand,
- * gender, hand and width must not disagree.
+ * gender, hand and width must not disagree. The Square name must also carry
+ * more than half of the Ace name's model words (colors and gender aside), so a
+ * vague "Dexter The 9" doesn't price the whole THE 9 family.
  */
 
 import { readFileSync } from 'node:fs';
@@ -63,6 +65,19 @@ export function loadShopPrices(path = new URL('./shop-prices.csv', import.meta.u
 
 const GROUPS = [['mens', 'womens', 'youth'], ['right', 'left'], ['wide']];
 
+// Words that say which color or fit, not which model.
+const NOT_MODEL = new Set([
+  'mens', 'womens', 'youth', 'right', 'left', 'wide', 'unisex', 'regular', 'standard',
+  'black', 'white', 'blue', 'navy', 'royal', 'red', 'pink', 'purple', 'green', 'gray', 'grey', 'silver', 'orange',
+  'yellow', 'teal', 'brown', 'tan', 'gold', 'charcoal', 'camo', 'aqua', 'lime', 'maroon', 'turquoise', 'light', 'dark',
+  'multi', 'mesh', 'knit', 'steel', 'smoke', 'carbon', 'sky', 'lilac', 'lavender', 'mint', 'coral', 'berry', 'alloy',
+  'copper', 'bronze', 'rose', 'neon', 'khaki', 'olive', 'cream', 'parchment', 'stone', 'sand', 'slate', 'graphite', 'ivory',
+]);
+
+function modelWords(tokens) {
+  return [...tokens].filter((t) => !NOT_MODEL.has(t));
+}
+
 /** Square name s may apply to Ace name a: s's gender/hand/width don't contradict a's. */
 function compatible(s, a) {
   for (const g of GROUPS) {
@@ -92,6 +107,8 @@ export function matchShop(aceItems, shopItems) {
       let all = true;
       for (const t of tokens) if (!a.has(t)) { all = false; break; }
       if (!all || !compatible(tokens, a)) continue;
+      const model = modelWords(a);
+      if (model.length && modelWords(tokens).length * 2 <= model.length) continue;
       const words = tokens.size;
       if (!best || words > best.words) { best = { item: s, words }; tie = false; }
       else if (words === best.words && s.price !== best.item.price) tie = true;
