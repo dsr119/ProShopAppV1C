@@ -151,6 +151,8 @@ export function isSpecialListing(name) {
 }
 
 function groupsAgree(a, b) {
+  // A tote isn't a roller: when only one name says roller, they differ.
+  if (a.has('roller') !== b.has('roller')) return false;
   for (const g of GROUPS) {
     const ga = g.filter((t) => a.has(t));
     const gb = g.filter((t) => b.has(t));
