@@ -15,7 +15,7 @@
 import { pathToFileURL } from 'node:url';
 import { crawlRetail, matchNames, RETAIL_CATEGORIES } from './bowling-retail.mjs';
 import { crawlFacets } from './bowling-facets.mjs';
-import { crawlBowlerx } from './bowlerx.mjs';
+import { readFileSync, existsSync } from 'node:fs';
 import { loadShopPrices, matchShop } from './shop-prices.mjs';
 
 export function styleName(row) {
@@ -174,15 +174,13 @@ async function main() {
     console.log('\nretail_attrs column not there yet, skipping bowling.com filters');
   }
 
-  // BowlerX: second website price. A failure costs this source, not the run.
-  console.log('\nReading bowlerx.com bags and shoes');
-  let bowlerx = new Map();
-  try {
-    const x = await crawlBowlerx();
-    bowlerx = matchNames(items, x);
-  } catch (err) {
-    console.log(`  bowlerx.com failed: ${err.message}; using bowling.com only`);
-  }
+  // bowlerx.com and bowlingball.com refuse GitHub's servers, so their prices
+  // are downloaded on the shop's computer (scraper/fetch_other_prices.py) and
+  // committed as other-prices.csv. Per style, the higher matched one counts.
+  const otherProducts = loadOtherPrices();
+  const bowlerx = bestOf([...new Set(otherProducts.map((p) => p.source))]
+    .map((src) => matchNames(items, otherProducts.filter((p) => p.source === src))));
+  console.log(`\n${otherProducts.length} bowlerx.com / bowlingball.com prices from other-prices.csv`);
 
   // The shop's own prices win over both websites.
   const shopItems = loadShopPrices();
@@ -208,7 +206,7 @@ async function main() {
       source: sm ? 'shop' : (o.consumer_price != null ? 'web' : ''),
       shop: sm ? `${sm.item.name} $${sm.item.price}` : '',
       bowling: bm?.ok ? `${bm.product.name} $${bm.product.price}` : '',
-      bowlerx: xm?.ok ? `${xm.product.name} $${xm.product.price}` : '',
+      other: xm?.ok ? `${xm.product.name} $${xm.product.price} (${xm.product.source})` : '',
     }));
   });
   console.log(`  ${fromShop} from the shop's prices (${shopItems.length} in the sheet), ${fromWeb} from the websites, ${none} with no price`);
@@ -219,6 +217,45 @@ async function main() {
   await upsertRows('vendor_stock', out, 'vendor,item_code');
   console.log(`\nSaved prices on ${out.filter((r) => r.consumer_price != null).length} of ${out.length} rows.`);
   if (raises.length) await notifyRaises(raises);
+}
+
+/** other-prices.csv -> [{ source, category, name, price, url, image }]; [] when absent. */
+export function loadOtherPrices(path = new URL('./other-prices.csv', import.meta.url)) {
+  if (!existsSync(path)) return [];
+  const lines = readFileSync(path, 'utf8').split(/\r?\n/).filter(Boolean);
+  const head = lines.shift().split(',');
+  const at = (k) => head.indexOf(k);
+  return lines.map((line) => {
+    const c = splitCsvLine(line);
+    return { source: c[at('source')], category: c[at('category')], name: c[at('name')], price: Number(c[at('price')]), url: c[at('url')] || '', image: '' };
+  }).filter((p) => p.name && p.price > 0);
+}
+
+function splitCsvLine(line) {
+  const out = [];
+  let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/** Several match maps -> one, keeping the trusted match with the higher price. */
+export function bestOf(maps) {
+  const out = new Map();
+  for (const m of maps) {
+    for (const [name, r] of m) {
+      if (!r?.ok) { if (!out.has(name)) out.set(name, r); continue; }
+      const cur = out.get(name);
+      if (!cur?.ok || Number(r.product.price) > Number(cur.product.price)) out.set(name, r);
+    }
+  }
+  return out;
 }
 
 /** A GitHub issue listing the raised prices; GitHub emails the mention. */
