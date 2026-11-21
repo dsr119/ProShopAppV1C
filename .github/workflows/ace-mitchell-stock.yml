@@ -53,15 +53,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
         run: node scraper/ace-mitchell.mjs
-      - name: Add bowling.com prices
-        if: ${{ !inputs.item_codes }}
-        env:
-          SUPABASE_URL: https://ngghyuvykqqklztvvmld.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
-          DUMP: ${{ inputs.dry_run && '1' || '0' }}
-          GITHUB_TOKEN: ${{ github.token }}
-          NOTIFY_LOGIN: dsr119
-          # How bowling.com and bowlerx.com combine: max, min or bowlerx.
-          PRICE_RULE: max
-        run: node scraper/bowling-prices.mjs
+      - name: Probe bowlingball.com
+        run: |
+          for u in 'https://www.bowlingball.com/shop/all/bowling-bags/?ft1=350&pagenum=1' 'https://www.bowlingball.com/shop/all/bowling-shoes/?ft1=350&pagenum=2'; do
+            curl -s -o /tmp/p.html -w "%{http_code} %{size_download}\n" -A 'Mozilla/5.0 (compatible; PerfexxxxionProShop Bowling Catalog Importer)' "$u"
+            grep -c 'product_info_block' /tmp/p.html || true
+          done
